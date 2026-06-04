@@ -58,15 +58,17 @@ export function RulesView() {
         action={<Button size="sm" variant="secondary" onClick={() => app.go("connections")}>Kelola jeda</Button>} />}
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 18, alignItems: "start" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
           {/* activity summary */}
           {phase === "ready" && rules.length > 0 && (
             <Panel pad={18}>
-              <div style={{ display: "flex", alignItems: "center", gap: 26 }}>
+              <div style={app.isMobile
+                ? { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }
+                : { display: "flex", alignItems: "center", gap: 26 }}>
                 <Stat label="Aktif minggu ini" value={`${pubWeek} posting`} sub="7 hari terakhir" spark={week} color={b.accent} />
-                <Div />
+                {!app.isMobile && <Div />}
                 <Stat label="Rules aktif" value={`${rules.filter(r => r.active).length} / ${rules.length}`} sub="di channel ini" />
-                <Div />
+                {!app.isMobile && <Div />}
                 <Stat label="Perlu perhatian" value={failCt > 0 ? `${failCt} gagal` : "Aman"} sub={failCt > 0 ? "lihat Activity" : "tidak ada error"} danger={failCt > 0} />
               </div>
             </Panel>
@@ -111,7 +113,7 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
   return (
     <Card pad={0} onClick={onSelect} style={{ borderColor: selected ? b.accent : "var(--line)", borderWidth: selected ? 1.5 : 1,
       boxShadow: selected ? "var(--shadow-md)" : "var(--shadow-sm)", overflow: "visible" }} hover>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: app.isMobile ? 11 : 14, padding: "16px 18px", flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
         <MediaThumb seed={r.lastImg} w={46} label="" />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
@@ -119,13 +121,14 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
             <span style={{ fontFamily: FR, fontSize: 10.5, fontWeight: 600, color: b.accent, background: b.soft, padding: "2px 8px", borderRadius: 999 }}>{modeLabel(r.mode)}</span>
             {!r.active && <Status s="Inactive" />}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 13, marginTop: 5, fontFamily: FR, fontSize: 12, color: "var(--ink-500)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 13, marginTop: 5, fontFamily: FR, fontSize: 12, color: "var(--ink-500)", flexWrap: "wrap", rowGap: 4 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icons.calendar size={14} />{r.cadence}</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icons.clock size={14} />{r.time} WIB</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icons.image size={14} />{total} gambar</span>
           </div>
         </div>
-        {/* shuffle cycle progress */}
+        {/* shuffle cycle progress (hidden on mobile — also shown in the inspector) */}
+        {!app.isMobile && (
         <div style={{ textAlign: "right", marginRight: 4 }}>
           <div style={{ fontFamily: FR, fontSize: 10.5, color: "var(--ink-400)", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}><Icons.shuffle size={13} />{r.cycle.used}/{r.cycle.total} siklus</div>
           <div style={{ display: "flex", gap: 3, justifyContent: "flex-end" }}>
@@ -134,6 +137,7 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
             ))}
           </div>
         </div>
+        )}
         <Toggle on={r.active} onChange={(v) => { app.updateRule(r.id, { active: v }); app.toast(v ? `“${r.name}” diaktifkan` : `“${r.name}” dinonaktifkan`, "info"); }} />
         <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
           <IconButton icon={<Icons.more size={18} />} onClick={() => setMenu(m => !m)} active={menu} />
@@ -155,7 +159,7 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
         </div>
       </div>
       {/* footer: status + post-now */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderTop: "1px solid var(--line)", background: "rgba(246,245,251,.5)", borderRadius: "0 0 var(--r-md) var(--r-md)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderTop: "1px solid var(--line)", background: "rgba(246,245,251,.5)", borderRadius: "0 0 var(--r-md) var(--r-md)", flexWrap: "wrap", rowGap: 10 }}>
         {r.todayStatus === "Failed"
           ? <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: FR, fontSize: 12, color: "var(--danger)" }}><Status s="Failed" /> {r.failReason}</span>
           : <span style={{ fontFamily: FR, fontSize: 12, color: "var(--ink-500)" }}>Berikutnya: <b style={{ color: "var(--ink-900)", fontWeight: 600 }}>{r.nextRun}</b></span>}
