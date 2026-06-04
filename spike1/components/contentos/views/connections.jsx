@@ -65,7 +65,7 @@ export function ConnectionsView() {
                   <IconButton icon={<Icons.edit size={17} />} tip="Ubah identitas" onClick={() => setEditBrand(c)} />
                   <IconButton icon={<Icons.trash size={17} />} tone="danger" tip="Hapus channel" onClick={() => app.confirm({
                     title: `Hapus ${b.name}?`, confirmLabel: "Hapus channel",
-                    body: "Channel diputus dari Content OS.",
+                    body: "Channel diputus dari SinaraCast.",
                     consequence: `Semua rule milik ${b.name} akan dinonaktifkan (tidak dihapus) dan berhenti memposting. Media tetap tersimpan.`,
                     onConfirm: () => { app.toast(`${b.name} dihapus — rule-nya dinonaktifkan`, "success"); } })} />
                 </div>

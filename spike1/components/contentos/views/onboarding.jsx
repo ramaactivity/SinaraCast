@@ -63,8 +63,8 @@ export function OnboardingView() {
 const STEP_BODY = {
   dev: ["Buat akun developer Meta", ["Buka developers.facebook.com dan masuk.", "Buat aplikasi baru, pilih tipe Business.", "Catat App ID — akan dipakai saat menghubungkan channel."]],
   biz: ["Ubah IG ke Business + hubungkan Page", ["Di Instagram, ubah akun ke Professional → Business.", "Tautkan setiap akun IG ke Facebook Page-nya.", "Pastikan kamu admin Page tersebut."]],
-  connect: ["Sambungkan channel", ["Otorisasi Content OS lewat Meta untuk tiap channel.", "Beri izin: konten publikasi & manajemen.", "Ulangi untuk keempat brand (maks 4)."]],
-  telegram: ["Siapkan Telegram", ["Mulai chat dengan bot Content OS di Telegram.", "Kirim /start lalu salin kode tampil.", "Tempel kode di Settings → Alert untuk menautkan."]],
+  connect: ["Sambungkan channel", ["Otorisasi SinaraCast lewat Meta untuk tiap channel.", "Beri izin: konten publikasi & manajemen.", "Ulangi untuk keempat brand (maks 4)."]],
+  telegram: ["Siapkan Telegram", ["Mulai chat dengan bot SinaraCast di Telegram.", "Kirim /start lalu salin kode tampil.", "Tempel kode di Settings → Alert untuk menautkan."]],
 };
 
 function StepDetail({ step, idx, total, onComplete, onBack, app }) {

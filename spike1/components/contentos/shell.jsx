@@ -30,7 +30,7 @@ export function Sidebar() {
       <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "0 8px 22px" }}>
         <div style={{ width: 34, height: 34, borderRadius: 11, background: "var(--primary-grad)", boxShadow: "var(--shadow-primary)",
           display: "grid", placeItems: "center", color: "#fff" }}><Icons.grid size={18} sw={2} /></div>
-        <span style={{ fontFamily: FS, fontWeight: 600, fontSize: 17, color: "var(--ink-900)" }}>Content OS</span>
+        <span style={{ fontFamily: FS, fontWeight: 600, fontSize: 17, color: "var(--ink-900)" }}>SinaraCast</span>
       </div>
 
       {/* channel switcher */}

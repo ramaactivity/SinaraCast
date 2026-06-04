@@ -134,7 +134,7 @@ function ProfileCard() {
       <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderTop: "1px solid var(--line)", fontFamily: FSe, fontSize: 12.5 }}>
         <span style={{ color: "var(--ink-400)" }}>Bergabung</span><span style={{ color: "var(--ink-700)", fontWeight: 500 }}>{p.joined}</span>
       </div>
-      <Button variant="secondary" full icon={<Icons.logout size={16} />} style={{ marginTop: 14 }} onClick={() => app.confirm({ title: "Keluar dari Content OS?", danger: false, confirmLabel: "Keluar",
+      <Button variant="secondary" full icon={<Icons.logout size={16} />} style={{ marginTop: 14 }} onClick={() => app.confirm({ title: "Keluar dari SinaraCast?", danger: false, confirmLabel: "Keluar",
         body: "Kamu bisa masuk lagi kapan saja lewat magic link.", onConfirm: () => app.go("signin") })}>Keluar</Button>
     </Panel>
   );

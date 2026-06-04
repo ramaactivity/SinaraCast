@@ -23,7 +23,7 @@ export default function SpikePage() {
         <a href="/test-story.jpg">/test-story.jpg</a>
       </p>
       <p style={{ marginTop: 32, color: "#888" }}>
-        ← <a href="/">Content OS app</a>
+        ← <a href="/">SinaraCast app</a>
       </p>
     </main>
   );

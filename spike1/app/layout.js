@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "SinaraCast — Content OS",
+  title: "SinaraCast",
   description: "Auto-publish recurring Instagram Stories across 4 independent brands.",
 };
 
