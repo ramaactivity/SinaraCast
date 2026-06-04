@@ -1,7 +1,6 @@
 "use client";
 import React from "react";
 import { Icons } from "./icons";
-import { MOCK } from "./mockdata";
 import { useApp } from "./store";
 import { BRANDS, BrandAvatar, Avatar } from "./ui";
 const { useState: uSh } = React;
@@ -17,8 +16,8 @@ const NAV = [
 export function Sidebar() {
   const app = useApp();
   const [swOpen, setSwOpen] = uSh(false);
-  const active = BRANDS[app.channel];
-  const ch = MOCK.CHANNELS.find(c => c.id === app.channel);
+  const ch = app.channels.find(c => c.id === app.channel) || app.channels[0];
+  const active = BRANDS[ch?.brand] || { name: ch?.name || "—", accent: "var(--ink-500)", soft: "var(--line)" };
 
   return (
     <aside style={{ width: "var(--side-w)", flex: "0 0 var(--side-w)", display: "flex", flexDirection: "column",
@@ -41,7 +40,7 @@ export function Sidebar() {
           <BrandAvatar brand={active} size={32} />
           <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
             <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{active.name}</div>
-            <div style={{ fontFamily: FS, fontSize: 10.5, color: "var(--ink-400)" }}>{ch.handle}</div>
+            <div style={{ fontFamily: FS, fontSize: 10.5, color: "var(--ink-400)" }}>{ch?.handle}</div>
           </div>
           <Icons.chevDown size={16} style={{ color: "var(--ink-400)", transform: swOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
         </button>
@@ -51,8 +50,8 @@ export function Sidebar() {
             <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, background: "#fff",
               borderRadius: 16, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 6, animation: "cosPop .15s" }}>
               <div style={{ fontFamily: FS, fontSize: 10, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-400)", padding: "8px 10px 6px" }}>CHANNELS</div>
-              {MOCK.CHANNELS.map(c => {
-                const b = BRANDS[c.brand], on = c.id === app.channel;
+              {app.channels.map(c => {
+                const b = BRANDS[c.brand] || { name: c.name, accent: "var(--ink-500)", soft: "var(--line)" }, on = c.id === app.channel;
                 const dot = c.status === "Connected" ? "var(--st-success)" : c.status === "Expiring" ? "var(--st-publishing)" : "var(--st-failed)";
                 return (
                   <button key={c.id} onClick={() => { app.setChannel(c.id); setSwOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 11,
@@ -91,10 +90,10 @@ export function Sidebar() {
         {/* account */}
         <button onClick={() => app.go("profile")} style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", border: "1px solid var(--line)",
           background: app.view === "profile" ? "#fff" : "rgba(255,255,255,.5)", borderRadius: 14, cursor: "pointer", boxShadow: "var(--shadow-sm)" }}>
-          <Avatar name={MOCK.PROFILE.name} size={32} />
+          <Avatar name={app.profile.name} size={32} />
           <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
-            <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 12.5, color: "var(--ink-900)" }}>{MOCK.PROFILE.name}</div>
-            <div style={{ fontFamily: FS, fontSize: 10, color: "var(--ink-400)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{MOCK.PROFILE.email}</div>
+            <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 12.5, color: "var(--ink-900)" }}>{app.profile.name}</div>
+            <div style={{ fontFamily: FS, fontSize: 10, color: "var(--ink-400)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{app.profile.email}</div>
           </div>
         </button>
       </div>

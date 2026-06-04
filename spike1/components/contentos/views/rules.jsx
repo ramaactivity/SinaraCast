@@ -1,7 +1,6 @@
 "use client";
 import React from "react";
 import { Icons } from "../icons";
-import { MOCK } from "../mockdata";
 import { useApp, useFetchState } from "../store";
 import { Topbar } from "../shell";
 import {
@@ -16,10 +15,21 @@ function modeLabel(m) { return m === "schedule" ? "Schedule" : "Pool"; }
 export function RulesView() {
   const app = useApp();
   const phase = useFetchState();
-  const ch = MOCK.CHANNELS.find(c => c.id === app.channel);
-  const b = BRANDS[app.channel];
-  const rules = app.rules.filter(r => r.ch === app.channel);
+  const ch = app.channels.find(c => c.id === app.channel) || app.channels[0];
+  const b = BRANDS[ch?.brand] || { name: ch?.name || "—", accent: "var(--ink-500)", soft: "var(--line)" };
+  const rules = app.rules.filter(r => r.ch === (ch?.id || app.channel));
   const [sel, setSel] = uRl(null);
+
+  if (!ch) {
+    return (
+      <div>
+        <Topbar title="Rules" />
+        <Panel pad={0}><EmptyState icon={<Icons.connections size={28} />} title="Belum ada channel"
+          body="Sambungkan channel Instagram pertamamu untuk mulai membuat rule."
+          action={<Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("connections")}>Sambungkan channel</Button>} /></Panel>
+      </div>
+    );
+  }
 
   const selRule = rules.find(r => r.id === sel) || rules[0];
 

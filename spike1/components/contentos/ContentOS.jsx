@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { Icons } from "./icons";
-import { MOCK } from "./mockdata";
+import { loadAll } from "./dataLayer";
 import { AppCtx } from "./store";
 import { Sidebar } from "./shell";
 import { Panel, EmptyState, Toast, ConfirmDialog, Spinner } from "./ui";
@@ -20,18 +20,25 @@ import { MediaLibraryView } from "./views/library";
 
 const { useState: uA, useCallback } = React;
 
+const DEFAULT_SETTINGS = { pauseAll: false, resumeDate: "", timezone: "Asia/Jakarta (WIB, UTC+7)",
+  defaultGrace: 30, telegram: { connected: false, handle: "" }, failAlerts: true, dailyPing: true,
+  storage: { used: 0, total: 1024 } };
+const DEFAULT_PROFILE = { name: "Rama", email: "", method: "Magic link", joined: "—" };
+
 export default function ContentOS() {
   const [view, setView] = uA("rules");
   const [params, setParams] = uA({});
-  const [channel, setChannel] = uA("mahakan");
-  const [rules, setRules] = uA(MOCK.RULES);
-  const [runs, setRuns] = uA(MOCK.RUNS);
-  const [notifs, setNotifs] = uA(MOCK.NOTIFS);
-  const [channels, setChannels] = uA(MOCK.CHANNELS);
-  const [settings, setSettings] = uA(MOCK.SETTINGS);
+  const [channel, setChannel] = uA("");
+  const [rules, setRules] = uA([]);
+  const [runs, setRuns] = uA([]);
+  const [notifs, setNotifs] = uA([]);
+  const [channels, setChannels] = uA([]);
+  const [settings, setSettings] = uA(DEFAULT_SETTINGS);
+  const [profile, setProfile] = uA(DEFAULT_PROFILE);
   const [toast, setToast] = uA(null);
   const [confirmCfg, setConfirmCfg] = uA(null);
   const [session, setSession] = uA(undefined); // undefined = loading, null = signed out
+  const [dataLoading, setDataLoading] = uA(true);
 
   React.useEffect(() => {
     let active = true;
@@ -39,6 +46,22 @@ export default function ContentOS() {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => { active = false; sub.subscription.unsubscribe(); };
   }, []);
+
+  // Load real data once signed in
+  React.useEffect(() => {
+    if (!session) { setDataLoading(false); return; }
+    let active = true;
+    setDataLoading(true);
+    loadAll().then((d) => {
+      if (!active) return;
+      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setNotifs(d.notifs);
+      setSettings(d.settings); setProfile(d.profile);
+      setChannel((cur) => cur || d.channels[0]?.id || "");
+      setDataLoading(false);
+    }).catch((e) => { console.error("loadAll failed", e); if (active) setDataLoading(false); });
+    return () => { active = false; };
+  }, [session]);
+
   const signOut = useCallback(async () => { await supabase.auth.signOut(); }, []);
 
   const go = useCallback((v, p = {}) => { setView(v); setParams(p); window.scrollTo(0, 0); document.querySelector("#content")?.scrollTo(0, 0); }, []);
@@ -58,18 +81,18 @@ export default function ContentOS() {
       const id = "p" + Math.floor(Math.random() * 9000 + 1000);
       setRuns(rs => [{ id, ch: r.ch, rule: r.name, status: "Published", trigger: retry ? "retry" : "manual",
         sched: "Baru saja", actual: "Baru saja", img: r.lastImg, pool: r.mode === "schedule" ? "Weekday" : "Pool",
-        link: `instagram.com/stories/${MOCK.CHANNELS.find(c=>c.id===r.ch).handle.slice(1)}/${Math.floor(Math.random()*900+100)}`,
+        link: `instagram.com/stories/${(channels.find(c=>c.id===r.ch)?.handle||"@x").slice(1)}/${Math.floor(Math.random()*900+100)}`,
         attempts: [{ t: "00:00", o: retry ? "Coba lagi manual" : "Dijalankan manual (post-now)" }, { t: "00:02", o: "Dipublikasikan ✓" }] }, ...rs]);
       showToast(`“${r.name}” berhasil diposting`, "success");
     }, 1700);
   };
 
   const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, notifs, setNotifs,
-    channels, setChannels, settings, setSettings, pauseAll: settings.pauseAll, toast: showToast, confirm,
-    updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut };
+    channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
+    updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading };
 
   // Auth gate
-  if (session === undefined) {
+  if (session === undefined || (session && dataLoading)) {
     return <div id="cos-stage"><div id="cos-root"><div style={{ width: "100%", minHeight: "100vh", display: "grid", placeItems: "center" }}><Spinner size={34} /></div></div></div>;
   }
   if (!session) {
