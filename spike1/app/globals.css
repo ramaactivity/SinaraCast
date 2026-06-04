@@ -166,9 +166,10 @@ body {
   color: var(--ink-900);
   -webkit-font-smoothing: antialiased;
 }
-#cos-stage { position: fixed; inset: 0; overflow: hidden; }
-#cos-root { position: absolute; top: 50%; left: 50%; width: 1320px; height: 860px; transform-origin: center center; }
+#cos-stage { position: fixed; inset: 0; overflow: hidden; padding: 12px; display: flex; }
+#cos-root { flex: 1; min-width: 0; display: flex; }
 .app-shell {
+  flex: 1; min-width: 0;
   display: flex; height: 100%; overflow: hidden;
   background: rgba(255,255,255,.28);
   backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);

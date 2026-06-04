@@ -17,7 +17,7 @@ import { CalendarView } from "./views/calendar";
 import { ComposerView } from "./views/composer";
 import { MediaLibraryView } from "./views/library";
 
-const { useState: uA, useCallback, useRef, useEffect } = React;
+const { useState: uA, useCallback } = React;
 
 export default function ContentOS() {
   const [view, setView] = uA("rules");
@@ -30,21 +30,6 @@ export default function ContentOS() {
   const [settings, setSettings] = uA(MOCK.SETTINGS);
   const [toast, setToast] = uA(null);
   const [confirmCfg, setConfirmCfg] = uA(null);
-  const rootRef = useRef(null);
-
-  // fit the fixed 1320×860 canvas to the viewport (ported from index.html → window.fit)
-  useEffect(() => {
-    const fit = () => {
-      const r = rootRef.current;
-      if (!r) return;
-      const s = Math.min(window.innerWidth / r.offsetWidth, window.innerHeight / r.offsetHeight, 1);
-      r.style.transform = `translate(-50%,-50%) scale(${s})`;
-    };
-    fit();
-    window.addEventListener("resize", fit);
-    const t = setTimeout(fit, 300);
-    return () => { window.removeEventListener("resize", fit); clearTimeout(t); };
-  }, []);
 
   const go = useCallback((v, p = {}) => { setView(v); setParams(p); window.scrollTo(0, 0); document.querySelector("#content")?.scrollTo(0, 0); }, []);
   const showToast = useCallback((msg, type = "info") => { setToast({ msg, type, k: Date.now() }); setTimeout(() => setToast(t => (t && t.k ? null : t)), 2600); }, []);
@@ -83,7 +68,7 @@ export default function ContentOS() {
 
   return (
     <div id="cos-stage">
-      <div id="cos-root" ref={rootRef}>
+      <div id="cos-root">
         <AppCtx.Provider value={ctx}>
           {view === "signin" ? (
             <>
