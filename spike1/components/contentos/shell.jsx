@@ -13,23 +13,38 @@ const NAV = [
   { id: "connections", label: "Connections", icon: "connections", phase: "P1" },
 ];
 
-export function Sidebar() {
+const MenuIcon = ({ size = 22 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+);
+
+export function Sidebar({ mobile, open, onClose }) {
   const app = useApp();
   const [swOpen, setSwOpen] = uSh(false);
   const ch = app.channels.find(c => c.id === app.channel) || app.channels[0];
   const active = BRANDS[ch?.brand] || { name: ch?.name || "—", accent: "var(--ink-500)", soft: "var(--line)" };
 
+  const asideStyle = mobile ? {
+    position: "fixed", top: 0, left: 0, height: "100%", width: 280, maxWidth: "85vw",
+    display: "flex", flexDirection: "column", padding: "20px 16px",
+    background: "rgba(255,255,255,0.95)", backdropFilter: "blur(var(--blur))", WebkitBackdropFilter: "blur(var(--blur))",
+    borderRight: "1px solid var(--line)", boxShadow: "var(--shadow-lg)",
+    transform: open ? "translateX(0)" : "translateX(-101%)", transition: "transform .26s cubic-bezier(.4,0,.2,1)", zIndex: 70,
+  } : {
+    width: "var(--side-w)", flex: "0 0 var(--side-w)", display: "flex", flexDirection: "column",
+    padding: "24px 18px", background: "var(--sidebar-glass)", backdropFilter: "blur(var(--blur))",
+    WebkitBackdropFilter: "blur(var(--blur))", borderRight: "1px solid rgba(255,255,255,.45)",
+    borderTopLeftRadius: "var(--r-xl)", borderBottomLeftRadius: "var(--r-xl)",
+  };
+
   return (
-    <aside style={{ width: "var(--side-w)", flex: "0 0 var(--side-w)", display: "flex", flexDirection: "column",
-      padding: "24px 18px", background: "var(--sidebar-glass)", backdropFilter: "blur(var(--blur))",
-      WebkitBackdropFilter: "blur(var(--blur))", borderRight: "1px solid rgba(255,255,255,.45)",
-      borderTopLeftRadius: "var(--r-xl)", borderBottomLeftRadius: "var(--r-xl)" }}>
+    <aside style={asideStyle}>
 
       {/* logo */}
       <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "0 8px 22px" }}>
         <div style={{ width: 34, height: 34, borderRadius: 11, background: "var(--primary-grad)", boxShadow: "var(--shadow-primary)",
           display: "grid", placeItems: "center", color: "#fff" }}><Icons.grid size={18} sw={2} /></div>
         <span style={{ fontFamily: FS, fontWeight: 600, fontSize: 17, color: "var(--ink-900)" }}>SinaraCast</span>
+        {mobile && <button onClick={onClose} aria-label="Tutup menu" style={{ marginLeft: "auto", width: 34, height: 34, borderRadius: 10, border: "none", background: "rgba(140,144,158,.12)", color: "var(--ink-500)", display: "grid", placeItems: "center", cursor: "pointer" }}><Icons.x size={18} /></button>}
       </div>
 
       {/* channel switcher */}
@@ -54,7 +69,7 @@ export function Sidebar() {
                 const b = BRANDS[c.brand] || { name: c.name, accent: "var(--ink-500)", soft: "var(--line)" }, on = c.id === app.channel;
                 const dot = c.status === "Connected" ? "var(--st-success)" : c.status === "Expiring" ? "var(--st-publishing)" : "var(--st-failed)";
                 return (
-                  <button key={c.id} onClick={() => { app.setChannel(c.id); setSwOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 11,
+                  <button key={c.id} onClick={() => { app.setChannel(c.id); setSwOpen(false); onClose && onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 11,
                     padding: "9px 10px", border: "none", background: on ? "var(--primary-100)" : "transparent", borderRadius: 11, cursor: "pointer", marginBottom: 2 }}>
                     <BrandAvatar brand={b} size={30} />
                     <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
@@ -124,6 +139,33 @@ function NavItem({ n, active, onClick }) {
 export function Topbar({ title, sub, right }) {
   const app = useApp();
   const unread = app.notifs.filter(n => !n.read).length;
+  const mobile = app.isMobile;
+
+  const bell = (
+    <button onClick={() => app.go("notifications")} title="Notifikasi" style={{ position: "relative", width: 46, height: 46, borderRadius: 14, border: "1px solid var(--line)",
+      background: "#fff", color: "var(--ink-500)", cursor: "pointer", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)", flex: "0 0 auto" }}>
+      <Icons.bell size={20} />
+      {unread > 0 && <span style={{ position: "absolute", top: -5, right: -5, minWidth: 19, height: 19, padding: "0 5px", borderRadius: 999,
+        background: "var(--danger-grad)", color: "#fff", fontFamily: FS, fontWeight: 600, fontSize: 11, display: "grid", placeItems: "center", boxShadow: "0 0 0 2px #fff" }}>{unread}</span>}
+    </button>
+  );
+
+  if (mobile) {
+    return (
+      <header style={{ display: "flex", flexDirection: "column", gap: 12, padding: "2px 0 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button onClick={app.openMenu} aria-label="Menu" style={{ width: 46, height: 46, borderRadius: 14, border: "1px solid var(--line)", background: "#fff", color: "var(--ink-700)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)", flex: "0 0 auto", cursor: "pointer" }}><MenuIcon /></button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 20, color: "var(--ink-900)", letterSpacing: "-.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
+            {sub && <div style={{ fontFamily: FS, fontSize: 12, color: "var(--ink-400)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>}
+          </div>
+          {bell}
+        </div>
+        {right && <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>{right}</div>}
+      </header>
+    );
+  }
+
   return (
     <header style={{ display: "flex", alignItems: "center", gap: 16, padding: "4px 2px 22px" }}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -131,12 +173,7 @@ export function Topbar({ title, sub, right }) {
         {sub && <div style={{ fontFamily: FS, fontSize: 13, color: "var(--ink-400)", marginTop: 2 }}>{sub}</div>}
       </div>
       {right}
-      <button onClick={() => app.go("notifications")} title="Notifikasi" style={{ position: "relative", width: 46, height: 46, borderRadius: 14, border: "1px solid var(--line)",
-        background: "#fff", color: "var(--ink-500)", cursor: "pointer", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)", flex: "0 0 auto" }}>
-        <Icons.bell size={20} />
-        {unread > 0 && <span style={{ position: "absolute", top: -5, right: -5, minWidth: 19, height: 19, padding: "0 5px", borderRadius: 999,
-          background: "var(--danger-grad)", color: "#fff", fontFamily: FS, fontWeight: 600, fontSize: 11, display: "grid", placeItems: "center", boxShadow: "0 0 0 2px #fff" }}>{unread}</span>}
-      </button>
+      {bell}
     </header>
   );
 }

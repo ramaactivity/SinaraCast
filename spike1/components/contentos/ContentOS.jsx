@@ -39,6 +39,17 @@ export default function ContentOS() {
   const [confirmCfg, setConfirmCfg] = uA(null);
   const [session, setSession] = uA(undefined); // undefined = loading, null = signed out
   const [dataLoading, setDataLoading] = uA(true);
+  const [isMobile, setIsMobile] = uA(false);
+  const [drawerOpen, setDrawerOpen] = uA(false);
+
+  // Responsive: below 860px the sidebar becomes an off-canvas drawer.
+  React.useEffect(() => {
+    const mq = window.matchMedia("(max-width: 860px)");
+    const on = () => { setIsMobile(mq.matches); if (!mq.matches) setDrawerOpen(false); };
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
 
   React.useEffect(() => {
     let active = true;
@@ -70,7 +81,7 @@ export default function ContentOS() {
   }, []);
   const signOut = useCallback(async () => { await supabase.auth.signOut(); }, []);
 
-  const go = useCallback((v, p = {}) => { setView(v); setParams(p); window.scrollTo(0, 0); document.querySelector("#content")?.scrollTo(0, 0); }, []);
+  const go = useCallback((v, p = {}) => { setView(v); setParams(p); setDrawerOpen(false); window.scrollTo(0, 0); document.querySelector("#content")?.scrollTo(0, 0); }, []);
   const showToast = useCallback((msg, type = "info") => { setToast({ msg, type, k: Date.now() }); setTimeout(() => setToast(t => (t && t.k ? null : t)), 2600); }, []);
   const confirm = useCallback((cfg) => setConfirmCfg(cfg), []);
 
@@ -100,7 +111,8 @@ export default function ContentOS() {
 
   const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
-    updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload };
+    updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
+    isMobile, openMenu: () => setDrawerOpen(true) };
 
   // Auth gate
   if (session === undefined || (session && dataLoading)) {
@@ -119,8 +131,9 @@ export default function ContentOS() {
   const View = VIEWS[view];
 
   return (
-    <Stage>
-      <AppCtx.Provider value={ctx}>
+    <div id="cos-stage">
+      <div id="cos-root">
+        <AppCtx.Provider value={ctx}>
           {view === "signin" ? (
             <>
               <SignInView />
@@ -129,7 +142,10 @@ export default function ContentOS() {
           ) : (
             <>
               <div className="app-shell">
-                <Sidebar />
+                <Sidebar mobile={isMobile} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+                {isMobile && drawerOpen && (
+                  <div onClick={() => setDrawerOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(62,67,81,.42)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)", zIndex: 65, animation: "cosFade .15s" }} />
+                )}
                 <main id="content" className="cos-scroll" style={{ flex: 1, minWidth: 0, overflowY: "auto", overflowX: "hidden", padding: "24px var(--content-pad) 40px" }}>
                   {View ? <View key={view + (params.id || params.ch || "")} /> : <Stub name={view} />}
                 </main>
@@ -139,33 +155,10 @@ export default function ContentOS() {
                 onConfirm={() => { confirmCfg?.onConfirm?.(); setConfirmCfg(null); }} />
             </>
           )}
-      </AppCtx.Provider>
-    </Stage>
+        </AppCtx.Provider>
+      </div>
+    </div>
   );
-}
-
-// Fixed logical canvas scaled to fit the viewport width: desktop fills (scale 1),
-// narrow screens (phones/tablets) shrink the whole layout proportionally so nothing
-// is clipped. Replaces the old fixed 1320×860 fit() trick.
-function Stage({ children }) {
-  const ref = React.useRef(null);
-  React.useEffect(() => {
-    const DW = 1320, PAD = 12;
-    const apply = () => {
-      const el = ref.current;
-      if (!el) return;
-      const availW = Math.max(1, window.innerWidth - PAD * 2);
-      const availH = Math.max(1, window.innerHeight - PAD * 2);
-      const s = Math.min(1, availW / DW);
-      el.style.width = availW / s + "px";
-      el.style.height = availH / s + "px";
-      el.style.transform = "scale(" + s + ")";
-    };
-    apply();
-    window.addEventListener("resize", apply);
-    return () => window.removeEventListener("resize", apply);
-  }, []);
-  return <div id="cos-stage"><div id="cos-root" ref={ref}>{children}</div></div>;
 }
 
 function Stub({ name }) {
