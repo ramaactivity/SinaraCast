@@ -70,7 +70,7 @@ export default function ContentOS() {
 
   // Auth gate
   if (session === undefined) {
-    return <div id="cos-stage"><div id="cos-root"><div style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}><Spinner size={34} /></div></div></div>;
+    return <div id="cos-stage"><div id="cos-root"><div style={{ width: "100%", minHeight: "100vh", display: "grid", placeItems: "center" }}><Spinner size={34} /></div></div></div>;
   }
   if (!session) {
     return <div id="cos-stage"><div id="cos-root"><SignInView /></div></div>;
