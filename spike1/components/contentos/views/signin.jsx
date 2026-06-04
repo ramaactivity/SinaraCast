@@ -25,7 +25,7 @@ export function SignInView() {
   };
 
   return (
-    <div style={{ width: "100%", minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+    <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", padding: 24 }}>
       <div style={{ width: 420, maxWidth: "100%" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "center", marginBottom: 26 }}>
           <div style={{ width: 42, height: 42, borderRadius: 13, background: "var(--primary-grad)", boxShadow: "var(--shadow-primary)", display: "grid", placeItems: "center", color: "#fff" }}><Icons.grid size={22} sw={2} /></div>
