@@ -321,3 +321,23 @@ create policy owner_rw on scheduled_post_media for all
                  where sp.id = post_id and c.owner_id = auth.uid()))
   with check (exists (select 1 from scheduled_post sp join channel c on c.id = sp.channel_id
                  where sp.id = post_id and c.owner_id = auth.uid()));
+
+-- ============================================================
+-- Auth: auto-create app_user + app_settings profile on signup
+-- ============================================================
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.app_user (id, email, name)
+    values (new.id, coalesce(new.email, ''), 'Rama')
+    on conflict (id) do nothing;
+  insert into public.app_settings (owner_id)
+    values (new.id)
+    on conflict (owner_id) do nothing;
+  return new;
+end; $$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();

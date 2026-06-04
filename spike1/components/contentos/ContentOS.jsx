@@ -4,7 +4,8 @@ import { Icons } from "./icons";
 import { MOCK } from "./mockdata";
 import { AppCtx } from "./store";
 import { Sidebar } from "./shell";
-import { Panel, EmptyState, Toast, ConfirmDialog } from "./ui";
+import { Panel, EmptyState, Toast, ConfirmDialog, Spinner } from "./ui";
+import { supabase } from "./supabaseClient";
 import { RulesView } from "./views/rules";
 import { EditorView } from "./views/editor";
 import { ConnectionsView } from "./views/connections";
@@ -30,6 +31,15 @@ export default function ContentOS() {
   const [settings, setSettings] = uA(MOCK.SETTINGS);
   const [toast, setToast] = uA(null);
   const [confirmCfg, setConfirmCfg] = uA(null);
+  const [session, setSession] = uA(undefined); // undefined = loading, null = signed out
+
+  React.useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => { if (active) setSession(data.session); });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => { active = false; sub.subscription.unsubscribe(); };
+  }, []);
+  const signOut = useCallback(async () => { await supabase.auth.signOut(); }, []);
 
   const go = useCallback((v, p = {}) => { setView(v); setParams(p); window.scrollTo(0, 0); document.querySelector("#content")?.scrollTo(0, 0); }, []);
   const showToast = useCallback((msg, type = "info") => { setToast({ msg, type, k: Date.now() }); setTimeout(() => setToast(t => (t && t.k ? null : t)), 2600); }, []);
@@ -56,7 +66,15 @@ export default function ContentOS() {
 
   const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, notifs, setNotifs,
     channels, setChannels, settings, setSettings, pauseAll: settings.pauseAll, toast: showToast, confirm,
-    updateRule, deleteRule, markRead, markAllRead, postNow };
+    updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut };
+
+  // Auth gate
+  if (session === undefined) {
+    return <div id="cos-stage"><div id="cos-root"><div style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}><Spinner size={34} /></div></div></div>;
+  }
+  if (!session) {
+    return <div id="cos-stage"><div id="cos-root"><SignInView /></div></div>;
+  }
 
   const VIEWS = {
     rules: RulesView, editor: EditorView, connections: ConnectionsView,
