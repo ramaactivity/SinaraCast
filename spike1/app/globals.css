@@ -200,4 +200,7 @@ input, textarea, select { font-family: var(--font); }
   :root { --content-pad: 16px; }
   /* every top-level "content + side panel" grid uses minmax(0,1fr) — stack them */
   #content [style*="minmax(0"] { grid-template-columns: 1fr !important; }
+  /* dense thumbnail grids: editor pool (6) → 3 cols, media library (8) → 4 cols */
+  #content [style*="repeat(6"] { grid-template-columns: repeat(3, 1fr) !important; }
+  #content [style*="repeat(8"] { grid-template-columns: repeat(4, 1fr) !important; }
 }

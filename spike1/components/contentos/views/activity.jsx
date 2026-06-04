@@ -36,25 +36,28 @@ export function ActivityView() {
 
           {phase === "ready" && runs.length > 0 && (
             <div>
+              {!app.isMobile && (
               <div style={{ display: "grid", gridTemplateColumns: "48px 1fr 130px 120px", gap: 12, padding: "14px 20px", borderBottom: "1px solid var(--line)", fontFamily: FA, fontSize: 10.5, fontWeight: 600, letterSpacing: ".06em", color: "var(--ink-400)" }}>
                 <span></span><span>RULE · CHANNEL</span><span>WAKTU (WIB)</span><span style={{ textAlign: "right" }}>STATUS</span>
               </div>
+              )}
               {runs.map(r => {
-                const b = BRANDS[r.ch];
+                const b = BRANDS[r.ch] || { name: r.ch, accent: "var(--ink-500)", soft: "var(--line)" };
+                const tstr = r.actual !== "—" ? r.actual.split(", ")[1] || r.actual : r.sched.split(", ")[1] || r.sched;
                 return (
-                  <div key={r.id} onClick={() => setOpen(r.id)} style={{ display: "grid", gridTemplateColumns: "48px 1fr 130px 120px", gap: 12, padding: "13px 20px", borderBottom: "1px solid var(--line)", cursor: "pointer", alignItems: "center", transition: "background .12s" }}
+                  <div key={r.id} onClick={() => setOpen(r.id)} style={{ display: "grid", gridTemplateColumns: app.isMobile ? "40px minmax(0,1fr) auto" : "48px 1fr 130px 120px", gap: 12, padding: app.isMobile ? "12px 16px" : "13px 20px", borderBottom: "1px solid var(--line)", cursor: "pointer", alignItems: "center", transition: "background .12s" }}
                     onMouseEnter={e => e.currentTarget.style.background = "rgba(140,144,158,.06)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                     <MediaThumb seed={r.img} w={34} />
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <span style={{ fontFamily: FA, fontWeight: 600, fontSize: 13.5, color: "var(--ink-900)" }}>{r.rule}</span>
                         <span style={{ fontFamily: FA, fontSize: 10, fontWeight: 600, color: b.accent, background: b.soft, padding: "1px 7px", borderRadius: 999 }}>{TRIGGER[r.trigger]}</span>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontFamily: FA, fontSize: 11.5, color: "var(--ink-400)" }}>
-                        <BrandAvatar brand={b} size={14} />{b.name}{r.fail ? <span style={{ color: "var(--danger)" }}>· {r.fail}</span> : null}
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontFamily: FA, fontSize: 11.5, color: "var(--ink-400)", flexWrap: "wrap" }}>
+                        <BrandAvatar brand={b} size={14} />{b.name}{app.isMobile && <span>· {tstr} WIB</span>}{r.fail ? <span style={{ color: "var(--danger)" }}>· {r.fail}</span> : null}
                       </div>
                     </div>
-                    <span style={{ fontFamily: FA, fontSize: 12, color: "var(--ink-500)" }}>{r.actual !== "—" ? r.actual.split(", ")[1] || r.actual : r.sched.split(", ")[1] || r.sched}</span>
+                    {!app.isMobile && <span style={{ fontFamily: FA, fontSize: 12, color: "var(--ink-500)" }}>{tstr}</span>}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
                       {r.status === "Failed" && <IconButton size={30} icon={<Icons.retry size={15} />} tone="green" tip="Coba lagi" onClick={e => { e.stopPropagation(); app.toast(`Mencoba ulang “${r.rule}”…`, "info"); }} />}
                       <Status s={r.status} pulse={r.status === "Publishing"} />

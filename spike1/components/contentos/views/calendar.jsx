@@ -60,7 +60,7 @@ export function CalendarView() {
       <Topbar title="Calendar" sub="Konten terjadwal & terbit — semua waktu WIB"
         right={<div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <Segmented options={filters} value={filter} onChange={setFilter} />
-          <Segmented options={[{ value: "month", label: "Bulan" }, { value: "week", label: "Minggu" }]} value={mode} onChange={setMode} />
+          {!app.isMobile && <Segmented options={[{ value: "month", label: "Bulan" }, { value: "week", label: "Minggu" }]} value={mode} onChange={setMode} />}
           <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("composer", { ch: filter === "all" ? app.channel : filter })}>One-off</Button>
         </div>} />
 
@@ -69,15 +69,50 @@ export function CalendarView() {
       {phase === "ready" && totalItems === 0 && <Panel pad={0}><EmptyState icon={<Icons.calendar size={28} />} title="Belum ada konten terjadwal" body="Bulan ini belum ada run berulang maupun post one-off untuk filter ini." action={<Button variant="amber" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("composer", { ch: app.channel })}>Buat one-off post</Button>} /></Panel>}
 
       {phase === "ready" && totalItems > 0 && (
-        <Panel pad={18}>
+        <Panel pad={app.isMobile ? 14 : 18}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <IconButton icon={<Icons.chevLeft size={18} />} /><span style={{ fontFamily: FCa, fontWeight: 600, fontSize: 17, color: "var(--ink-900)" }}>{MONTH}</span><IconButton icon={<Icons.chevRight size={18} />} />
             </div>
-            <div style={{ display: "flex", gap: 14, fontFamily: FCa, fontSize: 11, color: "var(--ink-400)" }}>
+            {!app.isMobile && <div style={{ display: "flex", gap: 14, fontFamily: FCa, fontSize: 11, color: "var(--ink-400)" }}>
               <Legend c="var(--st-scheduled)" t="Terjadwal" /><Legend c="var(--st-success)" t="Terbit" /><Legend c="var(--st-failed)" t="Gagal" /><Legend c="var(--st-scheduled)" t="One-off" sq />
-            </div>
+            </div>}
           </div>
+
+          {/* Mobile: agenda list (native-feeling) instead of a cramped 7-col grid */}
+          {app.isMobile ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              {Array.from({ length: DAYS }, (_, i) => i + 1).map(day => {
+                const items = itemsFor(day);
+                if (!items.length) return null;
+                const isToday = day === TODAY;
+                return (
+                  <div key={day}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
+                      <span style={{ width: 32, height: 32, borderRadius: 10, display: "grid", placeItems: "center", background: isToday ? "var(--primary-grad)" : "rgba(140,144,158,.12)", color: isToday ? "#fff" : "var(--ink-700)", fontFamily: FCa, fontWeight: 700, fontSize: 13 }}>{String(day).padStart(2, "0")}</span>
+                      <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 600, color: "var(--ink-500)" }}>{DOW[(day + 5) % 7]}{isToday ? " · Hari ini" : ""}</span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {items.map((it, i) => {
+                        const b = BRANDS[it.ch] || { name: it.ch, accent: "var(--ink-500)", soft: "var(--line)" };
+                        return (
+                          <button key={i} onClick={() => { it.kind === "oneoff" ? app.go("composer", { ch: it.ch, edit: true }) : app.go("rules"); }}
+                            style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", border: "1px solid var(--line)", borderLeft: it.kind === "oneoff" ? `3px solid ${b.accent}` : "1px solid var(--line)", borderRadius: 13, background: "#fff", cursor: "pointer", textAlign: "left", width: "100%" }}>
+                            <BrandAvatar brand={b} size={30} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontFamily: FCa, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.title}</div>
+                              <div style={{ fontFamily: FCa, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.time} WIB · {b.name}{it.kind === "oneoff" ? ` · ${it.type}` : ""}</div>
+                            </div>
+                            <Status s={it.status} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 8 }}>
             {DOW.map(d => <div key={d} style={{ textAlign: "center", fontFamily: FCa, fontSize: 10.5, fontWeight: 600, letterSpacing: ".04em", color: "var(--ink-400)", paddingBottom: 4 }}>{d}</div>)}
             {Array.from({ length: 6 }).map((_, i) => <div key={"b" + i} />)}
@@ -107,6 +142,7 @@ export function CalendarView() {
               );
             })}
           </div>
+          )}
         </Panel>
       )}
 

@@ -24,11 +24,12 @@ export function ConnectionsView() {
   const channels = app.channels;
   const atCap = channels.length >= 4;
 
-  const reconnect = (c) => { app.toast(`Menyambungkan ulang ${BRANDS[c.brand].name}…`, "info");
-    setTimeout(() => { app.setChannels(cs => cs.map(x => x.id === c.id ? { ...x, status: "Connected", tokenExpires: "20 Agu 2026", lastRefresh: "Baru saja" } : x)); app.toast(`${BRANDS[c.brand].name} tersambung kembali`, "success"); }, 1500); };
+  const nameOf = (c) => BRANDS[c.brand]?.name || c.name || c.handle;
+  const reconnect = (c) => { app.toast(`Menyambungkan ulang ${nameOf(c)}…`, "info");
+    setTimeout(() => { app.setChannels(cs => cs.map(x => x.id === c.id ? { ...x, status: "Connected", tokenExpires: "20 Agu 2026", lastRefresh: "Baru saja" } : x)); app.toast(`${nameOf(c)} tersambung kembali`, "success"); }, 1500); };
 
   const togglePause = (c) => { app.setChannels(cs => cs.map(x => x.id === c.id ? { ...x, paused: !x.paused, resumeDate: !x.paused ? "" : x.resumeDate } : x));
-    app.toast(c.paused ? `${BRANDS[c.brand].name} dilanjutkan` : `${BRANDS[c.brand].name} dijeda`, "info"); };
+    app.toast(c.paused ? `${nameOf(c)} dilanjutkan` : `${nameOf(c)} dijeda`, "info"); };
 
   return (
     <div>
@@ -43,31 +44,33 @@ export function ConnectionsView() {
           {phase === "loading" && [0, 1, 2, 3].map(i => <Panel key={i}><div style={{ display: "flex", gap: 14, alignItems: "center" }}><Skeleton w={48} h={48} r={13} /><div style={{ flex: 1 }}><Skeleton w="35%" h={16} /><div style={{ height: 8 }} /><Skeleton w="55%" h={12} /></div></div></Panel>)}
 
           {phase === "ready" && channels.map(c => {
-            const b = BRANDS[c.brand];
+            const b = BRANDS[c.brand] || { name: c.name || c.handle, short: (c.name || "?").slice(0, 2).toUpperCase(), accent: "var(--ink-500)", soft: "var(--line)", grad: "linear-gradient(135deg,#9aa0ab,#7a8090)" };
             return (
               <Panel key={c.id} pad={20}>
-                <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 15, flexWrap: app.isMobile ? "wrap" : "nowrap", rowGap: 14 }}>
                   <BrandAvatar brand={b} size={48} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <span style={{ fontFamily: FC, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>{b.name}</span>
                       <Status s={c.status} pulse={c.status === "Needs reconnect"} />
                       {c.paused && <Status s="Paused" />}
                     </div>
-                    <div style={{ display: "flex", gap: 16, marginTop: 5, fontFamily: FC, fontSize: 12, color: "var(--ink-500)" }}>
+                    <div style={{ display: "flex", gap: 16, marginTop: 5, fontFamily: FC, fontSize: 12, color: "var(--ink-500)", flexWrap: "wrap", rowGap: 4 }}>
                       <span>{c.handle}</span><span>·</span><span>{c.followers} pengikut</span>
                       <span>·</span><span>Token: {c.tokenExpires}</span>
                     </div>
                   </div>
-                  {c.status === "Needs reconnect" || c.status === "Expiring"
-                    ? <Button size="sm" variant={c.status === "Needs reconnect" ? "danger" : "secondary"} icon={<Icons.retry size={15} />} onClick={() => reconnect(c)}>Sambungkan ulang</Button>
-                    : <Button size="sm" variant="secondary" icon={c.paused ? <Icons.play size={15} /> : <Icons.pause size={15} />} onClick={() => togglePause(c)}>{c.paused ? "Lanjutkan" : "Jeda"}</Button>}
-                  <IconButton icon={<Icons.edit size={17} />} tip="Ubah identitas" onClick={() => setEditBrand(c)} />
-                  <IconButton icon={<Icons.trash size={17} />} tone="danger" tip="Hapus channel" onClick={() => app.confirm({
-                    title: `Hapus ${b.name}?`, confirmLabel: "Hapus channel",
-                    body: "Channel diputus dari SinaraCast.",
-                    consequence: `Semua rule milik ${b.name} akan dinonaktifkan (tidak dihapus) dan berhenti memposting. Media tetap tersimpan.`,
-                    onConfirm: () => { app.toast(`${b.name} dihapus — rule-nya dinonaktifkan`, "success"); } })} />
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: app.isMobile ? 0 : "auto", width: app.isMobile ? "100%" : "auto", justifyContent: app.isMobile ? "flex-start" : "flex-end" }}>
+                    {c.status === "Needs reconnect" || c.status === "Expiring"
+                      ? <Button size="sm" variant={c.status === "Needs reconnect" ? "danger" : "secondary"} icon={<Icons.retry size={15} />} onClick={() => reconnect(c)}>Sambungkan ulang</Button>
+                      : <Button size="sm" variant="secondary" icon={c.paused ? <Icons.play size={15} /> : <Icons.pause size={15} />} onClick={() => togglePause(c)}>{c.paused ? "Lanjutkan" : "Jeda"}</Button>}
+                    <IconButton icon={<Icons.edit size={17} />} tip="Ubah identitas" onClick={() => setEditBrand(c)} />
+                    <IconButton icon={<Icons.trash size={17} />} tone="danger" tip="Hapus channel" onClick={() => app.confirm({
+                      title: `Hapus ${b.name}?`, confirmLabel: "Hapus channel",
+                      body: "Channel diputus dari SinaraCast.",
+                      consequence: `Semua rule milik ${b.name} akan dinonaktifkan (tidak dihapus) dan berhenti memposting. Media tetap tersimpan.`,
+                      onConfirm: () => { app.toast(`${b.name} dihapus — rule-nya dinonaktifkan`, "success"); } })} />
+                  </div>
                 </div>
                 {c.status === "Needs reconnect" && <div style={{ marginTop: 13, background: "var(--danger-bg)", borderRadius: 11, padding: "10px 13px", fontFamily: FC, fontSize: 12, color: "var(--danger)", display: "flex", gap: 8 }}><Icons.alert size={16} style={{ flex: "0 0 auto" }} />Token Meta kedaluwarsa. Posting ditahan; tidak ada percobaan publish sampai tersambung kembali.</div>}
               </Panel>
