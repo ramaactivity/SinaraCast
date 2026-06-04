@@ -79,18 +79,23 @@ export default function ContentOS() {
   const markRead = (id) => setNotifs(ns => ns.map(n => n.id === id ? { ...n, read: true } : n));
   const markAllRead = () => setNotifs(ns => ns.map(n => ({ ...n, read: true })));
 
-  const postNow = (r, retry = false) => {
-    showToast(`Menjalankan “${r.name}”…`, "info");
+  const postNow = async (r) => {
+    showToast(`Menerbitkan “${r.name}” ke Instagram…`, "info");
     updateRule(r.id, { todayStatus: "Publishing" });
-    setTimeout(() => {
-      updateRule(r.id, { todayStatus: "Published", failReason: null, nextRun: r.nextRun });
-      const id = "p" + Math.floor(Math.random() * 9000 + 1000);
-      setRuns(rs => [{ id, ch: r.ch, rule: r.name, status: "Published", trigger: retry ? "retry" : "manual",
-        sched: "Baru saja", actual: "Baru saja", img: r.lastImg, pool: r.mode === "schedule" ? "Weekday" : "Pool",
-        link: `instagram.com/stories/${(channels.find(c=>c.id===r.ch)?.handle||"@x").slice(1)}/${Math.floor(Math.random()*900+100)}`,
-        attempts: [{ t: "00:00", o: retry ? "Coba lagi manual" : "Dijalankan manual (post-now)" }, { t: "00:02", o: "Dipublikasikan ✓" }] }, ...rs]);
-      showToast(`“${r.name}” berhasil diposting`, "success");
-    }, 1700);
+    try {
+      const res = await fetch("/api/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ ruleId: r.id }),
+      });
+      const j = await res.json();
+      if (!j.ok) throw new Error(j.error || "Gagal menerbitkan");
+      showToast(`“${r.name}” terbit ✓`, "success");
+      await reload();
+    } catch (e) {
+      updateRule(r.id, { todayStatus: "Failed", failReason: String(e.message || e) });
+      showToast(`Gagal: ${e.message || e}`, "error");
+    }
   };
 
   const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, notifs, setNotifs,
