@@ -1,0 +1,49 @@
+/* ============================================================
+   Content OS — extends the Ca Schedule design system.
+   Adds: semantic status colors, per-brand accents, app-shell
+   tokens. All values stay in the DS language (soft, pastel,
+   cool-tinted shadows, heavy rounding, Poppins).
+   Load AFTER colors_and_type.css.
+   ============================================================ */
+
+:root {
+  /* ---------- STATUS / SEMANTIC ---------- */
+  /* success = mint green (reuses --green); others added in-language */
+  --st-success:    #4FB36A;   --st-success-bg:  #E7F6E3;
+  --st-publishing: #E0922A;   --st-publishing-bg:#FDEFC4;   /* in-progress = amber */
+  --st-scheduled:  #6E8BC0;   --st-scheduled-bg: #E6ECF7;   /* soft slate-blue */
+  --st-failed:     #E06A6A;   --st-failed-bg:   #FBE4E1;    /* soft coral red */
+  --st-skipped:    #9AA0AB;   --st-skipped-bg:  #EEEFF2;    /* neutral gray */
+  --st-paused:     #9579C4;   --st-paused-bg:   #EFE7F8;    /* lilac */
+
+  /* danger (destructive) */
+  --danger:      #E06A6A;
+  --danger-bg:   #FBE4E1;
+  --danger-grad: linear-gradient(135deg, #EF8A7E 0%, #E06A6A 100%);
+  --shadow-danger: 0 12px 26px rgba(224, 106, 106, 0.32);
+
+  /* ---------- BRAND ACCENTS (drawn from DS palette) ---------- */
+  --b-mahakan:    #F0A22C;   --b-mahakan-soft:  #FCEBCB;   /* coffee amber */
+  --b-tiska:      #5FAE6B;   --b-tiska-soft:    #DCF0DD;   /* catering green */
+  --b-tetra:      #9579C4;   --b-tetra-soft:    #ECE3F7;   /* photobooth lilac */
+  --b-outentika:  #4FB6A0;   --b-outentika-soft:#D8F0EA;   /* teal */
+
+  /* ---------- APP SHELL ---------- */
+  --shell-w: 1320px;
+  --side-w: 256px;
+  --content-pad: 30px;
+}
+
+/* status pill helper */
+.cos-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font); font-weight: 600; font-size: 11px;
+  padding: 4px 10px 4px 9px; border-radius: 999px; white-space: nowrap;
+}
+.cos-pill .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+
+/* thin scrollbars to match the soft aesthetic */
+.cos-scroll::-webkit-scrollbar { width: 9px; height: 9px; }
+.cos-scroll::-webkit-scrollbar-thumb { background: rgba(140,144,158,.28); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+.cos-scroll::-webkit-scrollbar-thumb:hover { background: rgba(140,144,158,.45); background-clip: content-box; }
+.cos-scroll::-webkit-scrollbar-track { background: transparent; }

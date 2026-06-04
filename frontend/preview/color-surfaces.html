@@ -1,0 +1,18 @@
+<!-- @dsCard group="Colors" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body{margin:0;font-family:var(--font);padding:0;color:var(--ink-900)}
+  .stage{background:var(--app-bg);padding:22px;min-height:140px;display:flex;gap:14px;align-items:center}
+  .panel{flex:1;height:96px;border-radius:18px;background:var(--glass);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border:1px solid var(--glass-border);box-shadow:var(--shadow-md);display:flex;flex-direction:column;justify-content:center;padding:0 18px}
+  .panel.strong{background:var(--glass-strong)}
+  .panel.sidebar{background:var(--sidebar-glass)}
+  .lbl{font-size:12px;font-weight:600}
+  .v{font-size:10px;font-family:ui-monospace,monospace;color:var(--ink-500);margin-top:3px}
+</style></head><body>
+<div class="stage">
+  <div class="panel"><span class="lbl">Glass</span><span class="v">rgba(255,255,255,.55) · blur 28</span></div>
+  <div class="panel strong"><span class="lbl">Glass strong</span><span class="v">rgba(255,255,255,.72)</span></div>
+  <div class="panel sidebar"><span class="lbl">Sidebar glass</span><span class="v">rgba(255,255,255,.38)</span></div>
+</div>
+</body></html>

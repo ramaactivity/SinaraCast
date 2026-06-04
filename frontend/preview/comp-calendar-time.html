@@ -1,0 +1,28 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>body{margin:0;font-family:var(--font);background:#F6F5FB;padding:24px;color:var(--ink-900)}
+  .row{display:flex;gap:30px;align-items:center}
+  .grp{display:flex;gap:8px;align-items:center}
+  .day{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:14px;font-weight:500}
+  .cap{font-size:10px;font-family:ui-monospace,monospace;color:var(--ink-500);margin-top:10px}
+  .timepill{height:42px;width:96px;border-radius:11px;display:grid;place-items:center;font-size:12.5px;font-weight:500}
+</style></head><body>
+<div class="row">
+  <div>
+    <div class="grp">
+      <div class="day" style="color:var(--ink-700)">04</div>
+      <div class="day" style="background:var(--primary-grad);color:#fff;box-shadow:var(--shadow-primary)">05</div>
+      <div class="day" style="color:var(--ink-300)">06</div>
+    </div>
+    <div class="cap">day · default / selected / muted</div>
+  </div>
+  <div>
+    <div class="grp">
+      <div class="timepill" style="background:#fff;color:var(--ink-400);border:1px solid var(--line)">08:15 AM</div>
+      <div class="timepill" style="background:var(--green-100);color:var(--green-500);border:1px solid var(--green-200)">07:15 AM</div>
+    </div>
+    <div class="cap">time pill · default / selected</div>
+  </div>
+</div>
+</body></html>

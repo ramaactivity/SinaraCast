@@ -1,0 +1,244 @@
+/* global React, Icons, useApp, useFetchState, BRANDS, BrandAvatar, MOCK, Panel, Card, Button, IconButton, Status, Toggle, Sparkline, MediaThumb, EmptyState, Skeleton, Spinner, SectionTitle, Segmented */
+const { useState: uRl } = React;
+const FR = "var(--font)";
+
+function modeLabel(m) { return m === "schedule" ? "Schedule" : "Pool"; }
+
+function RulesView() {
+  const app = useApp();
+  const phase = useFetchState();
+  const ch = MOCK.CHANNELS.find(c => c.id === app.channel);
+  const b = BRANDS[app.channel];
+  const rules = app.rules.filter(r => r.ch === app.channel);
+  const [sel, setSel] = uRl(null);
+
+  const selRule = rules.find(r => r.id === sel) || rules[0];
+
+  // activity summary for this channel
+  const chRuns = app.runs.filter(r => r.ch === app.channel);
+  const pubWeek = chRuns.filter(r => r.status === "Published").length;
+  const failCt = chRuns.filter(r => r.status === "Failed").length;
+  const week = [4, 5, 3, 6, 5, 7, pubWeek || 4];
+
+  const right = (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("editor", { ch: app.channel, mode: "schedule", isNew: true })}>Buat rule</Button>
+    </div>
+  );
+
+  return (
+    <div>
+      <Topbar title="Rules" sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} size={18} /> {b.name} · {ch.handle}</span>} right={right} />
+
+      {/* channel-level banners */}
+      {ch.status === "Needs reconnect" && <Banner tone="error" icon={<Icons.alert size={18} />}
+        title="Channel perlu disambungkan ulang" body="Token Meta kedaluwarsa. Posting ditahan sampai channel tersambung kembali."
+        action={<Button size="sm" variant="danger" onClick={() => app.go("connections")}>Sambungkan ulang</Button>} />}
+      {ch.paused && <Banner tone="paused" icon={<Icons.pause size={18} />}
+        title="Channel ini dijeda" body={`Tidak ada posting sampai dilanjutkan${ch.resumeDate ? ` · otomatis ${ch.resumeDate}` : ""}.`}
+        action={<Button size="sm" variant="secondary" onClick={() => app.go("connections")}>Kelola jeda</Button>} />}
+
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 18, alignItems: "start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* activity summary */}
+          {phase === "ready" && rules.length > 0 && (
+            <Panel pad={18}>
+              <div style={{ display: "flex", alignItems: "center", gap: 26 }}>
+                <Stat label="Aktif minggu ini" value={`${pubWeek} posting`} sub="7 hari terakhir" spark={week} color={b.accent} />
+                <Div />
+                <Stat label="Rules aktif" value={`${rules.filter(r => r.active).length} / ${rules.length}`} sub="di channel ini" />
+                <Div />
+                <Stat label="Perlu perhatian" value={failCt > 0 ? `${failCt} gagal` : "Aman"} sub={failCt > 0 ? "lihat Activity" : "tidak ada error"} danger={failCt > 0} />
+              </div>
+            </Panel>
+          )}
+
+          {/* rule list */}
+          {phase === "loading" && <LoadingRules />}
+          {phase === "error" && <ErrorState onRetry={() => app.toast("Memuat ulang…", "info")} />}
+          {phase === "ready" && rules.length === 0 && (
+            <Panel pad={0}><EmptyState icon={<Icons.rules size={28} />} title="Belum ada rule di channel ini"
+              body={`Buat Recurring Story Rule pertama untuk ${b.name}. Atur pool gambar, jadwal, dan biarkan terbit otomatis.`}
+              action={<Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("editor", { ch: app.channel, mode: "schedule", isNew: true })}>Buat rule</Button>} /></Panel>
+          )}
+          {phase === "ready" && rules.map(r => (
+            <RuleCard key={r.id} r={r} b={b} selected={selRule && selRule.id === r.id} onSelect={() => setSel(r.id)} disabled={ch.status === "Needs reconnect"} />
+          ))}
+        </div>
+
+        {/* what's next inspector */}
+        {phase === "ready" && rules.length > 0 && selRule && <NextInspector r={selRule} b={b} ch={ch} />}
+        {phase === "loading" && <Panel style={{ height: 360 }}><Skeleton h={20} w="50%" /><div style={{ height: 14 }} /><Skeleton h={150} r={14} /></Panel>}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, sub, spark, color, danger }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontFamily: FR, fontSize: 11.5, color: "var(--ink-400)", fontWeight: 500 }}>{label}</div>
+      <div style={{ fontFamily: FR, fontSize: 19, fontWeight: 600, color: danger ? "var(--danger)" : "var(--ink-900)", margin: "3px 0 1px" }}>{value}</div>
+      {spark ? <Sparkline data={spark} w={110} h={30} color={color} /> : <div style={{ fontFamily: FR, fontSize: 11, color: "var(--ink-400)" }}>{sub}</div>}
+    </div>
+  );
+}
+const Div = () => <div style={{ width: 1, alignSelf: "stretch", background: "var(--line)" }} />;
+
+function RuleCard({ r, b, selected, onSelect, disabled }) {
+  const app = useApp();
+  const [menu, setMenu] = uRl(false);
+  const total = r.mode === "schedule" ? (r.pools.weekday + r.pools.weekend) : r.pools.pool;
+  return (
+    <Card pad={0} onClick={onSelect} style={{ borderColor: selected ? b.accent : "var(--line)", borderWidth: selected ? 1.5 : 1,
+      boxShadow: selected ? "var(--shadow-md)" : "var(--shadow-sm)", overflow: "visible" }} hover>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px" }}>
+        <MediaThumb seed={r.lastImg} w={46} label="" />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: FR, fontWeight: 600, fontSize: 15, color: "var(--ink-900)" }}>{r.name}</span>
+            <span style={{ fontFamily: FR, fontSize: 10.5, fontWeight: 600, color: b.accent, background: b.soft, padding: "2px 8px", borderRadius: 999 }}>{modeLabel(r.mode)}</span>
+            {!r.active && <Status s="Inactive" />}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 13, marginTop: 5, fontFamily: FR, fontSize: 12, color: "var(--ink-500)" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icons.calendar size={14} />{r.cadence}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icons.clock size={14} />{r.time} WIB</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icons.image size={14} />{total} gambar</span>
+          </div>
+        </div>
+        {/* shuffle cycle progress */}
+        <div style={{ textAlign: "right", marginRight: 4 }}>
+          <div style={{ fontFamily: FR, fontSize: 10.5, color: "var(--ink-400)", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}><Icons.shuffle size={13} />{r.cycle.used}/{r.cycle.total} siklus</div>
+          <div style={{ display: "flex", gap: 3, justifyContent: "flex-end" }}>
+            {Array.from({ length: r.cycle.total }).map((_, i) => (
+              <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: i < r.cycle.used ? b.accent : "var(--line)" }} />
+            ))}
+          </div>
+        </div>
+        <Toggle on={r.active} onChange={(v) => { app.updateRule(r.id, { active: v }); app.toast(v ? `“${r.name}” diaktifkan` : `“${r.name}” dinonaktifkan`, "info"); }} />
+        <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+          <IconButton icon={<Icons.more size={18} />} onClick={() => setMenu(m => !m)} active={menu} />
+          {menu && (
+            <>
+              <div onClick={() => setMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 50, background: "#fff", borderRadius: 13, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 5, width: 168, animation: "cosPop .14s" }}>
+                <Menu icon={<Icons.edit size={16} />} onClick={() => { setMenu(false); app.go("editor", { ch: r.ch, id: r.id }); }}>Edit rule</Menu>
+                <Menu icon={<Icons.play size={16} />} onClick={() => { setMenu(false); app.postNow(r); }}>Post now / test</Menu>
+                <div style={{ height: 1, background: "var(--line)", margin: "4px 0" }} />
+                <Menu icon={<Icons.trash size={16} />} danger onClick={() => { setMenu(false); app.confirm({
+                  title: `Hapus rule “${r.name}”?`, danger: true, confirmLabel: "Hapus rule",
+                  body: "Tindakan ini tidak bisa dibatalkan.",
+                  consequence: "Jadwal dihapus dan rule berhenti memposting. Gambar di pool tetap tersimpan dan tidak ikut terhapus.",
+                  onConfirm: () => { app.deleteRule(r.id); app.toast(`Rule “${r.name}” dihapus`, "success"); } }); }}>Hapus rule</Menu>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+      {/* footer: status + post-now */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderTop: "1px solid var(--line)", background: "rgba(246,245,251,.5)", borderRadius: "0 0 var(--r-md) var(--r-md)" }}>
+        {r.todayStatus === "Failed"
+          ? <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: FR, fontSize: 12, color: "var(--danger)" }}><Status s="Failed" /> {r.failReason}</span>
+          : <span style={{ fontFamily: FR, fontSize: 12, color: "var(--ink-500)" }}>Berikutnya: <b style={{ color: "var(--ink-900)", fontWeight: 600 }}>{r.nextRun}</b></span>}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }} onClick={e => e.stopPropagation()}>
+          {r.todayStatus === "Failed" && <Button size="sm" variant="secondary" icon={<Icons.retry size={15} />} onClick={() => app.postNow(r, true)}>Coba lagi</Button>}
+          <Button size="sm" variant="primary" icon={<Icons.play size={15} />} disabled={disabled || !r.active} onClick={() => app.postNow(r)}>Post now</Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function Menu({ children, icon, danger, onClick }) {
+  const [h, setH] = uRl(false);
+  return (
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", border: "none", cursor: "pointer", borderRadius: 9,
+        background: h ? (danger ? "var(--danger-bg)" : "rgba(140,144,158,.1)") : "transparent", color: danger ? "var(--danger)" : "var(--ink-700)",
+        fontFamily: FR, fontSize: 13, fontWeight: 500, textAlign: "left" }}>{icon}{children}</button>
+  );
+}
+
+/* What's next inspector */
+function NextInspector({ r, b, ch }) {
+  const app = useApp();
+  const [swap, setSwap] = uRl(false);
+  const total = r.mode === "schedule" ? r.pools.weekday : r.pools.pool;
+  const paused = ch.paused || ch.status === "Needs reconnect";
+  return (
+    <Panel strong style={{ position: "sticky", top: 8 }}>
+      <SectionTitle sub={r.name}>Berikutnya</SectionTitle>
+      <div style={{ display: "flex", gap: 14 }}>
+        <MediaThumb seed={r.lastImg} w={92} label="9:16" />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: FR, fontSize: 11, color: "var(--ink-400)" }}>Jadwal berikutnya</div>
+          <div style={{ fontFamily: FR, fontWeight: 600, fontSize: 15, color: "var(--ink-900)", margin: "2px 0 10px" }}>{r.nextRun}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7, fontFamily: FR, fontSize: 12, color: "var(--ink-600)" }}>
+            <Meta icon={<Icons.shuffle size={14} />} t={`Acak tanpa ulang · ${r.cycle.used}/${r.cycle.total} terpakai`} />
+            <Meta icon={<Icons.layers size={14} />} t={r.mode === "schedule" ? `Pool weekday (${r.pools.weekday})` : `Pool (${r.pools.pool})`} />
+            <Meta icon={<Icons.clock size={14} />} t={`Grace window ${r.grace} menit`} />
+          </div>
+        </div>
+      </div>
+      <div style={{ height: 1, background: "var(--line)", margin: "16px 0" }} />
+      <div style={{ fontFamily: FR, fontSize: 11.5, fontWeight: 600, color: "var(--ink-500)", marginBottom: 10 }}>Atur hari ini</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+        <Button variant="secondary" size="sm" icon={<Icons.skip size={15} />} disabled={paused} onClick={() => { app.updateRule(r.id, { todayStatus: "Skipped", nextRun: "Dilewati hari ini" }); app.toast(`“${r.name}” dilewati hari ini`, "info"); }}>Skip hari ini</Button>
+        <Button variant="secondary" size="sm" icon={<Icons.swap size={15} />} disabled={paused} onClick={() => setSwap(true)}>Swap gambar</Button>
+      </div>
+      <div style={{ marginTop: 9 }}>
+        <Button variant="primary" size="sm" full icon={<Icons.play size={15} />} disabled={paused || !r.active} onClick={() => app.postNow(r)}>Post now / test</Button>
+      </div>
+      <button onClick={() => app.go("editor", { ch: r.ch, id: r.id })} style={{ width: "100%", marginTop: 14, background: "transparent", border: "none", cursor: "pointer", fontFamily: FR, fontSize: 12.5, fontWeight: 600, color: b.accent, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>Edit rule lengkap <Icons.chevRight size={15} /></button>
+
+      <SwapModal open={swap} onClose={() => setSwap(false)} count={total} r={r} />
+    </Panel>
+  );
+}
+function Meta({ icon, t }) { return <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ color: "var(--ink-400)" }}>{icon}</span>{t}</span>; }
+
+function SwapModal({ open, onClose, count, r }) {
+  const app = useApp();
+  const [pick, setPick] = uRl(null);
+  return (
+    <Modal open={open} onClose={onClose} width={520}>
+      <div style={{ padding: 24 }}>
+        <SectionTitle sub={`Pilih satu gambar dari pool untuk post hari ini saja — “${r.name}”`}>Swap gambar hari ini</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10, maxHeight: 320, overflow: "auto" }} className="cos-scroll">
+          {Array.from({ length: count }).map((_, i) => (
+            <MediaThumb key={i} seed={i} w={84} selected={pick === i} onClick={() => setPick(i)} />
+          ))}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+          <Button variant="secondary" onClick={onClose}>Batal</Button>
+          <Button variant="primary" disabled={pick === null} icon={<Icons.check size={17} />} onClick={() => { onClose(); app.updateRule(r.id, { lastImg: pick, nextRun: `${r.nextRun.split(",")[0]} · gambar diganti` }); app.toast("Gambar untuk hari ini diganti", "success"); }}>Pakai gambar ini</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* shared small bits */
+function Banner({ tone, icon, title, body, action }) {
+  const map = { error: ["var(--danger-bg)", "var(--danger)"], paused: ["var(--st-paused-bg)", "var(--st-paused)"], warn: ["var(--st-publishing-bg)", "var(--st-publishing)"] };
+  const [bg, fg] = map[tone];
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 13, background: bg, borderRadius: 16, padding: "13px 16px", marginBottom: 16 }}>
+      <span style={{ color: fg }}>{icon}</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontFamily: FR, fontWeight: 600, fontSize: 13.5, color: fg }}>{title}</div>
+        <div style={{ fontFamily: FR, fontSize: 12.5, color: "var(--ink-600)", marginTop: 1 }}>{body}</div>
+      </div>
+      {action}
+    </div>
+  );
+}
+function LoadingRules() {
+  return <>{[0, 1, 2].map(i => <Panel key={i} pad={16} style={{ marginBottom: 0 }}><div style={{ display: "flex", gap: 14, alignItems: "center" }}><Skeleton w={46} h={62} r={10} /><div style={{ flex: 1 }}><Skeleton w="40%" h={16} /><div style={{ height: 9 }} /><Skeleton w="65%" h={12} /></div><Spinner /></div></Panel>)}</>;
+}
+function ErrorState({ onRetry }) {
+  return <Panel pad={0}><EmptyState icon={<Icons.warn size={28} />} title="Gagal memuat rules" body="Terjadi kendala saat mengambil data. Periksa koneksi lalu coba lagi." action={<Button variant="secondary" icon={<Icons.retry size={16} />} onClick={onRetry}>Coba lagi</Button>} /></Panel>;
+}
+
+window.RulesView = RulesView;
+window.Banner = Banner;

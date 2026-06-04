@@ -1,0 +1,104 @@
+/* ============================================================
+   Ca Schedule — Design System Foundations
+   Colors + Type tokens extracted from the reference dashboard.
+   A soft glassmorphic scheduling UI: warm yellow primary,
+   mint-green action accent, pastel event cards, frosted
+   white panels floating on a pale multi-hue gradient.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ---------- BRAND / PRIMARY (warm yellow-orange) ---------- */
+  --primary-100: #FFF3D6;
+  --primary-200: #FFE4A8;
+  --primary-300: #FED174;
+  --primary-400: #FCC04C;   /* core brand yellow */
+  --primary-500: #F9A826;   /* deeper orange (active text) */
+  --primary-grad: linear-gradient(135deg, #FFD66B 0%, #F9A826 100%);
+
+  /* ---------- ACTION ACCENT (mint green) ---------- */
+  --green-100: #EAF7DD;
+  --green-200: #CDEEAE;
+  --green-300: #A8E06B;
+  --green-400: #8FD96E;     /* selected time text */
+  --green-500: #5FBE6B;
+  --green-grad: linear-gradient(135deg, #B5E886 0%, #82CF7E 100%);
+
+  /* ---------- PREMIUM / TEAL-GREEN ---------- */
+  --teal-grad: linear-gradient(150deg, #65C78B 0%, #54BCA0 100%);
+
+  /* ---------- PASTEL EVENT CARDS ---------- */
+  --card-yellow: linear-gradient(135deg, #FDEFC4 0%, #FAE3A1 100%);
+  --card-mint:   linear-gradient(135deg, #D7F0DD 0%, #BDE7CF 100%);
+  --card-lilac:  linear-gradient(135deg, #ECE3F7 0%, #E6D7F2 100%);
+
+  /* ---------- INK / TEXT ---------- */
+  --ink-900: #3E4351;       /* headings */
+  --ink-700: #565C6B;       /* body strong */
+  --ink-500: #8A909E;       /* secondary / labels */
+  --ink-400: #A6ABB6;       /* muted, inactive nav, placeholder */
+  --ink-300: #C4C8D0;       /* faint / disabled day numbers */
+
+  /* ---------- SURFACES ---------- */
+  --canvas: #EDEBF6;        /* base behind the app */
+  --glass:        rgba(255, 255, 255, 0.55);
+  --glass-strong: rgba(255, 255, 255, 0.72);
+  --glass-solid:  #FFFFFF;
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --sidebar-glass: rgba(255, 255, 255, 0.38);
+
+  /* Pale multi-hue background gradient (cream → lavender → mint) */
+  --app-bg:
+    radial-gradient(120% 90% at 0% 0%,   #FBF3DF 0%, transparent 45%),
+    radial-gradient(120% 90% at 100% 0%, #ECE2F6 0%, transparent 50%),
+    radial-gradient(120% 120% at 100% 100%, #DFF1E6 0%, transparent 55%),
+    linear-gradient(135deg, #F3EFDF 0%, #E9E6F4 55%, #E0F0E6 100%);
+
+  /* ---------- LINES ---------- */
+  --line: #EDEFF3;
+  --line-soft: rgba(140, 144, 158, 0.14);
+
+  /* ---------- RADII ---------- */
+  --r-xs: 8px;
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r-lg: 22px;     /* panels */
+  --r-xl: 28px;     /* outer app shell / premium card */
+  --r-pill: 999px;
+
+  /* ---------- SHADOWS (soft, diffuse, low-opacity) ---------- */
+  --shadow-sm: 0 6px 16px rgba(90, 96, 120, 0.08);
+  --shadow-md: 0 14px 34px rgba(90, 96, 120, 0.10);
+  --shadow-lg: 0 24px 60px rgba(90, 96, 120, 0.14);
+  --shadow-primary: 0 12px 26px rgba(249, 168, 38, 0.35);
+  --shadow-green:   0 12px 26px rgba(130, 207, 126, 0.40);
+
+  /* ---------- BLUR ---------- */
+  --blur: 28px;
+
+  /* ---------- TYPE ---------- */
+  --font: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* spacing scale */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+}
+
+/* ============================================================
+   SEMANTIC TYPE
+   Poppins throughout. Geometric, friendly, slightly rounded.
+   ============================================================ */
+.ds-display { font: 700 28px/1.2 var(--font); color: var(--ink-900); letter-spacing: -0.01em; }
+.ds-h1      { font: 600 22px/1.25 var(--font); color: var(--ink-900); letter-spacing: -0.01em; }
+.ds-h2      { font: 600 17px/1.3 var(--font); color: var(--ink-900); }
+.ds-h3      { font: 600 14px/1.35 var(--font); color: var(--ink-900); }
+.ds-body    { font: 400 14px/1.55 var(--font); color: var(--ink-700); }
+.ds-label   { font: 500 13px/1.4 var(--font); color: var(--ink-500); }
+.ds-caption { font: 400 11px/1.4 var(--font); color: var(--ink-400); }
+.ds-overline{ font: 500 10px/1.4 var(--font); color: var(--ink-400); letter-spacing: 0.12em; text-transform: uppercase; }

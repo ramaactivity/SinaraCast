@@ -1,0 +1,12 @@
+# Node / Next build + deps
+spike1/node_modules
+spike1/.next
+spike1/.vercel
+
+# Secrets / local env (never commit)
+**/.env*.local
+.env
+.evn.local
+
+# OS
+.DS_Store
