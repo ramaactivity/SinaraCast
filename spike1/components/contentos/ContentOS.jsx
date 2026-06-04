@@ -62,6 +62,12 @@ export default function ContentOS() {
     return () => { active = false; };
   }, [session]);
 
+  const reload = useCallback(async () => {
+    const d = await loadAll();
+    setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setNotifs(d.notifs);
+    setSettings(d.settings); setProfile(d.profile);
+    setChannel((cur) => cur || d.channels[0]?.id || "");
+  }, []);
   const signOut = useCallback(async () => { await supabase.auth.signOut(); }, []);
 
   const go = useCallback((v, p = {}) => { setView(v); setParams(p); window.scrollTo(0, 0); document.querySelector("#content")?.scrollTo(0, 0); }, []);
@@ -89,14 +95,14 @@ export default function ContentOS() {
 
   const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
-    updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading };
+    updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload };
 
   // Auth gate
   if (session === undefined || (session && dataLoading)) {
-    return <div id="cos-stage"><div id="cos-root"><div style={{ width: "100%", minHeight: "100vh", display: "grid", placeItems: "center" }}><Spinner size={34} /></div></div></div>;
+    return <div id="cos-stage"><div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center" }}><Spinner size={34} /></div></div>;
   }
   if (!session) {
-    return <div id="cos-stage"><div id="cos-root"><SignInView /></div></div>;
+    return <div id="cos-stage"><div style={{ width: "100%", height: "100%" }}><SignInView /></div></div>;
   }
 
   const VIEWS = {
@@ -108,9 +114,8 @@ export default function ContentOS() {
   const View = VIEWS[view];
 
   return (
-    <div id="cos-stage">
-      <div id="cos-root">
-        <AppCtx.Provider value={ctx}>
+    <Stage>
+      <AppCtx.Provider value={ctx}>
           {view === "signin" ? (
             <>
               <SignInView />
@@ -129,10 +134,33 @@ export default function ContentOS() {
                 onConfirm={() => { confirmCfg?.onConfirm?.(); setConfirmCfg(null); }} />
             </>
           )}
-        </AppCtx.Provider>
-      </div>
-    </div>
+      </AppCtx.Provider>
+    </Stage>
   );
+}
+
+// Fixed logical canvas scaled to fit the viewport width: desktop fills (scale 1),
+// narrow screens (phones/tablets) shrink the whole layout proportionally so nothing
+// is clipped. Replaces the old fixed 1320×860 fit() trick.
+function Stage({ children }) {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const DW = 1320, PAD = 12;
+    const apply = () => {
+      const el = ref.current;
+      if (!el) return;
+      const availW = Math.max(1, window.innerWidth - PAD * 2);
+      const availH = Math.max(1, window.innerHeight - PAD * 2);
+      const s = Math.min(1, availW / DW);
+      el.style.width = availW / s + "px";
+      el.style.height = availH / s + "px";
+      el.style.transform = "scale(" + s + ")";
+    };
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, []);
+  return <div id="cos-stage"><div id="cos-root" ref={ref}>{children}</div></div>;
 }
 
 function Stub({ name }) {

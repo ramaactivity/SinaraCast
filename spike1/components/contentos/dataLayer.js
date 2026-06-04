@@ -56,7 +56,29 @@ export async function loadAll() {
     .from("recurring_rule")
     .select("*")
     .is("archived_at", null);
-  const rules = (rulesRaw || []).map((r) => mapRule(r, slugById));
+
+  // pools + image counts per rule (for "X gambar" + cycle)
+  const { data: pools = [] } = await supabase.from("pool").select("id, rule_id, role");
+  const { data: imgs = [] } = await supabase.from("pool_image").select("pool_id, used_in_cycle");
+  const imgByPool = {};
+  for (const im of imgs || []) {
+    const p = (imgByPool[im.pool_id] ||= { total: 0, used: 0 });
+    p.total++; if (im.used_in_cycle) p.used++;
+  }
+  const poolsByRule = {};
+  for (const p of pools || []) (poolsByRule[p.rule_id] ||= []).push({ ...p, ...(imgByPool[p.id] || { total: 0, used: 0 }) });
+
+  const rules = (rulesRaw || []).map((r) => {
+    const base = mapRule(r, slugById);
+    const rp = poolsByRule[r.id] || [];
+    const byRole = Object.fromEntries(rp.map((p) => [p.role, p]));
+    if (r.mode === "schedule") base.pools = { weekday: byRole.weekday?.total || 0, weekend: byRole.weekend?.total || 0 };
+    else base.pools = { pool: byRole.single?.total || 0 };
+    const used = rp.reduce((a, p) => a + p.used, 0);
+    const total = rp.reduce((a, p) => a + p.total, 0);
+    base.cycle = { used, total };
+    return base;
+  });
 
   const { data: settingsRaw } = await supabase.from("app_settings").select("*").maybeSingle();
   const settings = {
@@ -79,4 +101,104 @@ export async function loadAll() {
   };
 
   return { channels, rules, runs: [], notifs: [], settings, profile };
+}
+
+// ---- writes ----
+
+const BUCKET = "pool-images";
+
+// Upload one validated image file to Storage; returns row data for pool_image.
+export async function uploadPoolImage(file, channelSlug, meta) {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u?.user?.id;
+  if (!uid) throw new Error("Not signed in");
+  const ext = file.type === "image/png" ? "png" : "jpg";
+  const path = `${uid}/${channelSlug}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+  if (error) throw error;
+  const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  return { storage_path: path, url, bytes: file.size, format: ext, width: meta?.width, height: meta?.height, aspect_ok: true };
+}
+
+export async function deleteStoredImage(storage_path) {
+  if (storage_path) await supabase.storage.from(BUCKET).remove([storage_path]);
+}
+
+// Create a recurring_rule + its pool(s) + pool_image rows. `images` is
+// { weekday:[], weekend:[] } for schedule or { single:[] } for pool.
+export async function createRuleWithPools(p) {
+  const { data: rule, error: e1 } = await supabase.from("recurring_rule").insert({
+    channel_id: p.channelDbId, name: p.name, mode: p.mode, active: true,
+    cadence_type: p.cadenceType, interval_days: p.intervalDays ?? null, weekdays: p.weekdaysDb ?? null,
+    post_time: p.mode === "pool" ? p.postTime : null,
+    weekday_time: p.mode === "schedule" ? p.weekdayTime : null,
+    weekend_time: p.mode === "schedule" ? p.weekendTime : null,
+    grace_minutes: p.grace,
+  }).select("id").single();
+  if (e1) throw e1;
+
+  const roles = p.mode === "schedule" ? ["weekday", "weekend"] : ["single"];
+  for (const role of roles) {
+    const { data: pool, error: e2 } = await supabase.from("pool")
+      .insert({ rule_id: rule.id, role }).select("id").single();
+    if (e2) throw e2;
+    const imgs = (p.images?.[role] || []).map((im, i) => ({
+      pool_id: pool.id, storage_path: im.storage_path, position: i,
+      width: im.width, height: im.height, aspect_ok: im.aspect_ok ?? true,
+      format: im.format, bytes: im.bytes,
+    }));
+    if (imgs.length) {
+      const { error: e3 } = await supabase.from("pool_image").insert(imgs);
+      if (e3) throw e3;
+    }
+  }
+  return rule.id;
+}
+
+// Update a rule's scalar fields (no pool/image changes).
+export async function updateRuleFields(id, f) {
+  const { error } = await supabase.from("recurring_rule").update({
+    name: f.name, mode: f.mode, cadence_type: f.cadenceType,
+    interval_days: f.intervalDays ?? null, weekdays: f.weekdaysDb ?? null,
+    post_time: f.mode === "pool" ? f.postTime : null,
+    weekday_time: f.mode === "schedule" ? f.weekdayTime : null,
+    weekend_time: f.mode === "schedule" ? f.weekendTime : null,
+    grace_minutes: f.grace,
+  }).eq("id", id);
+  if (error) throw error;
+}
+
+// Load an existing rule's pools + images (for the editor).
+export async function loadRuleDetail(ruleId) {
+  const { data: rule } = await supabase.from("recurring_rule").select("*").eq("id", ruleId).single();
+  const { data: pools = [] } = await supabase.from("pool").select("id, role").eq("rule_id", ruleId);
+  const ids = (pools || []).map((p) => p.id);
+  let imgs = [];
+  if (ids.length) {
+    const res = await supabase.from("pool_image").select("id, pool_id, storage_path, position").in("pool_id", ids).order("position");
+    imgs = res.data || [];
+  }
+  const roleByPool = Object.fromEntries((pools || []).map((p) => [p.id, p.role]));
+  const poolIdByRole = Object.fromEntries((pools || []).map((p) => [p.role, p.id]));
+  const images = { weekday: [], weekend: [], single: [] };
+  for (const im of imgs) {
+    const role = roleByPool[im.pool_id];
+    const url = supabase.storage.from(BUCKET).getPublicUrl(im.storage_path).data.publicUrl;
+    images[role]?.push({ id: im.id, poolId: im.pool_id, storage_path: im.storage_path, url });
+  }
+  return { rule, images, poolIdByRole };
+}
+
+export async function addPoolImageRow(poolId, row, position) {
+  const { data, error } = await supabase.from("pool_image").insert({
+    pool_id: poolId, storage_path: row.storage_path, position,
+    width: row.width, height: row.height, aspect_ok: true, format: row.format, bytes: row.bytes,
+  }).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+
+export async function removePoolImageRow(id, storage_path) {
+  if (id) await supabase.from("pool_image").delete().eq("id", id);
+  await deleteStoredImage(storage_path);
 }

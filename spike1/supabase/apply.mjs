@@ -13,7 +13,9 @@ if (!REF || !HOST || !PASSWORD) {
   process.exit(1);
 }
 
-const sql = await readFile(new URL("./schema.sql", import.meta.url), "utf8");
+const SQL_FILE = process.env.SQL_FILE || "./schema.sql";
+const sql = await readFile(new URL(SQL_FILE, import.meta.url), "utf8");
+console.log("Applying:", SQL_FILE);
 const client = new pg.Client({
   host: HOST,
   port: Number(PORT),
