@@ -166,16 +166,22 @@ export async function publishStoryOneoff(svc, { channel, post }) {
   let r = await igCall("POST", `/${channel.ig_user_id}/media`, params);
   if (!r.json.id) return fail(r.json.error?.message || "Gagal membuat kontainer media");
   const creationId = r.json.id; await log(isVideo ? "Kontainer Story video dibuat, video diproses…" : "Kontainer media dibuat");
-  const maxPolls = isVideo ? 20 : 18; // video transcoding takes longer
+  // Video: persist the container id so a later cron tick can resume polling past
+  // this function's 60s budget instead of hard-failing on a slow IG transcode.
+  if (isVideo) await svc.from("post_run").update({ ig_media_id: creationId }).eq("id", run.id);
+  const firstPolls = isVideo ? 8 : 18; // ~20s for video this tick, then resume next tick
   let statusCode = "";
-  for (let i = 0; i < maxPolls; i++) {
+  for (let i = 0; i < firstPolls; i++) {
     r = await igCall("GET", `/${creationId}`, { fields: "status_code", access_token: channel.access_token });
     statusCode = r.json.status_code;
     if (statusCode === "FINISHED") break;
     if (statusCode === "ERROR") return fail("Media diproses ERROR");
     await sleep(2500);
   }
-  if (statusCode !== "FINISHED") return fail(isVideo ? "Video Story masih diproses (timeout). Coba video lebih pendek." : "Timeout proses media");
+  if (statusCode !== "FINISHED") {
+    if (isVideo) { await log("Video masih diproses Instagram — dilanjutkan otomatis menit berikutnya."); return { processing: true, runId: run.id }; }
+    return fail("Timeout proses media");
+  }
   await log("Media siap");
   r = await igCall("POST", `/${channel.ig_user_id}/media_publish`, { creation_id: creationId, access_token: channel.access_token });
   if (!r.json.id) return fail(r.json.error?.message || "Publish gagal");
@@ -351,16 +357,18 @@ export async function publishReelsOneoff(svc, { channel, post }) {
   if (!r.json.id) return fail(r.json.error?.message || "Gagal membuat kontainer Reels");
   const containerId = r.json.id;
   await log("Kontainer Reels dibuat, video diproses…");
+  // Persist container id so a later cron tick can resume past the 60s budget.
+  await svc.from("post_run").update({ ig_media_id: containerId }).eq("id", run.id);
 
   let statusCode = "";
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 8; i++) { // ~20s this tick, then resume next tick
     r = await igCall("GET", `/${containerId}`, { fields: "status_code", access_token: token });
     statusCode = r.json.status_code;
     if (statusCode === "FINISHED") break;
     if (statusCode === "ERROR") return fail("Video Reels gagal diproses (ERROR)");
     await sleep(2500);
   }
-  if (statusCode !== "FINISHED") return fail("Video Reels masih diproses (timeout). Coba video lebih pendek lalu jadwalkan ulang.");
+  if (statusCode !== "FINISHED") { await log("Video Reels masih diproses Instagram — dilanjutkan otomatis menit berikutnya."); return { processing: true, runId: run.id }; }
   await log("Video Reels siap");
 
   r = await igCall("POST", `/${igu}/media_publish`, { creation_id: containerId, access_token: token });
@@ -379,6 +387,64 @@ export async function publishReelsOneoff(svc, { channel, post }) {
   await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
   await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `Reels terbit — ${chLabel}`, body: "Reels one-off terbit ke Instagram.", runId: run.id });
   await svc.storage.from("pool-images").remove([storagePath]).catch(() => {}); // free the video file (free-tier storage)
+  return { ok: true, permalink, runId: run.id };
+}
+
+// Resume a video one-off (Story/Reels) whose IG container was still transcoding
+// when its creating tick ran out of budget. The container id was stashed in
+// post_run.ig_media_id; we poll a bounded window and publish once FINISHED. If
+// still processing we leave it for the next tick (the stale-sweep fails anything
+// stuck > 10 min). Idempotent enough: a per-minute cron never overlaps itself.
+export async function resumeOneoffContainer(svc, { channel, post, run }) {
+  const containerId = run.ig_media_id;
+  const token = channel.access_token, igu = channel.ig_user_id;
+  const chLabel = channel.handle || channel.slug || "channel";
+  const log = (outcome, is_fail = false) => svc.from("post_attempt").insert({ run_id: run.id, outcome, is_fail });
+  const fail = async (reason) => {
+    await log(reason, true);
+    await svc.from("post_run").update({ status: "failed", fail_reason: reason }).eq("id", run.id);
+    await svc.from("scheduled_post").update({ status: "failed" }).eq("id", post.id);
+    await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "error", title: `One-off gagal — ${chLabel}`, body: reason, runId: run.id });
+    return { ok: false, error: reason, runId: run.id };
+  };
+
+  let statusCode = "", r;
+  for (let i = 0; i < 8; i++) { // ~20s this tick
+    r = await igCall("GET", `/${containerId}`, { fields: "status_code", access_token: token });
+    statusCode = r.json.status_code;
+    if (statusCode === "FINISHED") break;
+    if (statusCode === "ERROR") return fail("Video gagal diproses Instagram (ERROR)");
+    await sleep(2500);
+  }
+  if (statusCode !== "FINISHED") { await log("Video masih diproses Instagram — dicek lagi menit berikutnya."); return { processing: true, runId: run.id }; }
+  await log("Video siap");
+
+  r = await igCall("POST", `/${igu}/media_publish`, { creation_id: containerId, access_token: token });
+  if (!r.json.id) return fail(r.json.error?.message || "Publish gagal");
+  const mediaId = r.json.id;
+  r = await igCall("GET", `/${mediaId}`, { fields: "permalink", access_token: token });
+  const permalink = r.json.permalink || null;
+  await log("Dipublikasikan ✓");
+
+  // Reels/Feed may carry a pinned first comment; Stories don't.
+  if ((post.post_type === "reels" || post.post_type === "feed") && post.first_comment) {
+    const cr = await igCall("POST", `/${mediaId}/comments`, { message: post.first_comment, access_token: token });
+    await log(cr.json.id ? "Komentar pertama diposting" : `Komentar pertama gagal: ${cr.json.error?.message || "?"}`, !cr.json.id);
+  }
+
+  await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
+  await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
+  const label = post.post_type === "reels" ? "Reels" : post.post_type === "feed" ? "Feed" : "Story";
+  await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `${label} terbit — ${chLabel}`, body: `${label} one-off terbit ke Instagram.`, runId: run.id });
+
+  // free the uploaded video file (free-tier storage)
+  try {
+    const { data: links = [] } = await svc.from("scheduled_post_media").select("asset_id").eq("post_id", post.id).order("position").limit(1);
+    if (links[0]?.asset_id) {
+      const { data: a } = await svc.from("media_asset").select("storage_path").eq("id", links[0].asset_id).single();
+      if (a?.storage_path) await svc.storage.from("pool-images").remove([a.storage_path]).catch(() => {});
+    }
+  } catch (_) { /* cleanup is best-effort */ }
   return { ok: true, permalink, runId: run.id };
 }
 

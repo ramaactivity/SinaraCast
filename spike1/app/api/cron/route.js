@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, refreshTokensDue } from "../../../lib/publishCore";
+import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, resumeOneoffContainer, refreshTokensDue } from "../../../lib/publishCore";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -133,6 +133,24 @@ export async function POST(request) {
       fired.push({ rule: rule.name, channel: channel.slug, ok: false, error: String(e?.message || e) });
     }
   }
+  // ---- resume video one-offs whose IG container was still transcoding last tick ----
+  // (created within the stale window so the sweep above hasn't failed them yet)
+  const resumed = [];
+  try {
+    const { data: pending = [] } = await svc.from("post_run")
+      .select("id, channel_id, scheduled_post_id, ig_media_id")
+      .eq("status", "publishing").not("scheduled_post_id", "is", null).not("ig_media_id", "is", null)
+      .gte("created_at", staleIso);
+    for (const run of pending || []) {
+      if (overBudget()) break;
+      const { data: ch } = await svc.from("channel").select("id, owner_id, slug, handle, ig_user_id, access_token").eq("id", run.channel_id).maybeSingle();
+      const { data: post } = await svc.from("scheduled_post").select("id, post_type, first_comment").eq("id", run.scheduled_post_id).maybeSingle();
+      if (!ch || !post) continue;
+      try { const res = await resumeOneoffContainer(svc, { channel: ch, post, run }); resumed.push({ oneoff: post.id, type: post.post_type, ok: res.ok, processing: res.processing, error: res.error }); }
+      catch (e) { resumed.push({ oneoff: run.scheduled_post_id, ok: false, error: String(e?.message || e) }); }
+    }
+  } catch (_) { /* resume is best-effort; stale-sweep is the backstop */ }
+
   // ---- one-off posts (Story / Feed / Reels) due now, on eligible channels ----
   const oneoffs = [];
   const chIds = Object.keys(chById);
@@ -158,7 +176,7 @@ export async function POST(request) {
     }
   }
 
-  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, oneoffs });
+  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, resumed, oneoffs });
 }
 
 // allow GET for a quick manual ping/health (still secret-gated)
