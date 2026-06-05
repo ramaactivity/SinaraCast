@@ -22,6 +22,45 @@ const fmtNotifTime = (iso) => {
   if (dayDiff === 1) return `Kemarin, ${hm}`;
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}, ${hm}`;
 };
+// Next scheduled run for an active rule, as a friendly WIB label. Mirrors the
+// engine's fire logic (JS day-of-week 0=Sun; every_n_days anchored on created_at).
+const WD_SHORT = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+const ruleFiresOn = (rule, Y, M, day) => {
+  const jsDow = new Date(Date.UTC(Y, M, day)).getUTCDay();
+  if (rule.cadence_type === "daily") return true;
+  if (rule.cadence_type === "weekdays") return Array.isArray(rule.weekdays) && rule.weekdays.includes(jsDow);
+  if (rule.cadence_type === "every_n_days") {
+    const n = rule.interval_days || 2;
+    if (!rule.created_at) return false;
+    const anchor = toWib(rule.created_at);
+    const a = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate());
+    const diff = Math.round((Date.UTC(Y, M, day) - a) / 86400000);
+    return diff >= 0 && diff % n === 0;
+  }
+  return false;
+};
+const ruleHHMM = (rule, jsDow) => {
+  if (rule.mode !== "schedule") return (rule.post_time || "").slice(0, 5);
+  const weekend = jsDow === 0 || jsDow === 6;
+  return ((weekend ? rule.weekend_time : rule.weekday_time) || "").slice(0, 5);
+};
+const nextRunLabel = (rule) => {
+  const now = toWib(new Date().toISOString());
+  const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+  for (let i = 0; i < 366; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + i));
+    const Y = d.getUTCFullYear(), M = d.getUTCMonth(), day = d.getUTCDate(), jsDow = d.getUTCDay();
+    if (!ruleFiresOn(rule, Y, M, day)) continue;
+    const hhmm = ruleHHMM(rule, jsDow);
+    if (!hhmm) continue;
+    const [h, m] = hhmm.split(":").map(Number);
+    if (i === 0 && h * 60 + m <= nowMin) continue; // today, but the time already passed
+    if (i === 0) return `Hari ini, ${hhmm} WIB`;
+    if (i === 1) return `Besok, ${hhmm} WIB`;
+    return `${WD_SHORT[jsDow]}, ${day} ${MONTHS[M]} · ${hhmm} WIB`;
+  }
+  return "Belum dijadwalkan";
+};
 const cadenceLabel = (r) => {
   if (r.cadence_type === "daily") return "Setiap hari";
   if (r.cadence_type === "every_n_days") return `Setiap ${r.interval_days || 2} hari`;
@@ -55,7 +94,7 @@ function mapRule(r, slugById) {
     cadenceType: r.cadence_type, intervalDays: r.interval_days, weekdaysDb: r.weekdays || [], createdAt: r.created_at,
     weekdayTime: r.weekday_time?.slice(0, 5) || "", weekendTime: r.weekend_time?.slice(0, 5) || "", postTime: r.post_time?.slice(0, 5) || "",
     pools: isSched ? { weekday: 0, weekend: 0 } : { pool: 0 }, // counts filled below if pools loaded
-    cycle: { used: 0, total: 0 }, nextRun: r.active ? "Belum dijadwalkan" : "Nonaktif",
+    cycle: { used: 0, total: 0 }, nextRun: r.active ? nextRunLabel(r) : "Nonaktif",
     todayStatus: r.active ? "Scheduled" : "Inactive", lastImg: 0, runs7: [0, 0, 0, 0, 0, 0, 0],
   };
 }

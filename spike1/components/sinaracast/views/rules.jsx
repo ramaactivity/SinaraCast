@@ -33,11 +33,16 @@ export function RulesView() {
 
   const selRule = rules.find(r => r.id === sel) || rules[0];
 
-  // activity summary for this channel
+  // activity summary for this channel — real counts over the last 7 days (WIB)
   const chRuns = app.runs.filter(r => r.ch === app.channel);
-  const pubWeek = chRuns.filter(r => r.status === "Published").length;
   const failCt = chRuns.filter(r => r.status === "Failed").length;
-  const week = [4, 5, 3, 6, 5, 7, pubWeek || 4];
+  const wibNow = new Date(Date.now() + 7 * 3600 * 1000);
+  const last7 = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(Date.UTC(wibNow.getUTCFullYear(), wibNow.getUTCMonth(), wibNow.getUTCDate() - (6 - i)));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  });
+  const week = last7.map(key => chRuns.filter(r => r.dateWib === key && r.status === "Published").length);
+  const pubWeek = week.reduce((a, n) => a + n, 0);
 
   const right = (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

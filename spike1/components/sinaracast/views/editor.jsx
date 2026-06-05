@@ -170,7 +170,7 @@ export function EditorView() {
               </Field>
             </div>
             <Field label="Cara pilih gambar" hint={mode === "schedule" ? "Gambar beda untuk hari kerja & akhir pekan." : "Satu kumpulan gambar, diacak bergiliran tanpa diulang."} style={{ marginTop: 14 }}>
-              <Segmented options={[{ value: "schedule", label: "Beda hari kerja & akhir pekan" }, { value: "pool", label: "Satu kumpulan (acak)" }]} value={mode} onChange={setMode} />
+              <Segmented full options={[{ value: "schedule", label: "Beda akhir pekan" }, { value: "pool", label: "Satu kumpulan" }]} value={mode} onChange={setMode} />
             </Field>
           </Panel>
 
