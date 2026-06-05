@@ -176,6 +176,43 @@ export async function publishStoryOneoff(svc, { channel, post }) {
   return { ok: true, permalink, runId: run.id };
 }
 
+// Auto-refresh long-lived Instagram tokens before they lapse (~60d lifetime).
+// ig_refresh_token works in Development Mode and needs no App Review; it just
+// requires a still-valid token ≥24h old. We refresh any connected channel whose
+// token expires within 10 days (or has unknown expiry). On failure the token is
+// likely already expired → mark needs_reconnect + alert so the user re-links.
+const REFRESH_WINDOW_MS = 10 * 86400 * 1000;
+export async function refreshTokensDue(svc) {
+  const cutoff = new Date(Date.now() + REFRESH_WINDOW_MS).toISOString();
+  const { data: chans = [] } = await svc.from("channel")
+    .select("id, owner_id, slug, access_token, token_expires_at")
+    .eq("token_status", "connected").is("archived_at", null)
+    .or(`token_expires_at.is.null,token_expires_at.lte.${cutoff}`);
+  const out = [];
+  for (const c of chans || []) {
+    if (!c.access_token) continue;
+    try {
+      const u = new URL("https://graph.instagram.com/refresh_access_token");
+      u.searchParams.set("grant_type", "ig_refresh_token");
+      u.searchParams.set("access_token", c.access_token);
+      const r = await fetch(u);
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.access_token) {
+        const exp = j.expires_in ? new Date(Date.now() + j.expires_in * 1000).toISOString() : null;
+        await svc.from("channel").update({ access_token: j.access_token, token_expires_at: exp, last_refresh_at: new Date().toISOString(), token_status: "connected" }).eq("id", c.id);
+        out.push({ channel: c.slug, ok: true, expires: exp });
+      } else {
+        await svc.from("channel").update({ token_status: "needs_reconnect" }).eq("id", c.id);
+        await notify(svc, { ownerId: c.owner_id, channelId: c.id, type: "error",
+          title: `Channel perlu disambungkan ulang — ${c.slug}`,
+          body: "Token Instagram tidak bisa diperpanjang otomatis. Buka Connections → Sambungkan ulang.", runId: null });
+        out.push({ channel: c.slug, ok: false, error: j?.error?.message || "refresh gagal" });
+      }
+    } catch (e) { out.push({ channel: c.slug, ok: false, error: String(e?.message || e) }); }
+  }
+  return out;
+}
+
 // pool role for "now" given rule mode + WIB day-of-week
 export function roleForNow(mode, dowWib) {
   if (mode !== "schedule") return "single";

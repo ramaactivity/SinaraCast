@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff } from "../../../lib/publishCore";
+import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, refreshTokensDue } from "../../../lib/publishCore";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,11 +36,15 @@ export async function POST(request) {
   const today = wibDateStr(nowWib);
   const nowMin = nowWib.getUTCHours() * 60 + nowWib.getUTCMinutes();
 
+  // Keep long-lived Instagram tokens fresh (~60d lifetime). Cheap: only touches
+  // channels expiring within 10 days, so it's a no-op on almost every tick.
+  const refreshed = await refreshTokensDue(svc);
+
   // eligible channels (connected, not paused, not archived) + owners not globally paused
   const { data: channels = [] } = await svc.from("channel")
     .select("id, owner_id, slug, ig_user_id, access_token, token_status, paused, archived_at")
     .eq("token_status", "connected").eq("paused", false).is("archived_at", null);
-  if (!channels.length) return NextResponse.json({ ok: true, fired: [], note: "no eligible channels" });
+  if (!channels.length) return NextResponse.json({ ok: true, refreshed, fired: [], note: "no eligible channels" });
 
   const owners = [...new Set(channels.map((c) => c.owner_id))];
   const { data: settings = [] } = await svc.from("app_settings").select("owner_id, pause_all").in("owner_id", owners);
@@ -112,7 +116,7 @@ export async function POST(request) {
     }
   }
 
-  return NextResponse.json({ ok: true, at: nowWib.toISOString(), fired, oneoffs });
+  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, oneoffs });
 }
 
 // allow GET for a quick manual ping/health (still secret-gated)
