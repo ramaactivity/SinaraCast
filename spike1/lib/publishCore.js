@@ -206,6 +206,7 @@ export async function refreshTokensDue(svc) {
   const cutoff = new Date(Date.now() + REFRESH_WINDOW_MS).toISOString();
   const { data: chans = [] } = await svc.from("channel")
     .select("id, owner_id, slug, access_token, token_expires_at")
+    .eq("platform", "instagram") // TikTok channels refresh via their own path, never here
     .eq("token_status", "connected").is("archived_at", null)
     .or(`token_expires_at.is.null,token_expires_at.lte.${cutoff}`);
   const out = [];

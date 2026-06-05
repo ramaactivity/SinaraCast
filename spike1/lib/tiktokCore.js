@@ -94,7 +94,7 @@ export async function publishTikTokVideoOneoff(svc, { channel, storagePath, capt
   });
   const publishId = init.json?.data?.publish_id;
   const uploadUrl = init.json?.data?.upload_url;
-  if (!publishId || !uploadUrl) return { ok: false, error: init.json?.error?.message || "Gagal init video TikTok", raw: init.json };
+  if (!publishId || !uploadUrl) return { ok: false, error: init.json?.error?.message || "Gagal init video TikTok", code: init.json?.error?.code, raw: init.json };
 
   // 3) PUT the whole file in one chunk.
   const putRes = await fetch(uploadUrl, {

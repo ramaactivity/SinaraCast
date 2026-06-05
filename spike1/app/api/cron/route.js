@@ -62,6 +62,7 @@ export async function POST(request) {
   // eligible channels (connected, not paused, not archived) + owners not globally paused
   const { data: channels = [] } = await svc.from("channel")
     .select("id, owner_id, slug, ig_user_id, access_token, token_status, paused, archived_at")
+    .eq("platform", "instagram") // recurring IG engine ignores TikTok channels
     .eq("token_status", "connected").eq("paused", false).is("archived_at", null);
   if (!channels.length) return NextResponse.json({ ok: true, refreshed, fired: [], note: "no eligible channels" });
 
