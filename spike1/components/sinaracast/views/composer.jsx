@@ -5,6 +5,7 @@ import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { uploadPoolImage, uploadReelVideo, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost } from "../dataLayer";
 import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, Segmented, MediaThumb, SectionTitle, Spinner, Chip, Input, Select } from "../ui";
+import { Lightbox } from "../lightbox";
 const { useState: uCo, useRef, useEffect } = React;
 const FCo = "var(--font)";
 const MAX_VIDEO_MB = 50;
@@ -55,6 +56,7 @@ export function ComposerView() {
   const [saving, setSaving] = uCo(false);
   const [loading, setLoading] = uCo(!!postId);
   const [origStatus, setOrigStatus] = uCo(null); // existing status when editing
+  const [view, setView] = uCo(null); // lightbox index, or null
   const fileRef = useRef(null);
 
   // Load existing one-off when editing.
@@ -219,9 +221,12 @@ export function ComposerView() {
               {media.map((m, i) => (
                 <div key={i} style={{ position: "relative" }}>
                   {isVid(m)
-                    ? <video src={m.url} muted playsInline controls style={{ width: 120, aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", background: "#000", display: "block" }} />
-                    : <MediaThumb seed={i} src={m.url} w={isFeed ? 96 : 90} ratio={isFeed ? 1 : 16 / 9} label={isFeed ? "Feed" : "9:16"} />}
-                  <button onClick={() => setMedia(ms => ms.filter((_, x) => x !== i))} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
+                    ? <div onClick={() => setView(i)} title="Klik untuk pratinjau" style={{ position: "relative", cursor: "zoom-in", lineHeight: 0 }}>
+                        <video src={m.url} muted playsInline preload="metadata" style={{ width: 120, aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", background: "#000", display: "block" }} />
+                        <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.6)", pointerEvents: "none" }}><Icons.play size={26} /></span>
+                      </div>
+                    : <MediaThumb seed={i} src={m.url} w={isFeed ? 96 : 90} ratio={isFeed ? 1 : 16 / 9} label={isFeed ? "Feed" : "9:16"} onClick={() => setView(i)} />}
+                  <button onClick={() => setMedia(ms => ms.filter((_, x) => x !== i))} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
                 </div>
               ))}
               {!media.length && <div style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-400)", padding: "10px 2px" }}>{isReels ? "Belum ada video. Klik Unggah untuk menambahkan." : isFeed ? "Belum ada gambar. Klik Unggah untuk menambahkan." : "Belum ada media. Unggah gambar atau video."}</div>}
@@ -254,14 +259,23 @@ export function ComposerView() {
           <Panel>
             <SectionTitle sub="Perkiraan tampilan">Pratinjau</SectionTitle>
             <div style={{ display: "flex", justifyContent: "center" }}>
-              {isVid(media[0])
-                ? <video src={media[0].url} muted playsInline controls style={{ width: 150, aspectRatio: "9/16", objectFit: "cover", borderRadius: 14, border: "1px solid var(--line)", background: "#000", display: "block" }} />
-                : <MediaThumb seed={0} src={media[0]?.url} w={140} ratio={isFeed ? 1 : 16 / 9} label={isReels ? "Reels 9:16" : isFeed ? "Feed" : "Story 9:16"} />}
+              {media.length === 0
+                ? <MediaThumb seed={0} w={140} ratio={isFeed ? 1 : 16 / 9} label={isReels ? "Reels 9:16" : isFeed ? "Feed" : "Story 9:16"} />
+                : isVid(media[0])
+                  ? <div onClick={() => setView(0)} title="Klik untuk pratinjau" style={{ position: "relative", cursor: "zoom-in", lineHeight: 0 }}>
+                      <video src={media[0].url} muted playsInline preload="metadata" style={{ width: 150, aspectRatio: "9/16", objectFit: "cover", borderRadius: 14, border: "1px solid var(--line)", background: "#000", display: "block" }} />
+                      <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.6)", pointerEvents: "none" }}><Icons.play size={30} /></span>
+                    </div>
+                  : <MediaThumb seed={0} src={media[0].url} w={140} ratio={isFeed ? 1 : 16 / 9} label={isReels ? "Reels 9:16" : isFeed ? "Feed" : "Story 9:16"} onClick={() => setView(0)} />}
             </div>
             {hasCaption && caption && <p style={{ fontFamily: FCo, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.5, marginTop: 12, maxHeight: 70, overflow: "hidden" }}><b style={{ color: "var(--ink-900)" }}>{channel.handle.replace(/^@/, "")}</b> {caption}</p>}
           </Panel>
         </div>
       </div>
+
+      <Lightbox imgs={media} index={view} onClose={() => setView(null)} onIndex={setView}
+        ratio={isFeed ? null : 16 / 9}
+        onDelete={(idx) => { const remaining = media.length - 1; setMedia(ms => ms.filter((_, x) => x !== idx)); setView(remaining <= 0 ? null : Math.min(idx, remaining - 1)); }} />
     </div>
   );
 }
