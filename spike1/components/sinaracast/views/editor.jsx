@@ -44,24 +44,39 @@ function readDims(file) {
     img.src = url;
   });
 }
-// Center-crop an image to a target ratio (like Instagram) → new JPEG File + dims.
-function cropToRatio(file, ratio) {
+const IMG_MAXDIM = 1920, IMG_LIMIT = 8 * 1024 * 1024;
+// Prepare a photo like Instagram does: center-crop to a target ratio, downscale very
+// large images, always output JPEG, and step quality down to fit the 8 MB limit.
+function prepareImage(file, cropRatio) {
   return new Promise((res, rej) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       const iw = img.naturalWidth, ih = img.naturalHeight;
-      let cw = iw, ch = Math.round(iw / ratio);
-      if (ch > ih) { ch = ih; cw = Math.round(ih * ratio); }
-      const sx = Math.round((iw - cw) / 2), sy = Math.round((ih - ch) / 2);
+      let cw = iw, ch = ih, sx = 0, sy = 0, cropped = false;
+      if (cropRatio) {
+        cw = iw; ch = Math.round(iw / cropRatio);
+        if (ch > ih) { ch = ih; cw = Math.round(ih * cropRatio); }
+        sx = Math.round((iw - cw) / 2); sy = Math.round((ih - ch) / 2);
+        cropped = cw !== iw || ch !== ih;
+      }
+      const scale = Math.min(1, IMG_MAXDIM / Math.max(cw, ch));
+      const ow = Math.max(1, Math.round(cw * scale)), oh = Math.max(1, Math.round(ch * scale));
       const canvas = document.createElement("canvas");
-      canvas.width = cw; canvas.height = ch;
-      canvas.getContext("2d").drawImage(img, sx, sy, cw, ch, 0, 0, cw, ch);
-      canvas.toBlob((blob) => {
-        URL.revokeObjectURL(url);
-        if (!blob) return rej(new Error("crop"));
-        res({ file: new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }), width: cw, height: ch });
-      }, "image/jpeg", 0.92);
+      canvas.width = ow; canvas.height = oh;
+      canvas.getContext("2d").drawImage(img, sx, sy, cw, ch, 0, 0, ow, oh);
+      URL.revokeObjectURL(url);
+      const toBlobQ = (q) => new Promise((r) => canvas.toBlob((b) => r(b), "image/jpeg", q));
+      (async () => {
+        for (const q of [0.92, 0.85, 0.75, 0.65, 0.55]) {
+          const blob = await toBlobQ(q);
+          if (blob && (blob.size <= IMG_LIMIT || q === 0.55)) {
+            const out = new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+            return res({ file: out, width: ow, height: oh, cropped, shrunk: out.size < file.size && !cropped });
+          }
+        }
+        rej(new Error("encode"));
+      })();
     };
     img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("read")); };
     img.src = url;
@@ -153,8 +168,8 @@ export function EditorView() {
       if (["video/mp4", "video/quicktime"].includes(file.type)) {
         if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(`Video maksimal ${MAX_VIDEO_MB} MB`, "error"); continue; }
         let meta; try { meta = await readVideoMeta(file); } catch { app.toast("Gagal membaca video", "error"); continue; }
-        if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) { app.toast(`Video harus 9:16 — video ini ${meta.width}×${meta.height}`, "error"); continue; }
-        if (meta.duration && meta.duration > 60) { app.toast("Story video maksimal 60 detik", "error"); continue; }
+        if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) app.toast("Video bukan 9:16 — Instagram akan menyesuaikan", "info");
+        if (meta.duration && meta.duration > 60) { app.toast("Story video maksimal 60 detik (batas Instagram)", "error"); continue; }
         setUploading(true);
         try {
           const row = await uploadReelVideo(file, chId, meta);
@@ -164,16 +179,19 @@ export function EditorView() {
         finally { setUploading(false); }
         continue;
       }
-      if (!["image/jpeg", "image/png"].includes(file.type)) { app.toast("Hanya JPG / PNG / video MP4", "error"); continue; }
-      if (file.size > 8 * 1024 * 1024) { app.toast("Maksimal 8 MB", "error"); continue; }
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { app.toast("Hanya gambar JPG/PNG/WebP atau video MP4", "error"); continue; }
+      if (file.size > 40 * 1024 * 1024) { app.toast("Gambar terlalu besar (maks 40 MB)", "error"); continue; }
       let dim; try { dim = await readDims(file); } catch { app.toast("Gagal membaca gambar", "error"); continue; }
-      // Auto center-crop to 9:16 (Story) instead of rejecting off-ratio photos.
-      let upFile = file, upDim = dim;
-      if (Math.abs(dim.width / dim.height - 9 / 16) > 0.04) {
-        try { const c = await cropToRatio(file, 9 / 16); upFile = c.file; upDim = { width: c.width, height: c.height }; app.toast("Gambar dipotong otomatis ke 9:16", "info"); }
-        catch { app.toast("Gagal menyesuaikan gambar", "error"); continue; }
-      }
+      // Pools are Story (9:16). Auto center-crop to 9:16, shrink huge files, output JPEG.
+      let upFile, upDim;
+      const cropRatio = Math.abs(dim.width / dim.height - 9 / 16) > 0.04 ? 9 / 16 : null;
       setUploading(true);
+      try {
+        const p = await prepareImage(file, cropRatio);
+        upFile = p.file; upDim = { width: p.width, height: p.height };
+        if (p.cropped) app.toast("Gambar dipotong otomatis ke 9:16", "info");
+        else if (p.shrunk) app.toast("Gambar dikompres otomatis agar muat", "info");
+      } catch { app.toast("Gagal menyiapkan gambar", "error"); setUploading(false); continue; }
       try {
         const row = await uploadPoolImage(upFile, chId, upDim);
         await commitRow(row, rep); rep = null;
@@ -246,7 +264,7 @@ export function EditorView() {
           </Panel>
 
           <Panel>
-            <SectionTitle sub={`Unggah gambar (JPG/PNG, 8 MB) atau video (MP4, ${MAX_VIDEO_MB} MB, ≤60 dtk). Semua 9:16.`}
+            <SectionTitle sub={`Unggah gambar (otomatis dipotong 9:16) atau video MP4 (maks ${MAX_VIDEO_MB} MB, ≤60 dtk).`}
               right={<Button size="sm" variant="secondary" disabled={uploading} icon={uploading ? <Spinner size={15} /> : <Icons.upload size={16} />} onClick={() => fileRef.current?.click()}>{uploading ? "Mengunggah…" : "Unggah gambar"}</Button>}>Kumpulan gambar</SectionTitle>
             {errors.pool && <Banner tone="warn" icon={<Icons.warn size={17} />} title="Gambar tidak boleh kosong" body={errors.pool} />}
             {mode === "schedule" && (

@@ -34,25 +34,43 @@ function readDims(file) {
     img.src = url;
   });
 }
-// Center-crop an image file to a target width/height ratio (like Instagram does
-// when you upload an off-ratio photo). Returns a new JPEG File + its dimensions.
-function cropToRatio(file, ratio) {
+const IMG_MAXDIM = 1920;          // longest side after processing (IG re-encodes anyway)
+const IMG_LIMIT = 8 * 1024 * 1024; // Instagram's per-image limit
+
+// Prepare a photo for Instagram the way the IG app does: optionally center-crop to
+// a target ratio, downscale very large images, always output JPEG (IG only accepts
+// JPEG), and step quality down until it fits the 8 MB limit. Returns the new File +
+// final dimensions + flags so the caller can explain what happened.
+function prepareImage(file, cropRatio) {
   return new Promise((res, rej) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       const iw = img.naturalWidth, ih = img.naturalHeight;
-      let cw = iw, ch = Math.round(iw / ratio);
-      if (ch > ih) { ch = ih; cw = Math.round(ih * ratio); } // too tall → crop top/bottom; else crop sides
-      const sx = Math.round((iw - cw) / 2), sy = Math.round((ih - ch) / 2);
+      let cw = iw, ch = ih, sx = 0, sy = 0, cropped = false;
+      if (cropRatio) {
+        cw = iw; ch = Math.round(iw / cropRatio);
+        if (ch > ih) { ch = ih; cw = Math.round(ih * cropRatio); }
+        sx = Math.round((iw - cw) / 2); sy = Math.round((ih - ch) / 2);
+        cropped = cw !== iw || ch !== ih;
+      }
+      const scale = Math.min(1, IMG_MAXDIM / Math.max(cw, ch));
+      const ow = Math.max(1, Math.round(cw * scale)), oh = Math.max(1, Math.round(ch * scale));
       const canvas = document.createElement("canvas");
-      canvas.width = cw; canvas.height = ch;
-      canvas.getContext("2d").drawImage(img, sx, sy, cw, ch, 0, 0, cw, ch);
-      canvas.toBlob((blob) => {
-        URL.revokeObjectURL(url);
-        if (!blob) return rej(new Error("crop"));
-        res({ file: new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }), width: cw, height: ch });
-      }, "image/jpeg", 0.92);
+      canvas.width = ow; canvas.height = oh;
+      canvas.getContext("2d").drawImage(img, sx, sy, cw, ch, 0, 0, ow, oh);
+      URL.revokeObjectURL(url);
+      const toBlobQ = (q) => new Promise((r) => canvas.toBlob((b) => r(b), "image/jpeg", q));
+      (async () => {
+        for (const q of [0.92, 0.85, 0.75, 0.65, 0.55]) {
+          const blob = await toBlobQ(q);
+          if (blob && (blob.size <= IMG_LIMIT || q === 0.55)) {
+            const out = new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+            return res({ file: out, width: ow, height: oh, cropped, shrunk: out.size < file.size && !cropped });
+          }
+        }
+        rej(new Error("encode"));
+      })();
     };
     img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("read")); };
     img.src = url;
@@ -130,8 +148,8 @@ export function ComposerView() {
         if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(`Video maksimal ${MAX_VIDEO_MB} MB`, "error"); continue; }
         let meta; try { meta = await readVideoMeta(file); } catch { app.toast("Gagal membaca video", "error"); continue; }
         const vr = meta.width / meta.height;
-        if (Math.abs(vr - 9 / 16) > 0.06) { app.toast(`Reels sebaiknya 9:16 — video ini ${meta.width}×${meta.height}`, "error"); continue; }
-        if (meta.duration && meta.duration > 90) { app.toast("Reels maksimal 90 detik", "error"); continue; }
+        if (Math.abs(vr - 9 / 16) > 0.06) app.toast("Video bukan 9:16 — Instagram akan menyesuaikan (tambah bilah hitam)", "info");
+        if (meta.duration && meta.duration > 900) { app.toast("Reels maksimal 15 menit", "error"); continue; }
         setUploading(true);
         try { const row = await uploadReelVideo(file, channel.id, meta); setMedia([row]); app.toast("Video diunggah ✓", "success"); }
         catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
@@ -142,8 +160,8 @@ export function ComposerView() {
       if (type === "story" && ["video/mp4", "video/quicktime"].includes(file.type)) {
         if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(`Video maksimal ${MAX_VIDEO_MB} MB`, "error"); continue; }
         let meta; try { meta = await readVideoMeta(file); } catch { app.toast("Gagal membaca video", "error"); continue; }
-        if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) { app.toast(`Story video sebaiknya 9:16 — video ini ${meta.width}×${meta.height}`, "error"); continue; }
-        if (meta.duration && meta.duration > 60) { app.toast("Story video maksimal 60 detik", "error"); continue; }
+        if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) app.toast("Video bukan 9:16 — Instagram akan menyesuaikan", "info");
+        if (meta.duration && meta.duration > 60) { app.toast("Story video maksimal 60 detik (batas Instagram)", "error"); continue; }
         setUploading(true);
         try { const row = await uploadReelVideo(file, channel.id, meta); setMedia([row]); app.toast("Video diunggah ✓", "success"); }
         catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
@@ -151,27 +169,24 @@ export function ComposerView() {
         continue;
       }
       if (isFeed && rep == null && media.length >= 10) { app.toast("Carousel maksimal 10 gambar", "info"); break; }
-      if (!["image/jpeg", "image/png"].includes(file.type)) { app.toast("Hanya JPG / PNG", "error"); continue; }
-      if (file.size > 8 * 1024 * 1024) { app.toast("Maksimal 8 MB", "error"); continue; }
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { app.toast("Hanya gambar JPG / PNG / WebP", "error"); continue; }
+      if (file.size > 40 * 1024 * 1024) { app.toast("Gambar terlalu besar (maks 40 MB)", "error"); continue; }
       let dim; try { dim = await readDims(file); } catch { app.toast("Gagal membaca gambar", "error"); continue; }
-      // Instagram accepts any photo and crops it. Mirror that: auto center-crop to a
-      // supported ratio instead of rejecting. Story → 9:16; Feed → clamp to 4:5..1.91:1.
+      // Instagram accepts any photo and crops/compresses it. Mirror that: auto
+      // center-crop to a supported ratio (Story 9:16; Feed clamp 4:5..1.91:1),
+      // shrink huge files, and always output JPEG — instead of rejecting.
       const ratio = dim.width / dim.height;
-      let upFile = file, upDim = dim;
-      try {
-        if (isFeed) {
-          if (ratio < 0.8 || ratio > 1.91) {
-            const c = await cropToRatio(file, ratio < 0.8 ? 0.8 : 1.91);
-            upFile = c.file; upDim = { width: c.width, height: c.height };
-            app.toast("Gambar disesuaikan ke rasio Instagram", "info");
-          }
-        } else if (Math.abs(ratio - 9 / 16) > 0.04) {
-          const c = await cropToRatio(file, 9 / 16);
-          upFile = c.file; upDim = { width: c.width, height: c.height };
-          app.toast("Gambar dipotong otomatis ke 9:16", "info");
-        }
-      } catch { app.toast("Gagal menyesuaikan gambar", "error"); continue; }
+      const cropRatio = isFeed
+        ? (ratio < 0.8 ? 0.8 : ratio > 1.91 ? 1.91 : null)
+        : (Math.abs(ratio - 9 / 16) > 0.04 ? 9 / 16 : null);
+      let upFile, upDim;
       setUploading(true);
+      try {
+        const p = await prepareImage(file, cropRatio);
+        upFile = p.file; upDim = { width: p.width, height: p.height };
+        if (p.cropped) app.toast(isFeed ? "Gambar disesuaikan ke rasio Instagram" : "Gambar dipotong otomatis ke 9:16", "info");
+        else if (p.shrunk) app.toast("Gambar dikompres otomatis agar muat", "info");
+      } catch { app.toast("Gagal menyiapkan gambar", "error"); setUploading(false); continue; }
       try {
         const row = await uploadPoolImage(upFile, channel.id, upDim);
         setMedia(m => rep != null ? m.map((x, k) => (k === rep ? row : x)) : (isFeed ? [...m, row] : [row]));
@@ -259,12 +274,12 @@ export function ComposerView() {
             </div>}
             {isReels && <div style={{ display: "flex", gap: 9, marginTop: 12, background: "var(--st-publishing-bg)", borderRadius: 11, padding: "10px 12px" }}>
               <Icons.film size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Reels terbit otomatis: 1 video tegak 9:16, format MP4/MOV, maks {MAX_VIDEO_MB} MB, durasi ≤ 90 detik. Caption & komentar pertama opsional.</span>
+              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Reels terbit otomatis: 1 video tegak 9:16, format MP4/MOV, maks {MAX_VIDEO_MB} MB, durasi ≤ 15 menit. Caption & komentar pertama opsional.</span>
             </div>}
           </Panel>
           <Panel>
             <SectionTitle sub={isReels ? "Satu video tegak 9:16" : isFeed ? "Sampai 10 gambar (carousel)" : "Satu gambar atau video tegak 9:16"} right={<Button size="sm" variant="secondary" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={uploading} onClick={() => fileRef.current?.click()}>{(media.length >= 1 && (isReels || type === "story")) ? "Ganti" : "Unggah"}</Button>}>{isReels ? "Video" : isFeed ? "Gambar" : "Media"}</SectionTitle>
-            <input ref={fileRef} type="file" accept={isReels ? "video/mp4,video/quicktime" : isFeed ? "image/jpeg,image/png" : "image/jpeg,image/png,video/mp4,video/quicktime"} multiple={isFeed} onChange={onFiles} style={{ display: "none" }} />
+            <input ref={fileRef} type="file" accept={isReels ? "video/mp4,video/quicktime" : isFeed ? "image/jpeg,image/png,image/webp" : "image/jpeg,image/png,image/webp,video/mp4,video/quicktime"} multiple={isFeed} onChange={onFiles} style={{ display: "none" }} />
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {media.map((m, i) => (
                 <div key={i} style={{ position: "relative" }}>

@@ -22,6 +22,37 @@ function readDims(file) {
     img.src = url;
   });
 }
+const IMG_MAXDIM = 1920, IMG_LIMIT = 8 * 1024 * 1024;
+// Downscale very large images + always output JPEG (gallery keeps the original
+// aspect — no crop here; cropping happens later when a post is composed).
+function prepareImage(file) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+      const scale = Math.min(1, IMG_MAXDIM / Math.max(iw, ih));
+      const ow = Math.max(1, Math.round(iw * scale)), oh = Math.max(1, Math.round(ih * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = ow; canvas.height = oh;
+      canvas.getContext("2d").drawImage(img, 0, 0, ow, oh);
+      URL.revokeObjectURL(url);
+      const toBlobQ = (q) => new Promise((r) => canvas.toBlob((b) => r(b), "image/jpeg", q));
+      (async () => {
+        for (const q of [0.92, 0.85, 0.75, 0.65, 0.55]) {
+          const blob = await toBlobQ(q);
+          if (blob && (blob.size <= IMG_LIMIT || q === 0.55)) {
+            const out = new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+            return res({ file: out, width: ow, height: oh, shrunk: out.size < file.size });
+          }
+        }
+        rej(new Error("encode"));
+      })();
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("read")); };
+    img.src = url;
+  });
+}
 
 export function MediaLibraryView() {
   const app = useApp();
@@ -43,11 +74,13 @@ export function MediaLibraryView() {
     const files = [...(e.target.files || [])]; e.target.value = "";
     if (!channel) { app.toast("Pilih akun dulu", "error"); return; }
     for (const file of files) {
-      if (!["image/jpeg", "image/png"].includes(file.type)) { app.toast("Hanya JPG / PNG", "error"); continue; }
-      if (file.size > 8 * 1024 * 1024) { app.toast("Maksimal 8 MB", "error"); continue; }
-      let dim; try { dim = await readDims(file); } catch { app.toast("Gagal membaca gambar", "error"); continue; }
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { app.toast("Hanya gambar JPG / PNG / WebP", "error"); continue; }
+      if (file.size > 40 * 1024 * 1024) { app.toast("Gambar terlalu besar (maks 40 MB)", "error"); continue; }
       setUploading(true);
-      try { await uploadLibraryMedia(file, chId, channel._id, dim); app.toast("Media diunggah ✓", "success"); }
+      let up;
+      try { up = await prepareImage(file); if (up.shrunk) app.toast("Gambar dikompres otomatis agar muat", "info"); }
+      catch { app.toast("Gagal menyiapkan gambar", "error"); setUploading(false); continue; }
+      try { await uploadLibraryMedia(up.file, chId, channel._id, { width: up.width, height: up.height }); app.toast("Media diunggah ✓", "success"); }
       catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
       finally { setUploading(false); }
     }
@@ -62,7 +95,7 @@ export function MediaLibraryView() {
     <div>
       <Topbar title="Galeri" sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} size={18} /> {b.name} · gambar yang bisa dipakai ulang</span>}
         right={<Button variant="amber" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={17} />} disabled={uploading} onClick={() => fileRef.current?.click()}>Unggah</Button>} />
-      <input ref={fileRef} type="file" accept="image/jpeg,image/png" multiple onChange={onFiles} style={{ display: "none" }} />
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={onFiles} style={{ display: "none" }} />
 
       <Panel>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
