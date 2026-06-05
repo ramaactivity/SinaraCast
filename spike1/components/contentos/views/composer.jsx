@@ -86,8 +86,11 @@ export function ComposerView() {
       if (!["image/jpeg", "image/png"].includes(file.type)) { app.toast("Hanya JPG / PNG", "error"); continue; }
       if (file.size > 8 * 1024 * 1024) { app.toast("Maksimal 8 MB", "error"); continue; }
       let dim; try { dim = await readDims(file); } catch { app.toast("Gagal membaca gambar", "error"); continue; }
-      // Story requires 9:16; Feed is flexible (portrait/square up to 1.91:1 landscape).
-      if (!isFeed && Math.abs(dim.width / dim.height - 9 / 16) > 0.04) { app.toast(`Story harus 9:16 — gambar ini ${dim.width}×${dim.height}`, "error"); continue; }
+      // Story requires 9:16; Feed accepts 4:5 (0.8) up to 1.91:1 landscape.
+      const ratio = dim.width / dim.height;
+      if (isFeed) {
+        if (ratio < 0.8 || ratio > 1.91) { app.toast(`Feed harus rasio 4:5 s/d 1.91:1 — gambar ini ${dim.width}×${dim.height}`, "error"); continue; }
+      } else if (Math.abs(ratio - 9 / 16) > 0.04) { app.toast(`Story harus 9:16 — gambar ini ${dim.width}×${dim.height}`, "error"); continue; }
       setUploading(true);
       try {
         const row = await uploadPoolImage(file, chId, dim);
@@ -142,7 +145,7 @@ export function ComposerView() {
           <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("calendar")}>Kembali</Button>
           {postId && <Button variant="danger" icon={<Icons.trash size={15} />} disabled={saving} onClick={remove}>Hapus</Button>}
           <Button variant="secondary" icon={saving ? <Spinner size={15} /> : <Icons.layers size={16} />} disabled={saving || !media.length || locked} onClick={() => save("draft")}>Simpan draft</Button>
-          <Button variant="primary" icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.calendar size={16} />} disabled={!valid || saving || isFeed || locked} onClick={() => save("scheduled")}>{postId ? "Simpan & jadwalkan" : "Jadwalkan"}</Button>
+          <Button variant="primary" icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.calendar size={16} />} disabled={!valid || saving || locked} onClick={() => save("scheduled")}>{postId ? "Simpan & jadwalkan" : "Jadwalkan"}</Button>
         </div>} />
 
       {locked && <div style={{ display: "flex", gap: 9, marginBottom: 16, background: "var(--green-100)", borderRadius: 12, padding: "11px 14px" }}>
@@ -157,7 +160,7 @@ export function ComposerView() {
             <Segmented full options={[{ value: "story", label: "Story (9:16)" }, { value: "feed", label: "Feed (caption + carousel)" }]} value={type} onChange={(v) => { setType(v); setMedia([]); }} />
             {isFeed && <div style={{ display: "flex", gap: 9, marginTop: 12, background: "var(--st-publishing-bg)", borderRadius: 11, padding: "10px 12px" }}>
               <Icons.info size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Feed bisa disimpan sebagai draft. Auto-publish Feed/carousel segera hadir — sekarang yang terbit otomatis baru Story.</span>
+              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Feed terbit otomatis (1 gambar atau carousel 2–10). Rasio 4:5 s/d 1.91:1. Komentar pertama diposting setelah feed terbit.</span>
             </div>}
           </Panel>
 
@@ -195,7 +198,7 @@ export function ComposerView() {
             <Field label="Jam" style={{ marginTop: 14 }}><TimeField value={time} onChange={setTime} /></Field>
             <div style={{ display: "flex", gap: 9, marginTop: 14, background: "var(--green-100)", borderRadius: 11, padding: "10px 12px" }}>
               <Icons.info size={15} style={{ color: "var(--green-500)", flex: "0 0 auto", marginTop: 1 }} />
-              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>{isFeed ? "Feed disimpan sebagai draft (auto-publish menyusul)." : "Story terbit sekali lewat pipeline andal yang sama (anti double-post)."}</span>
+              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>{isFeed ? "Feed terbit sekali otomatis (anti double-post)." : "Story terbit sekali lewat pipeline andal yang sama (anti double-post)."}</span>
             </div>
           </Panel>
           <Panel>

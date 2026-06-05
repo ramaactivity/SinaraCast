@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, refreshTokensDue } from "../../../lib/publishCore";
+import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, refreshTokensDue } from "../../../lib/publishCore";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -94,24 +94,26 @@ export async function POST(request) {
       fired.push({ rule: rule.name, channel: channel.slug, ok: false, error: String(e?.message || e) });
     }
   }
-  // ---- one-off Story posts due now (eligible channels only) ----
+  // ---- one-off posts (Story + Feed) due now, on eligible channels ----
   const oneoffs = [];
   const chIds = Object.keys(chById);
   if (chIds.length) {
     const { data: posts = [] } = await svc.from("scheduled_post")
-      .select("id, channel_id, post_type, scheduled_at, status")
-      .eq("status", "scheduled").eq("post_type", "story")
+      .select("id, channel_id, post_type, caption, first_comment, scheduled_at, status")
+      .eq("status", "scheduled")
       .lte("scheduled_at", new Date().toISOString())
       .in("channel_id", chIds);
     for (const post of posts) {
       const channel = chById[post.channel_id];
       if (!channel) continue;
       try {
-        const res = await publishStoryOneoff(svc, { channel, post });
+        const res = post.post_type === "feed"
+          ? await publishFeedOneoff(svc, { channel, post })
+          : await publishStoryOneoff(svc, { channel, post });
         if (res.skipped) continue;
-        oneoffs.push({ oneoff: post.id, channel: channel.slug, ok: res.ok, error: res.error, permalink: res.permalink });
+        oneoffs.push({ oneoff: post.id, type: post.post_type, channel: channel.slug, ok: res.ok, error: res.error, permalink: res.permalink });
       } catch (e) {
-        oneoffs.push({ oneoff: post.id, channel: channel.slug, ok: false, error: String(e?.message || e) });
+        oneoffs.push({ oneoff: post.id, type: post.post_type, channel: channel.slug, ok: false, error: String(e?.message || e) });
       }
     }
   }

@@ -213,6 +213,90 @@ export async function refreshTokensDue(svc) {
   return out;
 }
 
+// Publish a one-off Feed post (single image or 2–10 carousel) + optional first
+// comment. Same claim/visibility/notify pattern as publishStoryOneoff.
+export async function publishFeedOneoff(svc, { channel, post }) {
+  const { data: claimed } = await svc.from("scheduled_post")
+    .update({ status: "publishing" }).eq("id", post.id).eq("status", "scheduled").select("id").maybeSingle();
+  if (!claimed) return { skipped: true };
+
+  const { data: links = [] } = await svc.from("scheduled_post_media").select("asset_id, position").eq("post_id", post.id).order("position");
+  const assetIds = (links || []).map((l) => l.asset_id);
+  let paths = [];
+  if (assetIds.length) {
+    const { data: assets = [] } = await svc.from("media_asset").select("id, storage_path").in("id", assetIds);
+    const byId = Object.fromEntries((assets || []).map((a) => [a.id, a.storage_path]));
+    paths = (links || []).map((l) => byId[l.asset_id]).filter(Boolean);
+  }
+
+  const { data: run } = await svc.from("post_run").insert({
+    channel_id: channel.id, rule_id: null, scheduled_post_id: post.id, status: "publishing",
+    trigger: "scheduled", scheduled_at: post.scheduled_at || new Date().toISOString(),
+    claim_key: `oneoff:${post.id}`, attempt_count: 1,
+  }).select("id").single();
+  const log = (outcome, is_fail = false) => svc.from("post_attempt").insert({ run_id: run.id, outcome, is_fail });
+  const chLabel = channel.handle || channel.slug || "channel";
+  const fail = async (reason) => {
+    await log(reason, true);
+    await svc.from("post_run").update({ status: "failed", fail_reason: reason }).eq("id", run.id);
+    await svc.from("scheduled_post").update({ status: "failed" }).eq("id", post.id);
+    await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "error", title: `Feed gagal — ${chLabel}`, body: reason, runId: run.id });
+    return { ok: false, error: reason, runId: run.id };
+  };
+  if (!paths.length) return fail("Media feed tidak ditemukan");
+  const token = channel.access_token, igu = channel.ig_user_id;
+  const caption = post.caption || "";
+
+  // Build the container: single image, or a CAROUSEL of child items.
+  let containerId;
+  if (paths.length === 1) {
+    const r = await igCall("POST", `/${igu}/media`, { image_url: publicImageUrl(paths[0]), caption, access_token: token });
+    if (!r.json.id) return fail(r.json.error?.message || "Gagal membuat kontainer feed");
+    containerId = r.json.id;
+  } else {
+    const childIds = [];
+    for (const p of paths.slice(0, 10)) {
+      const r = await igCall("POST", `/${igu}/media`, { image_url: publicImageUrl(p), is_carousel_item: true, access_token: token });
+      if (!r.json.id) return fail(r.json.error?.message || "Gagal membuat item carousel");
+      childIds.push(r.json.id);
+    }
+    await log(`Carousel ${childIds.length} item dibuat`);
+    const r = await igCall("POST", `/${igu}/media`, { media_type: "CAROUSEL", children: childIds.join(","), caption, access_token: token });
+    if (!r.json.id) return fail(r.json.error?.message || "Gagal membuat kontainer carousel");
+    containerId = r.json.id;
+  }
+
+  // Wait for the (parent) container to finish processing.
+  let statusCode = "";
+  for (let i = 0; i < 24; i++) {
+    const r = await igCall("GET", `/${containerId}`, { fields: "status_code", access_token: token });
+    statusCode = r.json.status_code;
+    if (statusCode === "FINISHED") break;
+    if (statusCode === "ERROR") return fail("Media feed diproses ERROR");
+    await sleep(2500);
+  }
+  if (statusCode !== "FINISHED") return fail("Timeout proses media feed");
+  await log("Media feed divalidasi");
+
+  let r = await igCall("POST", `/${igu}/media_publish`, { creation_id: containerId, access_token: token });
+  if (!r.json.id) return fail(r.json.error?.message || "Publish feed gagal");
+  const mediaId = r.json.id;
+  r = await igCall("GET", `/${mediaId}`, { fields: "permalink", access_token: token });
+  const permalink = r.json.permalink || null;
+  await log("Dipublikasikan ✓");
+
+  // Optional pinned first comment (best-effort — don't fail the post if it errors).
+  if (post.first_comment) {
+    const cr = await igCall("POST", `/${mediaId}/comments`, { message: post.first_comment, access_token: token });
+    await log(cr.json.id ? "Komentar pertama diposting" : `Komentar pertama gagal: ${cr.json.error?.message || "?"}`, !cr.json.id);
+  }
+
+  await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
+  await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
+  await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `Feed terbit — ${chLabel}`, body: `Feed one-off (${paths.length} gambar) terbit ke Instagram.`, runId: run.id });
+  return { ok: true, permalink, runId: run.id };
+}
+
 // pool role for "now" given rule mode + WIB day-of-week
 export function roleForNow(mode, dowWib) {
   if (mode !== "schedule") return "single";
