@@ -185,13 +185,87 @@ export function Select({ options = [], value, onChange, style }) {
     </div>
   );
 }
-export function TimeField({ value, onChange, style }) {
+/* ---------------- Time field (custom dual-column picker, no native input) ---------------- */
+const pad2 = (n) => String(n).padStart(2, "0");
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
+
+function TimeColumn({ items, value, onPick, label }) {
+  const ref = React.useRef(null);
+  useEffect(() => {
+    const el = ref.current?.querySelector('[data-on="1"]');
+    if (el) el.scrollIntoView({ block: "center" });
+  }, []);
   return (
-    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-      <span style={{ position: "absolute", left: 14, color: "var(--primary-500)", pointerEvents: "none" }}><Icons.clock size={18} /></span>
-      <input type="time" value={value} onChange={e => onChange && onChange(e.target.value)}
-        style={{ ...inputBase, paddingLeft: 42, ...style }} />
-      <span style={{ position: "absolute", right: 14, fontFamily: F, fontSize: 11, fontWeight: 600, color: "var(--ink-400)", pointerEvents: "none" }}>WIB</span>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div style={{ textAlign: "center", fontFamily: F, fontSize: 10, fontWeight: 700, letterSpacing: ".08em", color: "var(--ink-400)", textTransform: "uppercase", padding: "8px 0 6px" }}>{label}</div>
+      <div ref={ref} style={{ maxHeight: 168, overflowY: "auto", padding: "0 6px 6px", display: "flex", flexDirection: "column", gap: 2, scrollbarWidth: "thin" }}>
+        {items.map((n) => {
+          const on = n === value;
+          return (
+            <button key={n} data-on={on ? "1" : "0"} onClick={() => onPick(n)} style={{
+              flex: "0 0 auto", height: 34, border: "none", borderRadius: 9, cursor: "pointer",
+              fontFamily: F, fontSize: 14, fontWeight: on ? 700 : 500, fontVariantNumeric: "tabular-nums",
+              background: on ? "var(--primary-500)" : "transparent", color: on ? "#fff" : "var(--ink-700)",
+              transition: "background .12s",
+            }}
+            onMouseEnter={(e) => { if (!on) e.currentTarget.style.background = "var(--line-soft)"; }}
+            onMouseLeave={(e) => { if (!on) e.currentTarget.style.background = "transparent"; }}>
+              {pad2(n)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function TimeField({ value, onChange, style }) {
+  const [open, setOpen] = useState(false);
+  const wrap = React.useRef(null);
+  const [hh, mm] = (value || "00:00").split(":").map((x) => parseInt(x, 10) || 0);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (wrap.current && !wrap.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  const set = (h, m) => onChange && onChange(`${pad2(h)}:${pad2(m)}`);
+
+  return (
+    <div ref={wrap} style={{ position: "relative" }}>
+      <button type="button" onClick={() => setOpen((o) => !o)} style={{
+        ...inputBase, paddingLeft: 42, paddingRight: 14, display: "flex", alignItems: "center", cursor: "pointer",
+        textAlign: "left", borderColor: open ? "var(--primary-500)" : "var(--line)",
+        boxShadow: open ? "0 0 0 3px rgba(255,159,67,.16)" : "var(--shadow-sm)", ...style,
+      }}>
+        <span style={{ position: "absolute", left: 14, color: "var(--primary-500)", display: "flex" }}><Icons.clock size={18} /></span>
+        <span style={{ flex: 1, fontVariantNumeric: "tabular-nums" }}>{pad2(hh)}.{pad2(mm)}</span>
+        <span style={{ fontFamily: F, fontSize: 11, fontWeight: 600, color: "var(--ink-400)" }}>WIB</span>
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", zIndex: 50, top: "calc(100% + 8px)", left: 0, right: 0, minWidth: 190,
+          background: "#fff", border: "1px solid var(--line)", borderRadius: 16, boxShadow: "var(--shadow-lg, 0 18px 44px rgba(30,32,44,.18))",
+          overflow: "hidden", animation: "none",
+        }}>
+          <div style={{ display: "flex", borderBottom: "1px solid var(--line-soft)" }}>
+            <TimeColumn items={HOURS} value={hh} label="Jam" onPick={(h) => set(h, mm)} />
+            <div style={{ width: 1, background: "var(--line-soft)", margin: "8px 0" }} />
+            <TimeColumn items={MINUTES} value={mm} label="Menit" onPick={(m) => set(hh, m)} />
+          </div>
+          <div style={{ display: "flex", gap: 8, padding: 8 }}>
+            <button type="button" onClick={() => { const n = new Date(Date.now() + 7 * 3600 * 1000); set(n.getUTCHours(), n.getUTCMinutes()); }}
+              style={{ flex: 1, height: 34, borderRadius: 9, border: "1px solid var(--line)", background: "#fff", cursor: "pointer", fontFamily: F, fontSize: 12, fontWeight: 600, color: "var(--ink-600)" }}>Sekarang</button>
+            <button type="button" onClick={() => setOpen(false)}
+              style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: "var(--primary-500)", cursor: "pointer", fontFamily: F, fontSize: 12, fontWeight: 700, color: "#fff" }}>Selesai</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
