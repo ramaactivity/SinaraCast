@@ -58,9 +58,16 @@ export default function ContentOS() {
     return () => { active = false; sub.subscription.unsubscribe(); };
   }, []);
 
-  // Load real data once signed in
+  // Load real data once per signed-in user. Keyed on the user id (stable) — NOT
+  // the session object — so Supabase token refreshes (which fire on every tab
+  // refocus and hand back a fresh session object) don't trigger a full reload /
+  // spinner. The session itself still updates above to keep the access token fresh.
+  const loadedFor = React.useRef(null);
   React.useEffect(() => {
-    if (!session) { setDataLoading(false); return; }
+    const uid = session?.user?.id || null;
+    if (!uid) { loadedFor.current = null; setDataLoading(false); return; }
+    if (loadedFor.current === uid) return; // already loaded for this user; ignore token refreshes
+    loadedFor.current = uid;
     let active = true;
     setDataLoading(true);
     loadAll().then((d) => {
@@ -69,9 +76,9 @@ export default function ContentOS() {
       setSettings(d.settings); setProfile(d.profile);
       setChannel((cur) => cur || d.channels[0]?.id || "");
       setDataLoading(false);
-    }).catch((e) => { console.error("loadAll failed", e); if (active) setDataLoading(false); });
+    }).catch((e) => { console.error("loadAll failed", e); if (active) { loadedFor.current = null; setDataLoading(false); } });
     return () => { active = false; };
-  }, [session]);
+  }, [session?.user?.id]);
 
   const reload = useCallback(async () => {
     const d = await loadAll();
