@@ -114,6 +114,7 @@ export async function loadAll() {
     supabase.from("notification").select("id, channel_id, type, title, body, run_id, read, created_at").order("created_at", { ascending: false }).limit(50),
     supabase.from("app_settings").select("*").maybeSingle(),
     supabase.from("app_user").select("*").maybeSingle(),
+    supabase.from("content_plan").select("id, channel_id, platform, planned_date, planned_time, title, content_type, pillar, format, goal, status, source, scheduled_post_id, recurring_rule_id, auto_managed, post_link, posted_at, m_views, m_likes, m_comments, m_shares, m_saves, m_reach, metrics_source, metrics_updated_at").order("planned_date", { ascending: true }),
   ]);
   const at = (i) => (results[i].status === "fulfilled" ? results[i].value?.data : null);
   const channelsRaw = at(0) || [];
@@ -126,6 +127,7 @@ export async function loadAll() {
   const notifsRaw = at(7) || [];
   const settingsRaw = at(8);
   const profileRaw = at(9);
+  const plansRaw = at(10) || [];
 
   const slugById = Object.fromEntries((channelsRaw || []).map((c) => [c.id, c.slug]));
   const channels = (channelsRaw || []).map(mapChannel);
@@ -264,6 +266,26 @@ export async function loadAll() {
     };
   });
 
+  // ---- content planner entries (content_plan) ----
+  // planned_date is a pure WIB calendar date ('YYYY-MM-DD'); no tz shift needed.
+  const PLAN_ST_UI = { idea: "Ide", draft: "Draf", review: "Review", approved: "Disetujui", revision: "Revisi", ready: "Siap", posted: "Posted" };
+  const plans = (plansRaw || []).map((p) => {
+    const D = p.planned_date ? parseInt(p.planned_date.slice(8, 10), 10) : null;
+    return {
+      id: p.id, ch: slugById[p.channel_id] || "", _channelId: p.channel_id,
+      platform: p.platform, plannedDate: p.planned_date || "",
+      plannedTime: (p.planned_time || "").slice(0, 5),
+      ym: p.planned_date ? p.planned_date.slice(0, 7) : "", day: D,
+      title: p.title || "", contentType: p.content_type || "", pillar: p.pillar || "",
+      format: p.format || "", goal: p.goal || "",
+      status: p.status, statusUi: PLAN_ST_UI[p.status] || p.status,
+      source: p.source, scheduledPostId: p.scheduled_post_id || null, recurringRuleId: p.recurring_rule_id || null,
+      linked: p.source !== "manual", autoManaged: !!p.auto_managed, postLink: p.post_link || "", postedAt: p.posted_at,
+      metricsSource: p.metrics_source, metricsUpdatedAt: p.metrics_updated_at,
+      m: { views: p.m_views, likes: p.m_likes, comments: p.m_comments, shares: p.m_shares, saves: p.m_saves, reach: p.m_reach },
+    };
+  });
+
   // ---- in-app notifications (alerts mirror) ----
   const notifs = (notifsRaw || []).map((n) => ({
     id: n.id, type: n.type, ch: n.channel_id ? slugById[n.channel_id] || null : null,
@@ -292,7 +314,89 @@ export async function loadAll() {
     joined: profileRaw?.joined_at ? fmtDate(profileRaw.joined_at) : "—",
   };
 
-  return { channels, rules, runs, oneoffs, notifs, settings, profile, library: mediaByChannel };
+  return { channels, rules, runs, oneoffs, plans, notifs, settings, profile, library: mediaByChannel };
+}
+
+// ============================================================
+// Content Planner (content_plan) — CRUD. v1: planning layer only;
+// the hybrid auto-publish link (scheduled_post/rule) is wired in a later step.
+// ============================================================
+const planNum = (v) => { if (v === "" || v == null) return null; const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
+
+// Map the editor's field state → a content_plan row (insert/update share this).
+function planRow(p, ownerId) {
+  const row = {
+    platform: p.platform, planned_date: p.plannedDate, planned_time: p.plannedTime || null,
+    title: p.title?.trim() || null, content_type: p.contentType?.trim() || null, pillar: p.pillar?.trim() || null,
+    format: p.format || null, goal: p.goal || null,
+    hook: p.hook?.trim() || null, caption: p.caption?.trim() || null, notes: p.notes?.trim() || null,
+    reference_url: p.referenceUrl?.trim() || null, brief_url: p.briefUrl?.trim() || null, design_url: p.designUrl?.trim() || null,
+    status: p.status, post_link: p.postLink?.trim() || null,
+    posted_at: p.status === "posted" ? (p.postedAt || new Date().toISOString()) : null,
+  };
+  // Only touch metric columns when the editor supplied manual values. When metrics
+  // are engine-owned (auto_ig), the editor passes m=null → leave them untouched.
+  if (p.m) {
+    const metrics = { m_views: planNum(p.m.views), m_likes: planNum(p.m.likes), m_comments: planNum(p.m.comments), m_shares: planNum(p.m.shares), m_saves: planNum(p.m.saves), m_reach: planNum(p.m.reach) };
+    const hasMetric = Object.values(metrics).some((v) => v != null);
+    Object.assign(row, metrics);
+    row.metrics_source = p.status === "posted" && hasMetric ? "manual" : "none";
+    row.metrics_updated_at = p.status === "posted" && hasMetric ? new Date().toISOString() : null;
+  }
+  if (ownerId) { row.owner_id = ownerId; row.channel_id = p.channelDbId; }
+  return row;
+}
+
+export async function loadContentPlan(id) {
+  const { data, error } = await supabase.from("content_plan").select("*").eq("id", id).single();
+  if (error) throw error;
+  return data;
+}
+
+export async function createContentPlan(p) {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u?.user?.id;
+  if (!uid) throw new Error("Not signed in");
+  const { data, error } = await supabase.from("content_plan").insert(planRow(p, uid)).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+
+export async function updateContentPlan(id, p) {
+  // owner_id / channel_id are immutable here (channel set on create); pass null ownerId.
+  const row = planRow(p, null);
+  row.channel_id = p.channelDbId; // allow re-targeting brand
+  const { error } = await supabase.from("content_plan").update(row).eq("id", id);
+  if (error) throw error;
+  return id;
+}
+
+export async function deleteContentPlan(id) {
+  const { error } = await supabase.from("content_plan").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ---- hybrid auto-publish link (FR-46, Instagram only) ----
+// Linking marks the plan auto-managed + moves it to 'ready' (queued). The engine
+// flips it to 'posted' + fills the link on publish success (wired in a later step).
+export async function linkPlanToOneoff(planId, scheduledPostId) {
+  const { error } = await supabase.from("content_plan").update({
+    scheduled_post_id: scheduledPostId, recurring_rule_id: null, source: "linked_oneoff", auto_managed: true, status: "ready",
+  }).eq("id", planId).neq("status", "posted");
+  if (error) throw error;
+}
+export async function linkPlanToRule(planId, ruleId) {
+  const { error } = await supabase.from("content_plan").update({
+    recurring_rule_id: ruleId, scheduled_post_id: null, source: "linked_rule", auto_managed: true, status: "ready",
+  }).eq("id", planId).neq("status", "posted");
+  if (error) throw error;
+}
+// Reversible before publish: revert to manual tracking, keep all other fields.
+export async function unlinkPlan(planId) {
+  const { error } = await supabase.from("content_plan").update({
+    scheduled_post_id: null, recurring_rule_id: null, source: "manual", auto_managed: false,
+  }).eq("id", planId);
+  if (error) throw error;
 }
 
 // Upload an image to a channel's media library (media_asset, tag 'library').

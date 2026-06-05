@@ -1,6 +1,7 @@
 # Technical Specification Document (TSD): SinaraCast
 
-> **Version:** 1.1
+> **Changelog:** v1.2 (2026-06-05) — added **Content Planner** auto-fill jobs (publish-success hook + metrics refresh) and the IG-insights caveat; see §14. v1.1 — Instagram Login path.
+> **Version:** 1.2
 > **Pairs with:** `design.md` v6.1 (architecture/decisions) · `schema.md` v1 (tables) · `prd.md` v2 (behavior). Implements the backend that makes the Claude Design frontend real (swap `mockdata.jsx` for the data layer in §10).
 > **Stack:** Next.js (App Router) on Vercel Hobby — UI + thin server routes. Supabase free — Postgres + Auth + Storage. **Supabase `pg_cron` + Edge Functions** — the automation engine. **Instagram API with Instagram Login** (`graph.instagram.com`) — publishing, **no Facebook Page**. Telegram Bot API — alerts.
 > **Convention:** anything dependent on Meta's current API surface is marked **[verify in Spike 1]**; pin a Graph API version and confirm endpoints against current docs before building broadly.
@@ -268,4 +269,24 @@ Goal: keep the Claude Design presentational components' **look untouched**; chan
 
 ---
 
-*Next doc: **FSD** — per-view behavior mapped to the Claude Design screens (signin, onboarding, rules, editor, connections, activity+run detail, notifications, settings, profile; P2 calendar, composer, library), each tied to its FR + this engine. Then the **Meta Setup Runbook**.*
+## 14. Addendum: Content Planner engine hooks (v1.2)
+
+> **Source:** `content-planner-spec.md` §C. Extends §5.3 (publish pipeline) and §5.1 (`pg_cron`). The publish pipeline lives in `spike1/lib/publishCore.js`, driven by `spike1/app/api/cron/route.js` (per-minute tick). These hooks attach there.
+
+### 14.1 Auto-fill on publish success [FR-46]
+When a `post_run` (or `scheduled_post`) that a `content_plan` is linked to publishes successfully, set on the plan: `status='posted'`, `posted_at`, `post_link=permalink`, `post_run_id`, `auto_managed=true`. Implementation: after a successful publish in `publishCore` (recurring rule or one-off), look up `content_plan` rows linked via `scheduled_post_id` / `recurring_rule_id` and patch them (service role, bypasses RLS). Idempotent — re-running over an already-`posted` plan is a no-op.
+
+### 14.2 Metrics refresh job [FR-47] — **built, gated OFF (blocked on permission)**
+Implemented as `refreshPlanMetricsDue()` in `lib/publishCore.js`, called best-effort at the end of the cron tick (bounded: ≤5 plans, staleness-gated): for `auto_managed` IG entries with `status='posted'` and a feed/reels-class `format`, it pulls media insights, maps to `m_*`, sets `metrics_source='auto_ig'` + `metrics_updated_at`. Manual entries are never auto-touched.
+- **PROVEN (2026-06-05 spike):** `GET /{ig_media_id}/insights?metric=reach,likes,comments,saved,shares,views` on `graph.instagram.com` returns **HTTP 403 `Application does not have permission for this action` (code 10)** with the current scopes (`instagram_business_basic` + `instagram_business_content_publish`). The token reads media fields fine (200) — only **insights** is gated. So auto-pull needs an **added insights permission + re-consent** of each connected account (likely App Review for live). **Story** insights are additionally limited + ephemeral: an expired Story media returned `does not exist` (~24h), so Stories are excluded from auto-pull.
+- Therefore the job is **gated behind `PLAN_METRICS_AUTOPULL=1` (default off)** — no point hammering IG with 403s. **Manual metric entry is the shipped, reliable path.** Flip the flag on after the insights permission is granted. Valid metric names are pinned in `PLAN_METRIC_NAMES`; on a permission failure the job bumps `metrics_updated_at` to back off (one attempt per staleness window).
+
+### 14.3 Edge cases
+- Deleting a `content_plan` linked to a not-yet-published `scheduled_post` → ask whether to also cancel the scheduled publish (unlink vs cancel).
+- A linked rule/one-off that fails to publish → the plan stays pre-Posted; the failure surfaces in Activity/alerts as usual; the planner item shows it didn't post.
+- Changing platform away from Instagram on an auto-managed entry → unlink + revert to manual (confirm).
+- Story metrics expiring → keep whatever was captured; mark "metrik Story terbatas".
+
+---
+
+*Next doc: **FSD** — per-view behavior mapped to the Claude Design screens (signin, onboarding, rules, editor, connections, activity+run detail, notifications, settings, profile; P2 calendar, composer, library; Planner + Content editor), each tied to its FR + this engine. Then the **Meta Setup Runbook**.*

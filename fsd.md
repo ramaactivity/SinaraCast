@@ -1,6 +1,7 @@
 # Functional Specification Document (FSD): SinaraCast
 
-> **Version:** 1.0
+> **Changelog:** v1.1 (2026-06-05) — added the **Planner** (extends Calendar) and **Content editor** views; see §16. v1.0 — baseline per-view behavior.
+> **Version:** 1.1
 > **Pairs with:** `prd.md` v2 (FRs) · `design.md` v6 · `schema.md` v1 (data) · `tsd.md` v1 (engine). Describes the **behavior of each view as built in the Claude Design frontend** (`app/views/*`, `app/shell.jsx`), tied to its FR(s) and backend operation. Visuals are owned by the design system; this doc is behavior only.
 > **How to read:** each view lists *Purpose · Entry/Exit · Reads · Actions (→ effect [FR] / backend op) · States · Edge cases.* "Backend op" refers to a TSD §10 action or engine path.
 
@@ -181,6 +182,42 @@
 | FR-32 calendar | Calendar |
 | FR-33..37 one-off/feed/refiner/drafts | Composer, Calendar |
 | FR-38 media library | Library, Composer |
+
+---
+
+## 16. Addendum: Content Planner views (v1.1)
+
+> **Source:** `content-planner-spec.md` §C.2 + FR-48/49. **Build decision:** the Planner **layers onto the existing Calendar view** (`app/views/calendar.jsx`) — plan entries become a new event kind alongside recurring runs and one-off posts — rather than a separate parallel view. A **list mode** and a **"Konten bulan ini" summary** are added to that same view.
+
+### 16.1 Planner (extends §11 Calendar) [FR-48]
+- **Purpose:** plan + see all content across days — `content_plan` ∪ computed recurring runs ∪ one-off `scheduled_post`s.
+- **Reads:** `content_plan` for the active filters, plus the existing run-projection + one-off sources already in the Calendar.
+- **Actions:** switch **Bulan / List**; navigate months; filter by **brand / platform / status** (combinable); legend incl. platform color + a plan-vs-published indicator; **Buat konten** → Content editor; open a plan item → Content editor; open a recurring run → its rule (skip/swap for that day); open a one-off → Composer.
+- **Summary rail:** **"Konten bulan ini: N"** + counts by status and by platform.
+- **States:** loading; **empty** = "Belum ada konten — buat yang pertama"; error + reload.
+- **Edge:** plan entries are visually distinct from auto-generated runs; platform color-coding; auto-managed IG plans show a "diisi otomatis" marker once Posted.
+
+### 16.2 Content editor (modal/page) [FR-49]
+- **Purpose:** create/edit a `content_plan` entry.
+- **Groups:** **Utama** (brand, platform, planned date+time WIB, title) · **Strategi** (content type, pillar, format, goal) · **Copywriting** (hook/cover, caption, notes) · **Produksi** (reference / brief / design links) · **Status & hasil** (status; if Posted: post link + performance block).
+- **Actions:** edit fields; change status (lean `Ide→Siap→Posted`, extra stages opt-in); for **Instagram** — "Jadwalkan otomatis via SinaraCast" (FR-46) creates/links a `scheduled_post` (or attaches to a rule); mark **Posted manually** + paste link (non-auto); enter **manual metrics** (non-IG / manual); save.
+- **Auto-managed entries:** status / link / metrics show read-only as "diisi otomatis" with last-updated; a small badge distinguishes auto vs manual.
+- **Non-IG entries:** show an **"Auto-publish: Coming soon"** note; metrics are manual.
+- **States:** validation per platform/format (IG auto-publish entries inherit composer media rules); plan-only entries have looser requirements. Required to save: brand, platform, planned date.
+- **Edge (delete):** if linked to a not-yet-published scheduled post, Confirm offers unlink vs also-cancel-the-publish.
+
+### 16.3 Board (Kanban) [FR-50, v1.1]
+Columns by active statuses; drag to advance; same data as the Planner. Deferred to v1.1.
+
+### 16.4 Traceability (extends §15)
+| FR | Primary view(s) |
+|---|---|
+| FR-43/44/49 content CRUD/status/editor | Content editor |
+| FR-45/46 multi-platform / hybrid link | Content editor (+ engine) |
+| FR-47 metrics | Content editor (manual) / engine (auto IG) |
+| FR-48 planner views | Planner (extends Calendar) |
+| FR-50 board | Board [v1.1] |
+| FR-51/52 taxonomy / rollup | Settings / Planner summary [v1.1] |
 
 ---
 

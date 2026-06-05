@@ -44,6 +44,64 @@ export async function notify(svc, { ownerId, channelId, type, title, body, runId
   } catch (_) { /* alerts must never break publishing */ }
 }
 
+// Content Planner auto-fill (FR-46 / tsd §14.1): when a published post is linked
+// to a content_plan, flip the plan to 'posted' and fill its link + run. Best-effort:
+// never throws into the publish path. One-offs match by scheduled_post_id; recurring
+// rules match the linked plan whose planned_date is the publish day (WIB).
+export async function fillLinkedPlan(svc, { scheduledPostId = null, ruleId = null, runId = null, permalink = null, wibDate = null }) {
+  try {
+    const patch = { status: "posted", posted_at: new Date().toISOString(), post_link: permalink || null, post_run_id: runId || null, auto_managed: true };
+    if (scheduledPostId) {
+      await svc.from("content_plan").update(patch).eq("scheduled_post_id", scheduledPostId).neq("status", "posted");
+    } else if (ruleId && wibDate) {
+      await svc.from("content_plan").update(patch).eq("recurring_rule_id", ruleId).eq("planned_date", wibDate).neq("status", "posted");
+    }
+  } catch (_) { /* auto-fill must never break publishing */ }
+}
+
+// Content Planner metrics auto-pull (FR-47 / tsd §14.2) — BEST-EFFORT SPIKE.
+// PROVEN on 2026-06-05: media-insights on graph.instagram.com returns HTTP 403
+// "Application does not have permission for this action" (code 10) with our current
+// scopes (instagram_business_basic + instagram_business_content_publish). It needs
+// an added insights permission + re-consent of each connected account (and likely
+// App Review for live use). So this is GATED OFF by default — flip PLAN_METRICS_AUTOPULL=1
+// only after the insights permission is granted. Manual metric entry is the reliable path.
+const PLAN_METRICS_ENABLED = process.env.PLAN_METRICS_AUTOPULL === "1";
+// Valid IG media-insight metrics (story excluded — limited + ephemeral ~24h).
+const PLAN_METRIC_NAMES = "reach,likes,comments,saved,shares,views";
+export async function refreshPlanMetricsDue(svc, { limit = 5, staleHours = 12 } = {}) {
+  if (!PLAN_METRICS_ENABLED) return { enabled: false, note: "off — IG insights need an added permission + re-consent (proven 403)" };
+  const staleIso = new Date(Date.now() - staleHours * 3600 * 1000).toISOString();
+  const { data: plans = [] } = await svc.from("content_plan")
+    .select("id, channel_id, post_run_id, metrics_updated_at")
+    .eq("auto_managed", true).eq("status", "posted").eq("platform", "instagram")
+    .in("format", ["feed", "reels", "carousel", "video", "single_image"])
+    .neq("metrics_source", "manual").not("post_run_id", "is", null)
+    .or(`metrics_updated_at.is.null,metrics_updated_at.lte.${staleIso}`).limit(limit);
+  const out = [];
+  for (const p of plans || []) {
+    try {
+      const { data: run } = await svc.from("post_run").select("ig_media_id").eq("id", p.post_run_id).maybeSingle();
+      const { data: ch } = await svc.from("channel").select("access_token").eq("id", p.channel_id).maybeSingle();
+      if (!run?.ig_media_id || !ch?.access_token) { out.push({ plan: p.id, ok: false, error: "no media/token" }); continue; }
+      const r = await igCall("GET", `/${run.ig_media_id}/insights`, { metric: PLAN_METRIC_NAMES, access_token: ch.access_token });
+      if (!r.json.data) {
+        // back off (bump timestamp) so a known-failing call isn't retried every tick
+        await svc.from("content_plan").update({ metrics_updated_at: new Date().toISOString() }).eq("id", p.id);
+        out.push({ plan: p.id, ok: false, error: r.json.error?.message || "no data" }); continue;
+      }
+      const v = {}; r.json.data.forEach((d) => { v[d.name] = d.values?.[0]?.value ?? null; });
+      await svc.from("content_plan").update({
+        m_reach: v.reach ?? null, m_likes: v.likes ?? null, m_comments: v.comments ?? null,
+        m_saves: v.saved ?? null, m_shares: v.shares ?? null, m_views: v.views ?? null,
+        metrics_source: "auto_ig", metrics_updated_at: new Date().toISOString(),
+      }).eq("id", p.id);
+      out.push({ plan: p.id, ok: true });
+    } catch (e) { out.push({ plan: p.id, ok: false, error: String(e?.message || e) }); }
+  }
+  return { enabled: true, refreshed: out };
+}
+
 // Publish ONE Story for a rule. Idempotent via claimKey (unique post_run.claim_key):
 // if the claim already exists, returns { skipped:true } without posting.
 // `role` = 'weekday' | 'weekend' | 'single'.
@@ -115,6 +173,8 @@ export async function publishForRule(svc, { channel, rule, role, trigger, claimK
   await log("Dipublikasikan ✓");
   await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
   await svc.from("pool_image").update({ used_in_cycle: true }).eq("id", pick.id);
+  // recurring rule linked to a content_plan for today (WIB) → auto-fill the plan.
+  await fillLinkedPlan(svc, { ruleId: rule.id, runId: run.id, permalink, wibDate: new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10) });
   // Notify on manual/retry/swap successes (scheduled successes stay silent — no-news-is-good-news).
   if (trigger !== "scheduled") {
     await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success",
@@ -191,6 +251,7 @@ export async function publishStoryOneoff(svc, { channel, post }) {
   await log("Dipublikasikan ✓");
   await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
   await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
+  await fillLinkedPlan(svc, { scheduledPostId: post.id, runId: run.id, permalink });
   await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `Story terbit — ${chLabel}`, body: "Story berhasil terbit ke Instagram.", runId: run.id });
   if (isVideo) await svc.storage.from("pool-images").remove([storagePath]).catch(() => {}); // free the video file (free-tier storage)
   return { ok: true, permalink, runId: run.id };
@@ -317,6 +378,7 @@ export async function publishFeedOneoff(svc, { channel, post }) {
 
   await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
   await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
+  await fillLinkedPlan(svc, { scheduledPostId: post.id, runId: run.id, permalink });
   await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `Feed terbit — ${chLabel}`, body: `Feed (${paths.length} gambar) berhasil terbit ke Instagram.`, runId: run.id });
   return { ok: true, permalink, runId: run.id };
 }
@@ -386,6 +448,7 @@ export async function publishReelsOneoff(svc, { channel, post }) {
 
   await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
   await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
+  await fillLinkedPlan(svc, { scheduledPostId: post.id, runId: run.id, permalink });
   await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `Reels terbit — ${chLabel}`, body: "Reels berhasil terbit ke Instagram.", runId: run.id });
   await svc.storage.from("pool-images").remove([storagePath]).catch(() => {}); // free the video file (free-tier storage)
   return { ok: true, permalink, runId: run.id };
@@ -435,6 +498,7 @@ export async function resumeOneoffContainer(svc, { channel, post, run }) {
 
   await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
   await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
+  await fillLinkedPlan(svc, { scheduledPostId: post.id, runId: run.id, permalink });
   const label = post.post_type === "reels" ? "Reels" : post.post_type === "feed" ? "Feed" : "Story";
   await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `${label} terbit — ${chLabel}`, body: `${label} berhasil terbit ke Instagram.`, runId: run.id });
 

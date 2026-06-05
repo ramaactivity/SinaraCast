@@ -3,7 +3,7 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { uploadPoolImage, uploadReelVideo, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost } from "../dataLayer";
+import { uploadPoolImage, uploadReelVideo, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost, loadContentPlan, linkPlanToOneoff } from "../dataLayer";
 import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, Segmented, MediaThumb, SectionTitle, Spinner, Chip, Input, Select, Status } from "../ui";
 import { Lightbox } from "../lightbox";
 const { useState: uCo, useRef, useEffect } = React;
@@ -80,10 +80,13 @@ const isVid = (m) => !!(m && (m.isVideo || ["mp4", "mov"].includes(m.format) || 
 const pad = (n) => String(n).padStart(2, "0");
 const todayWib = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
 const isoToWibParts = (iso) => { const d = new Date(new Date(iso).getTime() + 7 * 3600 * 1000); return { date: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`, time: `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}` }; };
+// content_plan.format → composer post type (Instagram one-off).
+const PLAN_FORMAT_TYPE = { story: "story", reels: "reels", video: "reels", feed: "feed", carousel: "feed", single_image: "feed", thread: "feed" };
 
 export function ComposerView() {
   const app = useApp();
   const postId = app.params.postId || null; // present → edit mode
+  const planId = app.params.planId || null; // present → creating a one-off FOR a content_plan (hybrid link)
   const [chId, setChId] = uCo(app.params.ch || app.channel);
   const channel = app.channels.find(c => c.id === chId) || app.channels.find(c => c.id === app.channel) || app.channels[0];
   const b = brandFor(channel?.id, app.channels);
@@ -97,7 +100,7 @@ export function ComposerView() {
   const [time, setTime] = uCo("09:00");
   const [uploading, setUploading] = uCo(false);
   const [saving, setSaving] = uCo(false);
-  const [loading, setLoading] = uCo(!!postId);
+  const [loading, setLoading] = uCo(!!postId || !!planId);
   const [origStatus, setOrigStatus] = uCo(null); // existing status when editing
   // TikTok-only Direct Post compliance options (TikTok UX guidelines).
   const [tk, setTk] = uCo({ privacy: "SELF_ONLY", allowComment: true, allowDuet: true, allowStitch: true, commercial: false, yourBrand: false, branded: false, musicOk: false });
@@ -126,6 +129,25 @@ export function ComposerView() {
     }).catch(() => active && setLoading(false));
     return () => { active = false; };
   }, [postId]);
+
+  // Prefill from a content_plan when "Jadwalkan otomatis via SinaraCast" sent us here
+  // (new one-off for an Instagram plan entry). On schedule, save() links them.
+  useEffect(() => {
+    if (!planId || postId) return;
+    let active = true;
+    loadContentPlan(planId).then((p) => {
+      if (!active || !p) { if (active) setLoading(false); return; }
+      const slug = app.channels.find((c) => c._id === p.channel_id)?.id;
+      if (slug) setChId(slug);
+      setType(PLAN_FORMAT_TYPE[p.format] || "story");
+      if (p.caption) setCaption(p.caption);
+      if (p.planned_date) setDate(p.planned_date);
+      if (p.planned_time) setTime((p.planned_time || "").slice(0, 5));
+      setLoading(false);
+    }).catch(() => active && setLoading(false));
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planId]);
 
   // Keep the post type in sync with the selected channel's platform, and load the
   // TikTok account's creator_info (allowed privacy + disabled interactions).
@@ -250,11 +272,16 @@ export function ComposerView() {
       tiktokOptions,
     };
     try {
+      let newPostId = postId;
       if (postId) await updateScheduledPost(postId, payload);
-      else await createScheduledPost(payload);
+      else newPostId = await createScheduledPost(payload);
+      // Hybrid link (FR-46): when this one-off was created FOR a content_plan and it's
+      // actually scheduled to publish, connect them so the plan auto-fills on publish.
+      const linked = planId && !postId && status === "scheduled";
+      if (linked) await linkPlanToOneoff(planId, newPostId);
       await app.reload();
-      app.toast(postId ? "Perubahan disimpan" : (status === "scheduled" ? `Postingan dijadwalkan ${date} ${time} WIB` : "Disimpan sebagai draf"), "success");
-      app.go("calendar");
+      app.toast(linked ? "Konten terhubung & dijadwalkan otomatis ✓" : postId ? "Perubahan disimpan" : (status === "scheduled" ? `Postingan dijadwalkan ${date} ${time} WIB` : "Disimpan sebagai draf"), "success");
+      app.go(linked ? "contentEditor" : "calendar", linked ? { id: planId } : {});
     } catch (e) {
       app.toast("Gagal menyimpan: " + (e.message || e), "error");
     } finally { setSaving(false); }
@@ -297,6 +324,11 @@ export function ComposerView() {
       {locked && <div style={{ display: "flex", gap: 9, marginBottom: 16, background: "var(--green-100)", borderRadius: 12, padding: "11px 14px" }}>
         <Icons.checkCircle size={16} style={{ color: "var(--green-500)", flex: "0 0 auto", marginTop: 1 }} />
         <span style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Postingan ini sudah terbit, jadi tidak bisa dijadwalkan ulang. Kamu masih bisa menghapus catatannya.</span>
+      </div>}
+
+      {planId && !postId && <div style={{ display: "flex", gap: 9, marginBottom: 16, background: "var(--st-publishing-bg)", borderRadius: 12, padding: "11px 14px" }}>
+        <Icons.sparkle size={16} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
+        <span style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Membuat postingan untuk konten yang kamu rencanakan. Setelah <b>Jadwalkan</b>, konten itu terhubung otomatis — status & link terisi sendiri saat terbit.</span>
       </div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 18, alignItems: "start" }}>

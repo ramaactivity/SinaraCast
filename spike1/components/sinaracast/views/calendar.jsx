@@ -3,7 +3,8 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { BRANDS, BrandAvatar, Panel, Button, IconButton, Status, EmptyState, Skeleton, Segmented, Modal, SectionTitle } from "../ui";
+import { BRANDS, BrandAvatar, Panel, Button, IconButton, Status, EmptyState, Skeleton, Segmented, Select, Modal, SectionTitle } from "../ui";
+import { PLATFORM } from "./contentEditor";
 const { useState: uCa } = React;
 const FCa = "var(--font)";
 
@@ -16,6 +17,16 @@ const brandFor = (slug, channels) => BRANDS[slug] || {
   short: (channels.find(c => c.id === slug)?.name || slug || "?").slice(0, 2).toUpperCase(),
   accent: "var(--ink-500)", soft: "var(--line)", grad: "linear-gradient(135deg,#9aa0ab,#7a8090)",
 };
+
+// Planner status → label + indicator color (distinct from run/oneoff statuses).
+const PLAN_ORDER = ["idea", "draft", "review", "approved", "revision", "ready", "posted"];
+const PLAN_LABEL = { idea: "Ide", draft: "Draf", review: "Review", approved: "Disetujui", revision: "Revisi", ready: "Siap", posted: "Posted" };
+const PLAN_ST_COLOR = {
+  idea: "var(--st-skipped)", draft: "var(--st-skipped)", review: "var(--st-publishing)",
+  approved: "var(--st-scheduled)", revision: "var(--st-failed)", ready: "var(--st-scheduled)", posted: "var(--st-success)",
+};
+const platMeta = (p) => PLATFORM[p] || { label: p || "—", accent: "var(--ink-500)" };
+const tint = (c, pct = 10) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
 
 // Does a rule fire on this calendar day? Mirrors /api/cron isFireDay (WIB, JS day-of-week 0=Sun..6=Sat).
 function ruleFires(rule, Y, M, day) {
@@ -40,7 +51,7 @@ function ruleTime(rule, Y, M, day) {
   return (weekend ? rule.weekendTime : rule.weekdayTime) || "—";
 }
 
-// Status → { dot, bg } for the in-cell event pills (soft tints, solid markers).
+// Run/one-off status → { dot, bg } for the in-cell event pills (soft tints, solid markers).
 const ST_C = {
   Failed: { dot: "var(--st-failed)", bg: "var(--st-failed-bg)" },
   Published: { dot: "var(--st-success)", bg: "var(--st-success-bg)" },
@@ -48,14 +59,18 @@ const ST_C = {
   Skipped: { dot: "var(--st-skipped)", bg: "var(--st-skipped-bg)" },
 };
 const stColor = (s) => ST_C[s] || { dot: "var(--st-scheduled)", bg: "var(--st-scheduled-bg)" };
+// A one-off's implied platform (recurring runs are always Instagram).
+const oneoffPlatform = (o) => o.type === "TikTok" ? "tiktok" : "instagram";
 
 export function CalendarView() {
   const app = useApp();
   const phase = app.dataLoading ? "loading" : "ready";
-  const [filter, setFilter] = uCa("all");
-  const [mode, setMode] = uCa("month");
-  const [sel, setSel] = uCa(null); // {day, items}
-  const [monthOffset, setMonthOffset] = uCa(0); // 0 = current month
+  const [filter, setFilter] = uCa("all");          // brand/account
+  const [platFilter, setPlatFilter] = uCa("all");  // platform
+  const [statFilter, setStatFilter] = uCa("all");  // planner status
+  const [mode, setMode] = uCa("month");            // month | week | list
+  const [sel, setSel] = uCa(null);                 // {day, items}
+  const [monthOffset, setMonthOffset] = uCa(0);    // 0 = current month
 
   // target month in WIB (shiftable via the prev/next nav)
   const nowWib = new Date(Date.now() + 7 * 3600 * 1000);
@@ -72,8 +87,20 @@ export function CalendarView() {
   // projection window: future month → all days; current → today onward; past → none
   const projectFrom = monthOffset > 0 ? 1 : monthOffset < 0 ? Infinity : TODAY;
 
+  const statusActive = statFilter !== "all";       // a planner-status filter hides runs/one-offs (they're not plan-pipeline items)
+  const platOk = (p) => platFilter === "all" || p === platFilter;
   const rules = app.rules.filter(r => filter === "all" || r.ch === filter);
   const oneoffs = app.oneoffs.filter(o => o.ym === ym && (filter === "all" || o.ch === filter));
+
+  // content_plan entries this month, after brand+platform+status filters.
+  const plansMonth = (app.plans || []).filter(p => p.ym === ym
+    && (filter === "all" || p.ch === filter)
+    && platOk(p.platform)
+    && (statFilter === "all" || p.status === statFilter));
+  // summary ignores the status filter so the breakdown stays meaningful.
+  const plansSummary = (app.plans || []).filter(p => p.ym === ym
+    && (filter === "all" || p.ch === filter)
+    && platOk(p.platform));
 
   // ground truth from real runs this month: ruleId|day → {status, time}
   const runByRuleDay = {};
@@ -87,30 +114,51 @@ export function CalendarView() {
 
   const itemsFor = (day) => {
     const items = [];
-    // real run history (past + today)
-    Object.entries(runByRuleDay).forEach(([key, v]) => {
-      if (parseInt(key.split("|")[1], 10) !== day) return;
-      items.push({ kind: "rule", ch: v.ch, title: v.rule, time: v.time || "—", status: v.status, ruleId: v.ruleId });
-    });
-    // projected schedule for active rules that haven't already run that day
-    if (day >= projectFrom) {
-      rules.forEach(r => {
-        if (!r.active) return;
-        if (!ruleFires(r, Y, M, day)) return;
-        if (runByRuleDay[`${r.id}|${day}`]) return; // already shown from history
-        items.push({ kind: "rule", ch: r.ch, title: r.name, time: ruleTime(r, Y, M, day), status: "Scheduled", rule: r });
+    // recurring runs + projections (Instagram) — hidden when a planner-status filter is on, or platform≠IG
+    if (!statusActive && platOk("instagram")) {
+      Object.entries(runByRuleDay).forEach(([key, v]) => {
+        if (parseInt(key.split("|")[1], 10) !== day) return;
+        items.push({ kind: "rule", ch: v.ch, title: v.rule, time: v.time || "—", status: v.status, ruleId: v.ruleId });
       });
+      if (day >= projectFrom) {
+        rules.forEach(r => {
+          if (!r.active) return;
+          if (!ruleFires(r, Y, M, day)) return;
+          if (runByRuleDay[`${r.id}|${day}`]) return; // already shown from history
+          items.push({ kind: "rule", ch: r.ch, title: r.name, time: ruleTime(r, Y, M, day), status: "Scheduled", rule: r });
+        });
+      }
     }
-    // one-off scheduled posts
-    oneoffs.filter(o => o.day === day).forEach(o => items.push({ kind: "oneoff", ...o }));
+    // one-off scheduled posts — hidden when a planner-status filter is on
+    if (!statusActive) {
+      oneoffs.filter(o => o.day === day && platOk(oneoffPlatform(o))).forEach(o => items.push({ kind: "oneoff", ...o, platform: oneoffPlatform(o) }));
+    }
+    // planned content (content_plan)
+    plansMonth.filter(p => p.day === day).forEach(p => items.push({
+      kind: "plan", id: p.id, ch: p.ch, title: p.title || "(tanpa judul)", time: p.plannedTime || "—",
+      statusKey: p.status, statusUi: p.statusUi, platform: p.platform, autoManaged: p.autoManaged,
+    }));
     return items.sort((a, b) => String(a.time).localeCompare(String(b.time)));
   };
 
-  const filters = [{ value: "all", label: "Semua" }, ...app.channels.map(c => ({ value: c.id, label: brandFor(c.id, app.channels).name.split(" ")[0] }))];
+  const openItem = (it) => {
+    if (it.kind === "plan") app.go("contentEditor", { id: it.id, ch: it.ch });
+    else if (it.kind === "oneoff") app.go("composer", { ch: it.ch, postId: it.id });
+    else app.go("rules");
+  };
+  const createForDay = (day) => app.go("contentEditor", { ch: filter === "all" ? app.channel : filter, date: `${ym}-${pad2(day)}` });
+
+  const brandOpts = [{ value: "all", label: "Semua akun" }, ...app.channels.map(c => ({ value: c.id, label: brandFor(c.id, app.channels).name }))];
+  const platOpts = [{ value: "all", label: "Semua platform" }, ...Object.entries(PLATFORM).map(([v, m]) => ({ value: v, label: m.label }))];
+  const statOpts = [{ value: "all", label: "Semua status" }, ...PLAN_ORDER.map(s => ({ value: s, label: PLAN_LABEL[s] }))];
+
   const totalItems = Array.from({ length: DAYS }, (_, i) => itemsFor(i + 1)).flat().length;
 
-  // Build the grid cells: month = full weeks (with faded prev/next-month days);
-  // week = the seven days of the current week.
+  // summary: count by status + by platform across the month (filter-aware).
+  const byStatus = {}; PLAN_ORDER.forEach(s => { const n = plansSummary.filter(p => p.status === s).length; if (n) byStatus[s] = n; });
+  const byPlatform = {}; plansSummary.forEach(p => { byPlatform[p.platform] = (byPlatform[p.platform] || 0) + 1; });
+
+  // Build the grid cells: month = full weeks (with faded prev/next-month days); week = the seven days of the current week.
   const cells = [];
   if (mode === "week") {
     for (let k = 0; k < 7; k++) { const d = weekStart + k; cells.push(d > DAYS ? { type: "empty" } : { type: "day", day: d }); }
@@ -124,152 +172,262 @@ export function CalendarView() {
     }
   }
   const cap = mode === "week" ? 8 : 2;
-  const rows = cells.length / 7; // grid week-rows (DOW header is a separate 'auto' row)
+  const rows = cells.length / 7;
+  const useAgenda = app.isMobile || mode === "list";
+
+  // ---- in-cell event pill (compact) ----
+  const Pill = ({ it }) => {
+    if (it.kind === "plan") {
+      const pm = platMeta(it.platform);
+      return (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: tint(pm.accent, 9), borderRadius: 7, padding: "2px 7px 2px 6px", borderLeft: `2.5px solid ${pm.accent}`, overflow: "hidden", flex: "0 0 auto" }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: PLAN_ST_COLOR[it.statusKey] || "var(--st-scheduled)", flex: "0 0 auto" }} />
+          <span style={{ fontFamily: FCa, fontSize: 10.5, color: "var(--ink-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
+            {it.time !== "—" && <b style={{ fontWeight: 700, color: "var(--ink-700)" }}>{it.time} </b>}{it.title}
+          </span>
+        </div>
+      );
+    }
+    const b = brandFor(it.ch, app.channels);
+    const sc = stColor(it.status);
+    const oneoff = it.kind === "oneoff";
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 6, background: sc.bg, borderRadius: 7, padding: "2px 7px 2px 6px", borderLeft: oneoff ? `2.5px solid ${b.accent}` : "none", overflow: "hidden", flex: "0 0 auto" }}>
+        <span style={{ width: 6, height: 6, borderRadius: oneoff ? 1.5 : "50%", background: sc.dot, flex: "0 0 auto" }} />
+        <span style={{ fontFamily: FCa, fontSize: 10.5, color: "var(--ink-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
+          <b style={{ fontWeight: 700, color: "var(--ink-700)" }}>{it.time}</b> {it.title}
+        </span>
+      </div>
+    );
+  };
+
+  // ---- agenda row (mobile + desktop List mode) ----
+  const AgendaRow = ({ it }) => {
+    const b = brandFor(it.ch, app.channels);
+    const isPlan = it.kind === "plan";
+    const pm = isPlan ? platMeta(it.platform) : null;
+    return (
+      <button onClick={() => openItem(it)}
+        style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", border: "1px solid var(--line)", borderLeft: isPlan ? `3px solid ${pm.accent}` : it.kind === "oneoff" ? `3px solid ${b.accent}` : "1px solid var(--line)", borderRadius: 13, background: "#fff", cursor: "pointer", textAlign: "left", width: "100%" }}>
+        <BrandAvatar brand={b} size={30} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: FCa, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.title}</div>
+          <div style={{ fontFamily: FCa, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {it.time !== "—" ? `${it.time} WIB · ` : ""}{b.name}{isPlan ? ` · ${pm.label}` : it.kind === "oneoff" ? ` · ${it.type}` : ""}
+          </div>
+        </div>
+        {isPlan
+          ? <span style={{ fontFamily: FCa, fontSize: 11, fontWeight: 600, color: PLAN_ST_COLOR[it.statusKey] || "var(--ink-500)", background: tint(PLAN_ST_COLOR[it.statusKey] || "var(--ink-500)", 14), padding: "3px 9px", borderRadius: 999, flex: "0 0 auto" }}>{it.statusUi}</span>
+          : <Status s={it.status} />}
+      </button>
+    );
+  };
+
+  const agendaBody = (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {Array.from({ length: DAYS }, (_, i) => i + 1).map(day => {
+        const items = itemsFor(day);
+        if (!items.length) return null;
+        const isToday = day === TODAY;
+        return (
+          <div key={day}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
+              <span style={{ width: 32, height: 32, borderRadius: 10, display: "grid", placeItems: "center", background: isToday ? "var(--primary-grad)" : "rgba(140,144,158,.12)", color: isToday ? "#fff" : "var(--ink-700)", fontFamily: FCa, fontWeight: 700, fontSize: 13 }}>{pad2(day)}</span>
+              <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 600, color: "var(--ink-500)" }}>{DOW[(new Date(Date.UTC(Y, M, day)).getUTCDay() + 6) % 7]}{isToday ? " · Hari ini" : ""}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{items.map((it, i) => <AgendaRow key={i} it={it} />)}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const gridBody = (
+    <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(7, minmax(0,1fr))", gridTemplateRows: `auto repeat(${rows}, minmax(0,1fr))`, gap: 8 }}>
+      {DOW.map((d, di) => <div key={d} style={{ textAlign: "center", fontFamily: FCa, fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: di >= 5 ? "var(--ink-300)" : "var(--ink-400)", paddingBottom: 6 }}>{d}</div>)}
+      {cells.map((c, idx) => {
+        if (c.type === "empty") return <div key={"e" + idx} />;
+        if (c.type === "faded") return (
+          <div key={"f" + idx} style={{ minWidth: 0, borderRadius: 14, padding: "8px 10px", fontFamily: FCa, fontSize: 12.5, fontWeight: 500, color: "var(--ink-300)", opacity: 0.5 }}>{pad2(c.label)}</div>
+        );
+        const day = c.day;
+        const items = itemsFor(day);
+        const isToday = day === TODAY;
+        const weekend = ((new Date(Date.UTC(Y, M, day)).getUTCDay() + 6) % 7) >= 5;
+        return (
+          <button key={day} onClick={() => setSel({ day, items })}
+            style={{ textAlign: "left", border: isToday ? "1.5px solid var(--primary-300)" : "1px solid var(--line-soft)", cursor: "pointer",
+              background: isToday ? "var(--primary-100)" : weekend ? "rgba(140,144,158,.045)" : "rgba(255,255,255,.6)",
+              borderRadius: 14, padding: "8px 10px 9px", minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", gap: 6, transition: "box-shadow .14s, border-color .14s, transform .14s", position: "relative" }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.transform = "translateY(-1px)"; if (!isToday) e.currentTarget.style.borderColor = "var(--primary-200)"; }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; if (!isToday) e.currentTarget.style.borderColor = "var(--line-soft)"; }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: "0 0 auto" }}>
+              {isToday
+                ? <span style={{ minWidth: 23, height: 23, padding: "0 6px", borderRadius: 8, background: "var(--primary-grad)", color: "#fff", display: "inline-grid", placeItems: "center", fontFamily: FCa, fontWeight: 700, fontSize: 12, boxShadow: "var(--shadow-primary)" }}>{pad2(day)}</span>
+                : <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 600, color: weekend ? "var(--ink-300)" : "var(--ink-500)" }}>{pad2(day)}</span>}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, minHeight: 0, overflow: "hidden" }}>
+              {items.slice(0, cap).map((it, i) => <Pill key={i} it={it} />)}
+              {items.length > cap && <span style={{ fontFamily: FCa, fontSize: 10, fontWeight: 600, color: "var(--ink-400)", paddingLeft: 6, marginTop: 1, flex: "0 0 auto" }}>+{items.length - cap} lagi</span>}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const calendarPanel = (
+    <Panel pad={app.isMobile ? 14 : 18} style={app.isMobile ? undefined : { flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      {/* header: month nav · filters · legend */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap", flex: "0 0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <IconButton size={34} icon={<Icons.chevLeft size={18} />} tip="Bulan sebelumnya" onClick={() => setMonthOffset(o => o - 1)} />
+          <span style={{ fontFamily: FCa, fontWeight: 700, fontSize: 18, color: "var(--ink-900)", minWidth: 132, textAlign: "center", letterSpacing: "-.01em" }}>{MONTH}</span>
+          <IconButton size={34} icon={<Icons.chevRight size={18} />} tip="Bulan berikutnya" onClick={() => setMonthOffset(o => o + 1)} />
+          {!isCurrentMonth && <Button size="sm" variant="ghost" onClick={() => setMonthOffset(0)} style={{ marginLeft: 4 }}>Hari ini</Button>}
+        </div>
+        {!app.isMobile && !useAgenda && <div style={{ display: "flex", gap: 14, fontFamily: FCa, fontSize: 11, fontWeight: 500, color: "var(--ink-400)", flexWrap: "wrap" }}>
+          <Legend c="var(--st-scheduled)" t="Terjadwal" /><Legend c="var(--st-success)" t="Terbit" /><Legend c="var(--ink-400)" t="Rencana" sq /><Legend c="var(--st-scheduled)" t="Sekali" sq />
+        </div>}
+      </div>
+
+      {/* filters: brand · platform · status (combinable) */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", flex: "0 0 auto" }}>
+        <div style={{ width: app.isMobile ? "100%" : 168 }}><Select value={filter} onChange={setFilter} options={brandOpts} /></div>
+        <div style={{ width: app.isMobile ? "47%" : 160 }}><Select value={platFilter} onChange={setPlatFilter} options={platOpts} /></div>
+        <div style={{ width: app.isMobile ? "47%" : 160 }}><Select value={statFilter} onChange={setStatFilter} options={statOpts} /></div>
+      </div>
+
+      {totalItems === 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "11px 14px", borderRadius: 12, background: "rgba(140,144,158,.07)", marginBottom: 14, fontFamily: FCa, fontSize: 12.5, color: "var(--ink-500)" }}>
+          <Icons.calendar size={15} style={{ color: "var(--ink-400)", flex: "0 0 auto" }} />
+          {statusActive || platFilter !== "all" ? "Tidak ada yang cocok dengan filter ini." : isCurrentMonth ? "Belum ada konten, jadwal otomatis, maupun postingan bulan ini." : `Tidak ada apa pun di ${MONTH}.`}
+        </div>
+      )}
+
+      {useAgenda
+        ? (totalItems === 0 ? null : (app.isMobile ? agendaBody : <div className="sc-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 4 }}>{agendaBody}</div>))
+        : gridBody}
+    </Panel>
+  );
+
+  const summaryRail = (
+    <SummaryRail compact={app.isMobile} monthLabel={MONTH} total={plansSummary.length} byStatus={byStatus} byPlatform={byPlatform}
+      statFilter={statFilter} onPickStatus={(s) => setStatFilter(cur => cur === s ? "all" : s)} onClear={() => { setStatFilter("all"); setPlatFilter("all"); }}
+      onCreate={() => app.go("contentEditor", { ch: filter === "all" ? app.channel : filter })} />
+  );
 
   return (
     <div style={app.isMobile ? undefined : { height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
-      <Topbar title="Kalender" sub="Jadwal & postingan yang akan terbit · waktu WIB"
+      <Topbar title="Kalender" sub="Rencana konten, jadwal otomatis & postingan · waktu WIB"
         right={<div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <Segmented options={filters} value={filter} onChange={setFilter} />
-          {!app.isMobile && <Segmented options={[{ value: "month", label: "Bulan" }, { value: "week", label: "Minggu" }]} value={mode} onChange={setMode} />}
-          <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("composer", { ch: filter === "all" ? app.channel : filter })}>Buat postingan</Button>
+          {!app.isMobile && <Segmented options={[{ value: "month", label: "Bulan" }, { value: "week", label: "Minggu" }, { value: "list", label: "List" }]} value={mode} onChange={setMode} />}
+          <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("contentEditor", { ch: filter === "all" ? app.channel : filter })}>Buat konten</Button>
+          <Button variant="secondary" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("composer", { ch: filter === "all" ? app.channel : filter })}>Buat postingan</Button>
         </div>} />
 
       {phase === "loading" && <Panel style={{ height: 520 }}><Skeleton h={28} w="30%" /><div style={{ height: 16 }} /><div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 8 }}>{Array.from({ length: 35 }).map((_, i) => <Skeleton key={i} h={80} r={12} />)}</div></Panel>}
 
-      {phase === "ready" && (
-        <Panel pad={app.isMobile ? 14 : 18} style={app.isMobile ? undefined : { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          {/* header: month nav · today reset · legend */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap", flex: "0 0 auto" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <IconButton size={34} icon={<Icons.chevLeft size={18} />} tip="Bulan sebelumnya" onClick={() => setMonthOffset(o => o - 1)} />
-              <span style={{ fontFamily: FCa, fontWeight: 700, fontSize: 18, color: "var(--ink-900)", minWidth: 132, textAlign: "center", letterSpacing: "-.01em" }}>{MONTH}</span>
-              <IconButton size={34} icon={<Icons.chevRight size={18} />} tip="Bulan berikutnya" onClick={() => setMonthOffset(o => o + 1)} />
-              {!isCurrentMonth && <Button size="sm" variant="ghost" onClick={() => setMonthOffset(0)} style={{ marginLeft: 4 }}>Hari ini</Button>}
-            </div>
-            {!app.isMobile && <div style={{ display: "flex", gap: 15, fontFamily: FCa, fontSize: 11, fontWeight: 500, color: "var(--ink-400)" }}>
-              <Legend c="var(--st-scheduled)" t="Terjadwal" /><Legend c="var(--st-success)" t="Terbit" /><Legend c="var(--st-failed)" t="Gagal" /><Legend c="var(--st-scheduled)" t="Sekali" sq />
-            </div>}
-          </div>
+      {phase === "ready" && (app.isMobile
+        ? <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>{summaryRail}{calendarPanel}</div>
+        : <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 16 }}>{calendarPanel}<div style={{ width: 248, flex: "0 0 auto", overflowY: "auto" }} className="sc-scroll">{summaryRail}</div></div>)}
 
-          {totalItems === 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "11px 14px", borderRadius: 12, background: "rgba(140,144,158,.07)", marginBottom: 14, fontFamily: FCa, fontSize: 12.5, color: "var(--ink-500)" }}>
-              <Icons.calendar size={15} style={{ color: "var(--ink-400)", flex: "0 0 auto" }} />
-              {isCurrentMonth ? "Belum ada jadwal otomatis maupun postingan sekali bulan ini." : `Tidak ada yang dijadwalkan di ${MONTH}.`}
-            </div>
-          )}
-
-          {/* Mobile: agenda list (native-feeling) instead of a cramped 7-col grid */}
-          {app.isMobile ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-              {Array.from({ length: DAYS }, (_, i) => i + 1).map(day => {
-                const items = itemsFor(day);
-                if (!items.length) return null;
-                const isToday = day === TODAY;
-                return (
-                  <div key={day}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
-                      <span style={{ width: 32, height: 32, borderRadius: 10, display: "grid", placeItems: "center", background: isToday ? "var(--primary-grad)" : "rgba(140,144,158,.12)", color: isToday ? "#fff" : "var(--ink-700)", fontFamily: FCa, fontWeight: 700, fontSize: 13 }}>{pad2(day)}</span>
-                      <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 600, color: "var(--ink-500)" }}>{DOW[(new Date(Date.UTC(Y, M, day)).getUTCDay() + 6) % 7]}{isToday ? " · Hari ini" : ""}</span>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {items.map((it, i) => {
-                        const b = brandFor(it.ch, app.channels);
-                        return (
-                          <button key={i} onClick={() => { it.kind === "oneoff" ? app.go("composer", { ch: it.ch, postId: it.id }) : app.go("rules"); }}
-                            style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", border: "1px solid var(--line)", borderLeft: it.kind === "oneoff" ? `3px solid ${b.accent}` : "1px solid var(--line)", borderRadius: 13, background: "#fff", cursor: "pointer", textAlign: "left", width: "100%" }}>
-                            <BrandAvatar brand={b} size={30} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontFamily: FCa, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.title}</div>
-                              <div style={{ fontFamily: FCa, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.time} WIB · {b.name}{it.kind === "oneoff" ? ` · ${it.type}` : ""}</div>
-                            </div>
-                            <Status s={it.status} />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-          <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(7, minmax(0,1fr))", gridTemplateRows: `auto repeat(${rows}, minmax(0,1fr))`, gap: 8 }}>
-            {DOW.map((d, di) => <div key={d} style={{ textAlign: "center", fontFamily: FCa, fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: di >= 5 ? "var(--ink-300)" : "var(--ink-400)", paddingBottom: 6 }}>{d}</div>)}
-            {cells.map((c, idx) => {
-              if (c.type === "empty") return <div key={"e" + idx} />;
-              if (c.type === "faded") return (
-                <div key={"f" + idx} style={{ minWidth: 0, borderRadius: 14, padding: "8px 10px", fontFamily: FCa, fontSize: 12.5, fontWeight: 500, color: "var(--ink-300)", opacity: 0.5 }}>{pad2(c.label)}</div>
-              );
-              const day = c.day;
-              const items = itemsFor(day);
-              const isToday = day === TODAY;
-              const weekend = ((new Date(Date.UTC(Y, M, day)).getUTCDay() + 6) % 7) >= 5;
-              return (
-                <button key={day} onClick={() => setSel({ day, items })}
-                  style={{ textAlign: "left", border: isToday ? "1.5px solid var(--primary-300)" : "1px solid var(--line-soft)", cursor: "pointer",
-                    background: isToday ? "var(--primary-100)" : weekend ? "rgba(140,144,158,.045)" : "rgba(255,255,255,.6)",
-                    borderRadius: 14, padding: "8px 10px 9px", minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", gap: 6, transition: "box-shadow .14s, border-color .14s, transform .14s", position: "relative" }}
-                  onMouseEnter={e => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.transform = "translateY(-1px)"; if (!isToday) e.currentTarget.style.borderColor = "var(--primary-200)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; if (!isToday) e.currentTarget.style.borderColor = "var(--line-soft)"; }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: "0 0 auto" }}>
-                    {isToday
-                      ? <span style={{ minWidth: 23, height: 23, padding: "0 6px", borderRadius: 8, background: "var(--primary-grad)", color: "#fff", display: "inline-grid", placeItems: "center", fontFamily: FCa, fontWeight: 700, fontSize: 12, boxShadow: "var(--shadow-primary)" }}>{pad2(day)}</span>
-                      : <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 600, color: weekend ? "var(--ink-300)" : "var(--ink-500)" }}>{pad2(day)}</span>}
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 3, minHeight: 0, overflow: "hidden" }}>
-                    {items.slice(0, cap).map((it, i) => {
-                      const b = brandFor(it.ch, app.channels);
-                      const sc = stColor(it.status);
-                      const oneoff = it.kind === "oneoff";
-                      return (
-                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, background: sc.bg, borderRadius: 7, padding: "2px 7px 2px 6px", borderLeft: oneoff ? `2.5px solid ${b.accent}` : "none", overflow: "hidden", flex: "0 0 auto" }}>
-                          <span style={{ width: 6, height: 6, borderRadius: oneoff ? 1.5 : "50%", background: sc.dot, flex: "0 0 auto" }} />
-                          <span style={{ fontFamily: FCa, fontSize: 10.5, color: "var(--ink-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
-                            <b style={{ fontWeight: 700, color: "var(--ink-700)" }}>{it.time}</b> {it.title}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    {items.length > cap && <span style={{ fontFamily: FCa, fontSize: 10, fontWeight: 600, color: "var(--ink-400)", paddingLeft: 6, marginTop: 1, flex: "0 0 auto" }}>+{items.length - cap} lagi</span>}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          )}
-        </Panel>
-      )}
-
-      <DayModal sel={sel} onClose={() => setSel(null)} monthLabel={MONTH} />
+      <DayModal sel={sel} ym={ym} monthLabel={MONTH} onClose={() => setSel(null)} openItem={openItem} createForDay={createForDay} />
     </div>
   );
 }
 
 function Legend({ c, t, sq }) { return <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: sq ? 2 : "50%", background: c, boxShadow: `0 0 0 3px color-mix(in srgb, ${c} 16%, transparent)` }} />{t}</span>; }
 
-function DayModal({ sel, onClose, monthLabel }) {
+// Right-rail (desktop) / top strip (mobile): "Konten bulan ini" + status & platform breakdowns.
+function SummaryRail({ compact, monthLabel, total, byStatus, byPlatform, statFilter, onPickStatus, onClear, onCreate }) {
+  const hasFilter = statFilter !== "all";
+  return (
+    <Panel strong pad={compact ? 14 : 18} style={compact ? undefined : { position: "sticky", top: 0 }}>
+      <div style={{ fontFamily: FCa, fontSize: 12, fontWeight: 600, color: "var(--ink-500)", letterSpacing: ".02em" }}>Konten bulan ini</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 2 }}>
+        <span style={{ fontFamily: FCa, fontWeight: 800, fontSize: 30, color: "var(--ink-900)", letterSpacing: "-.02em" }}>{total}</span>
+        <span style={{ fontFamily: FCa, fontSize: 12.5, color: "var(--ink-400)" }}>direncanakan · {monthLabel}</span>
+      </div>
+
+      {total === 0 ? (
+        <div style={{ fontFamily: FCa, fontSize: 12.5, color: "var(--ink-400)", marginTop: 12, lineHeight: 1.5 }}>Belum ada konten terencana. Mulai dengan satu ide.</div>
+      ) : (
+        <>
+          <div style={{ marginTop: 16 }}>
+            <div style={subhead}>Per status</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+              {Object.entries(byStatus).map(([s, n]) => {
+                const c = PLAN_ST_COLOR[s] || "var(--ink-400)", on = statFilter === s;
+                return (
+                  <button key={s} onClick={() => onPickStatus(s)}
+                    style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 9px", border: "none", borderRadius: 9, cursor: "pointer", background: on ? tint(c, 16) : "transparent", textAlign: "left", width: "100%" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: c, flex: "0 0 auto" }} />
+                    <span style={{ flex: 1, fontFamily: FCa, fontSize: 12.5, fontWeight: on ? 700 : 500, color: on ? "var(--ink-900)" : "var(--ink-600)" }}>{PLAN_LABEL[s]}</span>
+                    <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 700, color: "var(--ink-700)", fontVariantNumeric: "tabular-nums" }}>{n}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <div style={subhead}>Per platform</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+              {Object.entries(byPlatform).sort((a, b) => b[1] - a[1]).map(([p, n]) => {
+                const m = platMeta(p);
+                return (
+                  <div key={p} style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 9px" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: m.accent, flex: "0 0 auto" }} />
+                    <span style={{ flex: 1, fontFamily: FCa, fontSize: 12.5, color: "var(--ink-600)" }}>{m.label}</span>
+                    <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 700, color: "var(--ink-700)", fontVariantNumeric: "tabular-nums" }}>{n}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {hasFilter && <Button size="sm" variant="ghost" full style={{ marginTop: 14 }} onClick={onClear}>Hapus filter</Button>}
+      {!compact && <Button size="sm" variant="amber" full style={{ marginTop: 8 }} icon={<Icons.plus size={15} sw={2} />} onClick={onCreate}>Buat konten</Button>}
+    </Panel>
+  );
+}
+const subhead = { fontFamily: FCa, fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--ink-400)" };
+
+function DayModal({ sel, ym, monthLabel, onClose, openItem, createForDay }) {
   const app = useApp();
   if (!sel) return null;
   return (
     <Modal open={!!sel} onClose={onClose} width={460}>
       <div style={{ padding: 24 }}>
-        <SectionTitle sub={`${sel.items.length} item terjadwal`} right={<Button size="sm" variant="amber" icon={<Icons.plus size={15} />} onClick={() => { onClose(); app.go("composer", { ch: app.channel, day: sel.day }); }}>Buat postingan</Button>}>{pad2(sel.day)} {monthLabel}</SectionTitle>
-        {sel.items.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", fontFamily: FCa, fontSize: 13, color: "var(--ink-400)" }}>Tidak ada konten pada hari ini.</div>}
+        <SectionTitle sub={`${sel.items.length} item`} right={
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button size="sm" variant="amber" icon={<Icons.plus size={15} />} onClick={() => { onClose(); createForDay(sel.day); }}>Buat konten</Button>
+          </div>}>{pad2(sel.day)} {monthLabel}</SectionTitle>
+        {sel.items.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", fontFamily: FCa, fontSize: 13, color: "var(--ink-400)" }}>Belum ada apa pun di hari ini. Buat konten untuk mulai merencanakan.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {sel.items.map((it, i) => {
             const b = brandFor(it.ch, app.channels);
+            const isPlan = it.kind === "plan";
+            const pm = isPlan ? platMeta(it.platform) : null;
+            const tag = isPlan ? pm.label : it.kind === "oneoff" ? `${it.type} · sekali` : "Rutin";
+            const tagC = isPlan ? pm.accent : b.accent;
             return (
-              <div key={i} onClick={() => { onClose(); it.kind === "oneoff" ? app.go("composer", { ch: it.ch, postId: it.id }) : app.go("rules"); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, cursor: "pointer", background: "#fff" }}>
+              <div key={i} onClick={() => { onClose(); openItem(it); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderLeft: `3px solid ${tagC}`, borderRadius: 13, cursor: "pointer", background: "#fff" }}>
                 <BrandAvatar brand={b} size={32} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontFamily: FCa, fontWeight: 600, fontSize: 13, color: "var(--ink-900)" }}>{it.title}</span>
-                    <span style={{ fontFamily: FCa, fontSize: 9.5, fontWeight: 600, color: b.accent, background: b.soft, padding: "1px 7px", borderRadius: 999 }}>{it.kind === "oneoff" ? it.type + " · sekali" : "Rutin"}</span>
+                    <span style={{ fontFamily: FCa, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.title}</span>
+                    <span style={{ fontFamily: FCa, fontSize: 9.5, fontWeight: 600, color: tagC, background: tint(tagC, 12), padding: "1px 7px", borderRadius: 999, flex: "0 0 auto" }}>{tag}</span>
                   </div>
-                  <div style={{ fontFamily: FCa, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{it.time} WIB · {b.name}</div>
+                  <div style={{ fontFamily: FCa, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{it.time !== "—" ? `${it.time} WIB · ` : ""}{b.name}</div>
                 </div>
-                <Status s={it.status} />
-                <Icons.chevRight size={16} style={{ color: "var(--ink-300)" }} />
+                {isPlan
+                  ? <span style={{ fontFamily: FCa, fontSize: 11, fontWeight: 600, color: PLAN_ST_COLOR[it.statusKey] || "var(--ink-500)", background: tint(PLAN_ST_COLOR[it.statusKey] || "var(--ink-500)", 14), padding: "3px 9px", borderRadius: 999, flex: "0 0 auto" }}>{it.statusUi}</span>
+                  : <Status s={it.status} />}
+                <Icons.chevRight size={16} style={{ color: "var(--ink-300)", flex: "0 0 auto" }} />
               </div>
             );
           })}

@@ -1,6 +1,7 @@
 # Product Requirements Document: SinaraCast
 
-> **Version:** 2.0 — **Design-agnostic.** This PRD deliberately contains **no visual, UI, or frontend detail** (no colors, components, layout, typography, or styling). The visual design system is being built separately (in Claude Design) and will be applied on top of these requirements. For technical architecture see `design.md`; for visuals see the separate design system.
+> **Changelog:** v2.1 (2026-06-05) — folded in the **Content Planner** addendum (FR-43…52, new views, `content_plan` entity); see §11. v2.0 — design-agnostic baseline.
+> **Version:** 2.1 — **Design-agnostic.** This PRD deliberately contains **no visual, UI, or frontend detail** (no colors, components, layout, typography, or styling). The visual design system is being built separately (in Claude Design) and will be applied on top of these requirements. For technical architecture see `design.md`; for visuals see the separate design system.
 > **Status:** Draft for build. Scope spans all phases; each requirement is tagged with a release phase (P1 = core MVP, P2 = expansion, P3 = video) as a build-order recommendation — everything here is fully specified so the design system can be designed against the complete product.
 > **Owner:** Rama (solo operator + builder).
 > **Audience:** product/design/build — defines *what the product does and when a feature is "done"*, not *how it looks or is coded*.
@@ -259,4 +260,44 @@ Single-user now, structured to allow future workspaces. Entities (conceptual; no
 
 ---
 
-*End. This PRD is design-agnostic by intent; the design system (built separately) will be applied to these views and behaviors. Technical implementation lives in `design.md` and the forthcoming Database Schema / TSD.*
+## 11. Addendum: Content Planner (FR-43…52)
+
+> **Source:** `content-planner-spec.md` v1.0. This addendum extends §5 (FRs), §6 (views), and §7 (entities) without altering existing requirements. **Strategic pivot:** the Planner targets freelancers / social-media admins / small agencies managing many pieces of content — the next wedge beyond UMKM-only.
+> **Locked decisions:** (1) **Hybrid** — Instagram plan entries can connect to SinaraCast publishing and auto-fill (status, link, metrics); other platforms are plan-only/manual with **"Auto-publish: Coming soon."** (2) **Lean status** `Ide → Siap → Posted`, extensible (Draft/Review/Disetujui/Revisi opt-in). (3) **v1 = single-operator, multi-brand** — no multi-user / approval / PIC.
+> **Build decisions (this repo):** the Planner **layers onto the existing Kalender view** (plan entries become a new event kind in the same grid + a list view + summary), not a parallel calendar. **Metrics:** manual entry is built solid in v1; IG auto-pull is a clearly-labeled best-effort spike (likely needs an added `instagram_manage_insights` scope + re-consent — unproven).
+> **The moat:** for content SinaraCast publishes (Instagram), the tedious parts fill themselves — "Posted" status, post link, and metrics auto-populate from our pipeline + the IG API. A spreadsheet planner makes the user type all that by hand.
+> **Honest constraint [verify in build]:** IG returns rich, persistent metrics for **Feed & Reels**; **Story** insights are limited and ephemeral (~24h). Auto-metrics are strong for Feed/Reels, weak for Stories.
+
+### 11.1 Functional requirements
+
+**FR-43 — Content CRUD [Planner v1].** Create/edit/delete a Content (plan) entry for one brand. Required to save: brand, platform, planned date — everything else optional. Deleting confirms; if the entry is linked to an active scheduled post/rule, the user is warned and must choose to unlink or cancel that publish too.
+
+**FR-44 — Status pipeline [v1].** Default stages `Ide → Siap → Posted`; the user can enable extra stages (`Draft, Review, Disetujui, Revisi`). Status is changeable manually; auto-managed IG entries advance to `Posted` automatically on publish (FR-46). Extra stages are opt-in and don't clutter the default view.
+
+**FR-45 — Multi-platform planning [v1].** A Content entry targets a platform: **Instagram** (auto-publish capable), and **TikTok / YouTube / LinkedIn / X / Threads / Facebook** as **plan-only** entries labeled **"Auto-publish: Coming soon."** Plan entries for any platform are fully usable (metadata, status, manual link/metrics) without an API connection. Only Instagram offers "connect to auto-publish" in v1.
+
+**FR-46 — Hybrid auto-publish link [v1].** An Instagram entry can be **connected** to SinaraCast publishing — a new **one-off** (Story/Feed/Reels) or an existing **recurring rule** — so it auto-publishes at the planned time. When connected and published, status auto-advances to **Posted** and the **post link** auto-fills. Unconnected entries (any platform) are marked **Posted manually** by the user, who can paste the link. Connecting/disconnecting is reversible before publish; disconnecting reverts to manual tracking.
+
+**FR-47 — Performance metrics [v1].** After an entry is Posted, capture views/reach, likes, comments, shares, saves. Auto-managed IG **Feed/Reels**: metrics auto-pull from the IG API and refresh over time (~24h/72h/7d) [verify]. IG **Stories**: capture the limited metrics available while live (~24h); show clearly they're limited/ephemeral [verify]. **Manual / other-platform**: the user enters metrics by hand (and may paste the link). Each entry shows metric source (auto vs manual) + last-updated time.
+
+**FR-48 — Planner views: calendar + list [v1].** Month and list views of all Content (across or filtered by brand/platform/status), color-coded by platform with a per-item status indicator, plus a side summary **"Konten bulan ini: N"** + counts by status and platform. Filters (brand/platform/status) combinable. Recurring-rule runs and existing one-off scheduled posts also appear (the planner is the superset calendar). Empty/loading/error states handled.
+
+**FR-49 — Content editor [v1].** A rich editor grouped: **Utama** (brand, platform, planned date+time WIB, title); **Strategi** (content type, pillar, format, goal); **Copywriting** (hook/cover text, caption, notes); **Produksi** (reference / brief / design links — PIC deferred); **Status & hasil** (status; if Posted: link + performance block per FR-47). Validation per platform/format where it matters (IG auto-publish entries inherit the composer's media rules); plan-only entries have looser requirements. For IG, a "Jadwalkan otomatis via SinaraCast" action triggers FR-46.
+
+**FR-50 — Board view [Planner v1.1].** A kanban by status (drag to advance).
+**FR-51 — Configurable taxonomy [v1.1].** User-defined pillars, content types, goals.
+**FR-52 — Monthly rollup [v1.1].** Per-month totals (planned/posted, reach, top post) per brand/platform.
+
+**Out of scope (here):** multi-user, roles, PIC/assignee, approval workflows, client approval links, billing, and auto-publishing to non-IG platforms — deferred to the agency/SaaS phase.
+
+### 11.2 Views added (extends §6)
+- **Planner (Kalender/List)** [FR-48] — extends the existing Calendar: month grid or list of `content_plan` ∪ recurring runs ∪ one-off posts; right-rail "Konten bulan ini: N" + status/platform counts; filters; "Buat konten" → Content editor.
+- **Content editor (modal/page)** [FR-49] — the rich entry form; for IG, "Jadwalkan otomatis via SinaraCast"; auto-managed entries show status/link/metrics read-only ("diisi otomatis") with a last-updated badge; non-IG entries show "Auto-publish: Coming soon."
+- **Board (Kanban)** [FR-50, v1.1].
+
+### 11.3 Entity added (extends §7)
+- **content_plan** — a planned piece of content for one brand/platform: planned date/time, title, strategy (type/pillar/format/goal), copywriting (hook/caption/notes), production links, status, optional automation link (to `scheduled_post` / `recurring_rule` / `post_run`), `auto_managed`, post link, and a current performance snapshot (views/likes/comments/shares/saves/reach) with a metric source. Full columns in `schema.md` §B. (Optional later: `content_metric_snapshot` for metric history.)
+
+---
+
+*End. This PRD is design-agnostic by intent; the design system (built separately) will be applied to these views and behaviors. Technical implementation lives in `design.md` and the Database Schema / TSD.*

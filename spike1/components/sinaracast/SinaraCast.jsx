@@ -17,6 +17,7 @@ import { SignInView } from "./views/signin";
 import { CalendarView } from "./views/calendar";
 import { ComposerView } from "./views/composer";
 import { MediaLibraryView } from "./views/library";
+import { ContentEditorView } from "./views/contentEditor";
 
 const { useState: uA, useCallback } = React;
 
@@ -32,6 +33,7 @@ export default function SinaraCast() {
   const [rules, setRules] = uA([]);
   const [runs, setRuns] = uA([]);
   const [oneoffs, setOneoffs] = uA([]);
+  const [plans, setPlans] = uA([]);
   const [library, setLibrary] = uA({});
   const [notifs, setNotifs] = uA([]);
   const [channels, setChannels] = uA([]);
@@ -74,7 +76,7 @@ export default function SinaraCast() {
     setDataLoading(true);
     loadAll().then((d) => {
       if (!active) return;
-      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setLibrary(d.library || {}); setNotifs(d.notifs);
+      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setLibrary(d.library || {}); setNotifs(d.notifs);
       setSettings(d.settings); setProfile(d.profile);
       setChannel((cur) => cur || d.channels[0]?.id || "");
       setDataLoading(false);
@@ -84,7 +86,7 @@ export default function SinaraCast() {
 
   const reload = useCallback(async () => {
     const d = await loadAll();
-    setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setLibrary(d.library || {}); setNotifs(d.notifs);
+    setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setLibrary(d.library || {}); setNotifs(d.notifs);
     setSettings(d.settings); setProfile(d.profile);
     setChannel((cur) => cur || d.channels[0]?.id || "");
   }, []);
@@ -328,7 +330,7 @@ export default function SinaraCast() {
     }
   };
 
-  const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, oneoffs, library, notifs, setNotifs,
+  const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, oneoffs, plans, library, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
     toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, connectTikTokChannel, saveSettings,
@@ -348,7 +350,7 @@ export default function SinaraCast() {
     rules: RulesView, editor: EditorView, connections: ConnectionsView,
     activity: ActivityView, notifications: NotificationsView, settings: SettingsView,
     profile: ProfileView, onboarding: OnboardingView, calendar: CalendarView,
-    composer: ComposerView, library: MediaLibraryView,
+    composer: ComposerView, library: MediaLibraryView, contentEditor: ContentEditorView,
   };
   const View = VIEWS[view];
 

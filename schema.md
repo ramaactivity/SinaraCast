@@ -1,6 +1,7 @@
 # Database Schema: SinaraCast
 
-> **Version:** 1.1
+> **Changelog:** v1.2 (2026-06-05) — added the **Content Planner** tables/enums (`content_plan`, optional `content_metric_snapshot`) + RLS; see §11. v1.1 — Instagram Login (`ig_user_id`, no `fb_page_id`).
+> **Version:** 1.2
 > **Pairs with:** `design.md` v6.1 (architecture + data model §6) · `prd.md` v2 (entities §7) · `tsd.md` v1.1 · the Claude Design frontend (`app/mockdata.jsx` — this schema maps 1:1 to it).
 > **Target:** Supabase (PostgreSQL 15). This is the backend spine; when wiring the frontend, replace `mockdata.jsx`/`store.jsx` reads with queries against these tables — the field mapping is in §9.
 > **Scope:** P1 tables are core; tables/columns tagged **[P2]** support the expansion phase (calendar, one-off posts, library, campaigns) and can be created now or later without breaking P1.
@@ -357,6 +358,103 @@ Wiring guide — replace each `window.MOCK.*` shape with these tables (camelCase
 - **[DECISION]** On brand remove/disconnect: set `channel.archived_at` and **disable** its rules (recommended; `recurring_rule.active=false`) vs cascade-delete. Schema supports either; default = soft-archive.
 - **[DECISION]** `daily_ping` default — set `true` here (recommended); flip if desired.
 - **[VERIFY]** Meta Dev-Mode sustainability (Spike 1) — doesn't change schema, but gates go-live.
+
+---
+
+## 11. Addendum: Content Planner tables (v1.2)
+
+> **Source:** `content-planner-spec.md` §B. Additive — references existing tables (`app_user`, `channel`, `scheduled_post`, `recurring_rule`, `post_run`, `campaign`), all already created in `spike1/supabase/schema.sql`. Ship as a migration (`spike1/supabase/migrations/`), not by editing the base schema.
+
+### 11.1 New enums
+```sql
+create type content_platform as enum ('instagram','tiktok','youtube','linkedin','twitter','threads','facebook');
+create type content_status   as enum ('idea','draft','review','approved','revision','ready','posted');
+-- default lean flow: idea → ready → posted; the others are opt-in (FR-44)
+create type content_format   as enum ('story','feed','reels','carousel','video','single_image','thread');
+create type content_goal     as enum ('awareness','engagement','conversion','traffic','retention','other');
+create type plan_source      as enum ('manual','linked_oneoff','linked_rule');
+create type metric_source    as enum ('auto_ig','manual','none');
+```
+> `content_type` and `pillar` are free `text` in v1 (configurable lookups = FR-51 / v1.1).
+
+### 11.2 `content_plan` (the planner entry)
+```sql
+create table content_plan (
+  id            uuid primary key default gen_random_uuid(),
+  owner_id      uuid not null references app_user(id) on delete cascade,
+  channel_id    uuid not null references channel(id) on delete cascade,   -- brand
+  platform      content_platform not null,
+  planned_date  date not null,
+  planned_time  time,                          -- WIB
+  title         text,
+  content_type  text,                          -- free in v1
+  pillar        text,
+  format        content_format,
+  goal          content_goal,
+  hook          text,                          -- cover / hook text
+  caption       text,
+  notes         text,
+  reference_url text,
+  brief_url     text,                          -- GDoc
+  design_url    text,                          -- Canva/Drive
+  status        content_status not null default 'idea',
+  -- automation link (hybrid model, IG only in v1)
+  source            plan_source not null default 'manual',
+  scheduled_post_id uuid references scheduled_post(id) on delete set null,
+  recurring_rule_id uuid references recurring_rule(id) on delete set null,
+  post_run_id       uuid references post_run(id) on delete set null,      -- the run that fulfilled it
+  auto_managed      boolean not null default false,   -- true = status/link/metrics auto-filled
+  post_link         text,                              -- auto (IG) or manual
+  posted_at         timestamptz,
+  -- performance (current snapshot; history table optional later)
+  m_views    int, m_likes int, m_comments int, m_shares int, m_saves int, m_reach int,
+  metrics_source     metric_source not null default 'none',
+  metrics_updated_at timestamptz,
+  campaign_id   uuid references campaign(id) on delete set null,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index on content_plan (owner_id, planned_date);
+create index on content_plan (channel_id, status);
+create index on content_plan (platform);
+create index on content_plan (scheduled_post_id) where scheduled_post_id is not null;
+```
+
+### 11.3 (optional, later) `content_metric_snapshot`
+For metric history/charts (v1.1+). v1 keeps the current snapshot on `content_plan`.
+```sql
+create table content_metric_snapshot (
+  id uuid primary key default gen_random_uuid(),
+  content_plan_id uuid not null references content_plan(id) on delete cascade,
+  captured_at timestamptz not null default now(),
+  views int, likes int, comments int, shares int, saves int, reach int
+);
+```
+
+### 11.4 RLS
+Enable RLS on both tables. `content_plan` is owner-direct (`owner_id = auth.uid()`); the snapshot checks via its parent — same pattern as §7. The service-role worker (cron) bypasses RLS to auto-fill status/link/metrics.
+```sql
+alter table content_plan enable row level security;
+create policy owner_rw on content_plan for all
+  using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+-- content_metric_snapshot: via content_plan -> owner
+```
+
+### 11.5 Mapping from the reference planner → schema
+| Reference field | Column |
+|---|---|
+| Akun/Brand | `channel_id` |
+| Platform | `platform` |
+| Tanggal Tayang / Jam | `planned_date` / `planned_time` |
+| Judul/Headline | `title` |
+| Tipe Konten / Content Pillar / Format / Goal | `content_type` / `pillar` / `format` / `goal` |
+| Hook / Text Cover | `hook` |
+| Caption / Notes | `caption` / `notes` |
+| Referensi / Brief / Design | `reference_url` / `brief_url` / `design_url` |
+| Status | `status` |
+| Link Postingan | `post_link` |
+| Views/Likes/Comm/Shares/Saves/Reach | `m_*` (auto for IG, manual otherwise) |
+| PIC | *(deferred — agency phase)* |
 
 ---
 

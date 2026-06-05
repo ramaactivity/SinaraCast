@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, resumeOneoffContainer, refreshTokensDue } from "../../../lib/publishCore";
+import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, resumeOneoffContainer, refreshTokensDue, refreshPlanMetricsDue } from "../../../lib/publishCore";
 import { publishTikTokVideoScheduled, resumeTikTokVideo } from "../../../lib/tiktokCore";
 
 export const dynamic = "force-dynamic";
@@ -212,7 +212,14 @@ export async function POST(request) {
     }
   }
 
-  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, resumed, oneoffs, tiktoks });
+  // ---- Content Planner: refresh auto-managed IG plan metrics (best-effort; gated
+  // off by default until the insights permission is granted — see publishCore). ----
+  let planMetrics = { enabled: false };
+  if (!overBudget()) {
+    try { planMetrics = await refreshPlanMetricsDue(svc); } catch (e) { planMetrics = { enabled: true, error: String(e?.message || e) }; }
+  }
+
+  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, resumed, oneoffs, tiktoks, planMetrics });
 }
 
 // allow GET for a quick manual ping/health (still secret-gated)
