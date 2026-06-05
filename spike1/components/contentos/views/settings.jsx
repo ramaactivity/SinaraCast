@@ -37,7 +37,7 @@ export function SettingsView() {
                 <div style={{ fontFamily: FSe, fontWeight: 600, fontSize: 15, color: "var(--ink-900)" }}>Jeda semua (vacation)</div>
                 <div style={{ fontFamily: FSe, fontSize: 12.5, color: "var(--ink-500)", marginTop: 2 }}>Hentikan semua posting di semua channel. Alert run-terlewat ikut disenyapkan.</div>
               </div>
-              <Toggle on={s.pauseAll} onChange={v => { set({ pauseAll: v }); app.toast(v ? "Semua posting dijeda" : "Posting dilanjutkan", "info"); }} />
+              <Toggle on={s.pauseAll} onChange={v => app.togglePauseAll(v)} />
             </div>
             {s.pauseAll && (
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(149,121,196,.25)" }}>

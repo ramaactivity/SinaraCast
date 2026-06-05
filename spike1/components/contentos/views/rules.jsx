@@ -138,7 +138,7 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
           </div>
         </div>
         )}
-        <Toggle on={r.active} onChange={(v) => { app.updateRule(r.id, { active: v }); app.toast(v ? `“${r.name}” diaktifkan` : `“${r.name}” dinonaktifkan`, "info"); }} />
+        <Toggle on={r.active} onChange={(v) => app.toggleRuleActive(r, v)} />
         <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
           <IconButton icon={<Icons.more size={18} />} onClick={() => setMenu(m => !m)} active={menu} />
           {menu && (

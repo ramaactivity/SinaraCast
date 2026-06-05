@@ -202,3 +202,35 @@ export async function removePoolImageRow(id, storage_path) {
   if (id) await supabase.from("pool_image").delete().eq("id", id);
   await deleteStoredImage(storage_path);
 }
+
+// ---- kill-switch toggles (persist to DB so the cron actually stops) ----
+// The auto-publish cron (/api/cron) reads recurring_rule.active, channel.paused,
+// and app_settings.pause_all. These writes are what make pause/disable real.
+
+// Activate / deactivate a single rule. ruleId is the real recurring_rule.id (uuid).
+export async function setRuleActive(ruleId, active) {
+  const { error } = await supabase.from("recurring_rule").update({ active }).eq("id", ruleId);
+  if (error) throw error;
+}
+
+// Pause / resume a whole channel. channelDbId is the real channel.id (uuid, the `_id`
+// field in the mapped UI channel). Resuming clears any scheduled resume date.
+export async function setChannelPaused(channelDbId, paused) {
+  const patch = { paused };
+  if (!paused) patch.resume_date = null;
+  const { error } = await supabase.from("channel").update(patch).eq("id", channelDbId);
+  if (error) throw error;
+}
+
+// Global "vacation" switch — stops posting on every channel at once.
+// app_settings is keyed by owner_id (one row per user, auto-created on signup);
+// upsert keeps this safe even if that row is somehow missing.
+export async function setPauseAll(pauseAll) {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u?.user?.id;
+  if (!uid) throw new Error("Not signed in");
+  const patch = { owner_id: uid, pause_all: pauseAll };
+  if (!pauseAll) patch.resume_date = null;
+  const { error } = await supabase.from("app_settings").upsert(patch, { onConflict: "owner_id" });
+  if (error) throw error;
+}

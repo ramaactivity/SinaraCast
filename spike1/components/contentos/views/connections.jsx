@@ -28,8 +28,7 @@ export function ConnectionsView() {
   const reconnect = (c) => { app.toast(`Menyambungkan ulang ${nameOf(c)}…`, "info");
     setTimeout(() => { app.setChannels(cs => cs.map(x => x.id === c.id ? { ...x, status: "Connected", tokenExpires: "20 Agu 2026", lastRefresh: "Baru saja" } : x)); app.toast(`${nameOf(c)} tersambung kembali`, "success"); }, 1500); };
 
-  const togglePause = (c) => { app.setChannels(cs => cs.map(x => x.id === c.id ? { ...x, paused: !x.paused, resumeDate: !x.paused ? "" : x.resumeDate } : x));
-    app.toast(c.paused ? `${nameOf(c)} dilanjutkan` : `${nameOf(c)} dijeda`, "info"); };
+  const togglePause = (c) => app.toggleChannelPause(c, nameOf(c));
 
   return (
     <div>

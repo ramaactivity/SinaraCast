@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { Icons } from "./icons";
-import { loadAll } from "./dataLayer";
+import { loadAll, setRuleActive, setChannelPaused, setPauseAll } from "./dataLayer";
 import { AppCtx } from "./store";
 import { Sidebar } from "./shell";
 import { Panel, EmptyState, Toast, ConfirmDialog, Spinner } from "./ui";
@@ -109,9 +109,44 @@ export default function ContentOS() {
     }
   };
 
+  // --- kill-switch toggles: update UI optimistically, persist to DB, revert on error ---
+  const toggleRuleActive = async (r, v) => {
+    updateRule(r.id, { active: v, todayStatus: v ? "Scheduled" : "Inactive", nextRun: v ? "Menghitung…" : "Nonaktif" });
+    try {
+      await setRuleActive(r.id, v);
+      showToast(v ? `“${r.name}” diaktifkan` : `“${r.name}” dinonaktifkan`, "info");
+      await reload();
+    } catch (e) {
+      updateRule(r.id, { active: !v });
+      showToast(`Gagal menyimpan: ${e.message || e}`, "error");
+    }
+  };
+  const toggleChannelPause = async (c, label) => {
+    const next = !c.paused;
+    setChannels(cs => cs.map(x => x.id === c.id ? { ...x, paused: next, resumeDate: next ? x.resumeDate : "" } : x));
+    try {
+      await setChannelPaused(c._id, next);
+      showToast(next ? `${label || c.name} dijeda` : `${label || c.name} dilanjutkan`, "info");
+    } catch (e) {
+      setChannels(cs => cs.map(x => x.id === c.id ? { ...x, paused: c.paused } : x));
+      showToast(`Gagal menyimpan: ${e.message || e}`, "error");
+    }
+  };
+  const togglePauseAll = async (v) => {
+    setSettings(p => ({ ...p, pauseAll: v }));
+    try {
+      await setPauseAll(v);
+      showToast(v ? "Semua posting dijeda" : "Posting dilanjutkan", "info");
+    } catch (e) {
+      setSettings(p => ({ ...p, pauseAll: !v }));
+      showToast(`Gagal menyimpan: ${e.message || e}`, "error");
+    }
+  };
+
   const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
+    toggleRuleActive, toggleChannelPause, togglePauseAll,
     isMobile, openMenu: () => setDrawerOpen(true) };
 
   // Auth gate
