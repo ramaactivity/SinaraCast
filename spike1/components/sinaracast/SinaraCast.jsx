@@ -18,6 +18,7 @@ import { CalendarView } from "./views/calendar";
 import { ComposerView } from "./views/composer";
 import { MediaLibraryView } from "./views/library";
 import { ContentEditorView } from "./views/contentEditor";
+import { PlannerView } from "./views/planner";
 
 const { useState: uA, useCallback } = React;
 
@@ -350,7 +351,7 @@ export default function SinaraCast() {
     rules: RulesView, editor: EditorView, connections: ConnectionsView,
     activity: ActivityView, notifications: NotificationsView, settings: SettingsView,
     profile: ProfileView, onboarding: OnboardingView, calendar: CalendarView,
-    composer: ComposerView, library: MediaLibraryView, contentEditor: ContentEditorView,
+    composer: ComposerView, library: MediaLibraryView, contentEditor: ContentEditorView, planner: PlannerView,
   };
   const View = VIEWS[view];
 

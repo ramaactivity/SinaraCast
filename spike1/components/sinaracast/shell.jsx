@@ -9,6 +9,7 @@ const FS = "var(--font)";
 const NAV = [
   { id: "rules", label: "Jadwal Otomatis", icon: "rules" },
   { id: "composer", label: "Buat Postingan", icon: "plus" },
+  { id: "planner", label: "Rencana Konten", icon: "layers" },
   { id: "calendar", label: "Kalender", icon: "calendar" },
   { id: "activity", label: "Riwayat", icon: "activity" },
   { id: "connections", label: "Manajemen Akun", icon: "connections" },

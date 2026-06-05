@@ -156,7 +156,7 @@ export function ContentEditorView() {
     if (!id) return;
     await app.reload();
     app.toast(planId ? "Konten diperbarui" : "Konten direncanakan ✓", "success");
-    app.go("calendar");
+    app.go("planner");
   }
 
   // "Jadwalkan otomatis via SinaraCast" → persist, then open the composer to build
@@ -190,7 +190,7 @@ export function ContentEditorView() {
       body: "Entri perencanaan ini akan dihapus.",
       consequence: "Catatan perencanaan hilang. Tindakan ini tidak bisa dibatalkan.",
       onConfirm: async () => {
-        try { await deleteContentPlan(planId); await app.reload(); app.toast("Konten dihapus", "success"); app.go("calendar"); }
+        try { await deleteContentPlan(planId); await app.reload(); app.toast("Konten dihapus", "success"); app.go("planner"); }
         catch (e) { app.toast("Gagal menghapus: " + (e.message || e), "error"); }
       },
     });
@@ -205,7 +205,7 @@ export function ContentEditorView() {
       <Topbar title={planId ? "Edit Konten" : "Rencana Konten"}
         sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} src={channel.avatarUrl} size={18} /> {b.name} · {plat.label}</span>}
         right={<div style={{ display: "flex", gap: 10 }}>
-          <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("calendar")}>Kembali</Button>
+          <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("planner")}>Kembali</Button>
           {planId && <Button variant="danger" icon={<Icons.trash size={15} />} disabled={saving} onClick={remove}>Hapus</Button>}
           <Button variant="primary" icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.check size={16} sw={2.2} />} disabled={!valid || saving} onClick={save}>{planId ? "Simpan" : "Simpan konten"}</Button>
         </div>} />

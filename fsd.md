@@ -187,7 +187,7 @@
 
 ## 16. Addendum: Content Planner views (v1.1)
 
-> **Source:** `content-planner-spec.md` §C.2 + FR-48/49. **Build decision:** the Planner **layers onto the existing Calendar view** (`app/views/calendar.jsx`) — plan entries become a new event kind alongside recurring runs and one-off posts — rather than a separate parallel view. A **list mode** and a **"Konten bulan ini" summary** are added to that same view.
+> **Source:** `content-planner-spec.md` §C.2 + FR-48/49. **Build decision (v1.1):** the planner has **two surfaces** — (a) a **dedicated "Rencana Konten" page** (`views/planner.jsx`) with its own sidebar item: a spreadsheet-style table of all `content_plan` entries (Tanggal · Akun · Platform · Tipe · Format · Judul · Status), with brand/platform/status/month filters + search + date sort + a status summary; and (b) the existing **Kalender** (`views/calendar.jsx`), which still shows plans as a platform-color-coded event kind alongside recurring runs and one-off posts (with its "Konten bulan ini" rail). The Calendar's date views are Bulan/Minggu (the old List mode moved to the dedicated table page).
 
 ### 16.1 Planner (extends §11 Calendar) [FR-48]
 - **Purpose:** plan + see all content across days — `content_plan` ∪ computed recurring runs ∪ one-off `scheduled_post`s.

@@ -321,7 +321,7 @@ export function CalendarView() {
     <div style={app.isMobile ? undefined : { height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
       <Topbar title="Kalender" sub="Rencana konten, jadwal otomatis & postingan · waktu WIB"
         right={<div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          {!app.isMobile && <Segmented options={[{ value: "month", label: "Bulan" }, { value: "week", label: "Minggu" }, { value: "list", label: "List" }]} value={mode} onChange={setMode} />}
+          {!app.isMobile && <Segmented options={[{ value: "month", label: "Bulan" }, { value: "week", label: "Minggu" }]} value={mode} onChange={setMode} />}
           <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("contentEditor", { ch: filter === "all" ? app.channel : filter })}>Buat konten</Button>
           <Button variant="secondary" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("composer", { ch: filter === "all" ? app.channel : filter })}>Buat postingan</Button>
         </div>} />
