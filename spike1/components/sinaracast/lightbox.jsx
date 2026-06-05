@@ -50,7 +50,7 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, ratio =
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 400, display: "flex", flexDirection: "column",
-      background: "rgba(18,20,28,.86)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", animation: "cosFade .16s" }}>
+      background: "rgba(18,20,28,.86)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", animation: "scFade .16s" }}>
 
       {/* top bar */}
       <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", flex: "0 0 auto" }}>
@@ -66,7 +66,7 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, ratio =
           style={{ width: "100%", height: "100%", minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <img key={cur?.url} src={cur?.url} alt="" draggable={false}
             style={{ maxHeight: "100%", maxWidth: "100%", aspectRatio: String(1 / ratio), objectFit: "contain", borderRadius: 18,
-              boxShadow: "0 24px 60px rgba(0,0,0,.5)", background: "rgba(255,255,255,.06)", animation: "cosFade .18s" }} />
+              boxShadow: "0 24px 60px rgba(0,0,0,.5)", background: "rgba(255,255,255,.06)", animation: "scFade .18s" }} />
         </div>
         <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}>{arrow(-1)}</div>
         <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)" }}>{arrow(1)}</div>
@@ -78,7 +78,7 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, ratio =
       </div>
 
       {/* filmstrip */}
-      <div onClick={(e) => e.stopPropagation()} ref={stripRef} className="cos-scroll"
+      <div onClick={(e) => e.stopPropagation()} ref={stripRef} className="sc-scroll"
         style={{ display: "flex", gap: 10, padding: "12px 18px 20px", overflowX: "auto", flex: "0 0 auto", justifyContent: imgs.length > 6 ? "flex-start" : "center" }}>
         {imgs.map((im, k) => (
           <button key={im.storage_path || k} onClick={() => onIndex(k)} aria-label={`Gambar ${k + 1}`}
