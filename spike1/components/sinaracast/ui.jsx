@@ -200,7 +200,11 @@ function Floating({ anchorRef, open, onClose, width, estHeight = 280, children }
   if (!open || !rect) return null;
   const vw = window.innerWidth, vh = window.innerHeight, m = 8;
   const w = Math.min(width || rect.width, vw - 16);
-  const left = Math.min(Math.max(m, rect.left), vw - w - m);
+  // Prefer left-aligned to the anchor; if that would overflow, right-align to the
+  // anchor (open leftward) so it tucks under the field instead of hugging the screen edge.
+  let left = rect.left;
+  if (left + w > vw - m) left = rect.left + rect.width - w;
+  left = Math.max(m, Math.min(left, vw - w - m)); // final hard clamp to the viewport
   const openUp = (vh - rect.bottom) < estHeight && rect.top > (vh - rect.bottom);
   const pos = openUp ? { bottom: vh - rect.top + m } : { top: rect.bottom + m };
   return createPortal(
