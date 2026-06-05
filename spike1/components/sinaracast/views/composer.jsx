@@ -87,6 +87,7 @@ export function ComposerView() {
   const [chId, setChId] = uCo(app.params.ch || app.channel);
   const channel = app.channels.find(c => c.id === chId) || app.channels.find(c => c.id === app.channel) || app.channels[0];
   const b = brandFor(channel?.id, app.channels);
+  const isTikTok = channel?.platform === "tiktok";
 
   const [type, setType] = uCo(channel?.platform === "tiktok" ? "tiktok_video" : "story");
   const [media, setMedia] = uCo([]); // [{ storage_path, url, width, height, format, bytes, aspect_ok, assetId? }]
@@ -142,7 +143,6 @@ export function ComposerView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chId, isTikTok]);
 
-  const isTikTok = channel?.platform === "tiktok";
   const isFeed = type === "feed";
   const isReels = type === "reels";
   const isTikVid = type === "tiktok_video";
