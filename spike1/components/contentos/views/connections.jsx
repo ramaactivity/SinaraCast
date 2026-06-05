@@ -48,7 +48,7 @@ export function ConnectionsView() {
             return (
               <Panel key={c.id} pad={20}>
                 <div style={{ display: "flex", alignItems: "center", gap: 15, flexWrap: app.isMobile ? "wrap" : "nowrap", rowGap: 14 }}>
-                  <BrandAvatar brand={b} size={48} />
+                  <BrandAvatar brand={b} src={c.avatarUrl} size={48} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <span style={{ fontFamily: FC, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>{b.name}</span>
@@ -141,7 +141,7 @@ function BrandEditModal({ c, onClose }) {
     <Modal open={!!c} onClose={onClose} width={440}>
       <div style={{ padding: 24 }}>
         <SectionTitle sub="Ubah nama tampilan & avatar brand">Identitas brand</SectionTitle>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}><BrandAvatar brand={b} size={64} ring /></div>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}><BrandAvatar brand={b} src={c.avatarUrl} size={64} ring /></div>
         <Field label="Nama brand"><Input value={name} onChange={e => setName(e.target.value)} /></Field>
         <Field label="Handle Instagram" style={{ marginTop: 14 }}><Input value={c.handle} icon={<Icons.connections size={17} />} readOnly /></Field>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>

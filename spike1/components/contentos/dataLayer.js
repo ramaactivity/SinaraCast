@@ -40,6 +40,7 @@ function mapChannel(c) {
     lastRefresh: c.last_refresh_at ? fmtDate(c.last_refresh_at) : "—",
     paused: c.paused, resumeDate: c.resume_date ? fmtDate(c.resume_date) : "",
     followers: fmtFollowers(c.followers),
+    avatarUrl: c.avatar_url || null,
     _id: c.id,
   };
 }
@@ -62,7 +63,7 @@ function mapRule(r, slugById) {
 export async function loadAll() {
   const { data: channelsRaw = [] } = await supabase
     .from("channel")
-    .select("id, slug, name, handle, token_status, token_expires_at, last_refresh_at, paused, resume_date, followers, color_token")
+    .select("id, slug, name, handle, token_status, token_expires_at, last_refresh_at, paused, resume_date, followers, color_token, avatar_url")
     .is("archived_at", null)
     .order("created_at", { ascending: true });
 

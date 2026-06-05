@@ -47,7 +47,7 @@ export function RulesView() {
 
   return (
     <div>
-      <Topbar title="Rules" sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} size={18} /> {b.name} · {ch.handle}</span>} right={right} />
+      <Topbar title="Rules" sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} src={ch.avatarUrl} size={18} /> {b.name} · {ch.handle}</span>} right={right} />
 
       {/* channel-level banners */}
       {ch.status === "Needs reconnect" && <Banner tone="error" icon={<Icons.alert size={18} />}

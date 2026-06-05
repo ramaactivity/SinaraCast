@@ -52,7 +52,7 @@ export function Sidebar({ mobile, open, onClose }) {
         <button onClick={() => setSwOpen(o => !o)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 11,
           padding: "9px 11px", background: "#fff", border: "1px solid var(--line)", borderRadius: 14, cursor: "pointer",
           boxShadow: "var(--shadow-sm)" }}>
-          <BrandAvatar brand={active} size={32} />
+          <BrandAvatar brand={active} src={ch?.avatarUrl} size={32} />
           <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
             <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{active.name}</div>
             <div style={{ fontFamily: FS, fontSize: 10.5, color: "var(--ink-400)" }}>{ch?.handle}</div>
@@ -71,7 +71,7 @@ export function Sidebar({ mobile, open, onClose }) {
                 return (
                   <button key={c.id} onClick={() => { app.setChannel(c.id); setSwOpen(false); onClose && onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 11,
                     padding: "9px 10px", border: "none", background: on ? "var(--primary-100)" : "transparent", borderRadius: 11, cursor: "pointer", marginBottom: 2 }}>
-                    <BrandAvatar brand={b} size={30} />
+                    <BrandAvatar brand={b} src={c.avatarUrl} size={30} />
                     <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
                       <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 12.5, color: "var(--ink-900)" }}>{b.name}</div>
                       <div style={{ fontFamily: FS, fontSize: 10, color: "var(--ink-400)", display: "flex", alignItems: "center", gap: 5 }}>

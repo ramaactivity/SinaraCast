@@ -301,14 +301,21 @@ export const BRANDS = {
   outentika: { id: "outentika", name: "Outentika",       short: "OT", accent: "var(--b-outentika)", soft: "var(--b-outentika-soft)", grad: "linear-gradient(135deg,#62C4AE,#3FA992)" },
 };
 
-export function BrandAvatar({ brand, size = 34, ring }) {
+export function BrandAvatar({ brand, size = 34, ring, src }) {
   const b = typeof brand === "string" ? BRANDS[brand] : brand;
+  const radius = size > 40 ? 13 : 10;
+  const shadow = ring ? `0 0 0 3px #fff, 0 6px 14px ${b?.soft || "var(--line)"}` : `0 4px 10px rgba(90,96,120,.14)`;
+  // Real Instagram profile photo when available; otherwise the initials avatar.
+  if (src) return (
+    <img src={src} alt={b?.name || ""} referrerPolicy="no-referrer"
+      style={{ width: size, height: size, borderRadius: radius, flex: "0 0 auto", objectFit: "cover", boxShadow: shadow, background: "var(--line)", display: "block" }} />
+  );
   return (
     <div style={{
-      width: size, height: size, borderRadius: size > 40 ? 13 : 10, flex: "0 0 auto",
+      width: size, height: size, borderRadius: radius, flex: "0 0 auto",
       background: b.grad, color: "#fff", display: "grid", placeItems: "center",
       fontFamily: F2, fontWeight: 600, fontSize: size * 0.36, letterSpacing: ".02em",
-      boxShadow: ring ? `0 0 0 3px #fff, 0 6px 14px ${b.soft}` : `0 4px 10px rgba(90,96,120,.14)`,
+      boxShadow: shadow,
     }}>{b.short}</div>
   );
 }

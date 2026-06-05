@@ -101,7 +101,7 @@ export async function GET(request) {
 
     // 3) resolve IG profile
     const meUrl = new URL(`https://graph.instagram.com/${V}/me`);
-    meUrl.searchParams.set("fields", "user_id,username,name,followers_count,account_type");
+    meUrl.searchParams.set("fields", "user_id,username,name,followers_count,account_type,profile_picture_url");
     meUrl.searchParams.set("access_token", longToken);
     const meJson = await (await fetch(meUrl)).json().catch(() => ({}));
     const igUserId = String(meJson.user_id || shortJson.user_id || "");
@@ -118,6 +118,7 @@ export async function GET(request) {
       token_expires_at: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
       last_refresh_at: nowIso,
       ...(followers != null ? { followers } : {}),
+      ...(meJson.profile_picture_url ? { avatar_url: meJson.profile_picture_url } : {}),
     };
 
     // Already connected this IG account? -> update token in place (reconnect).
