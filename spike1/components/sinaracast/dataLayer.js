@@ -126,7 +126,7 @@ export async function loadAll() {
     const p = (imgByPool[im.pool_id] ||= { total: 0, used: 0 });
     p.total++; if (im.used_in_cycle) p.used++;
     if (!(im.pool_id in firstPathByPool)) firstPathByPool[im.pool_id] = im.storage_path;
-    (pathsByPool[im.pool_id] ||= []).push(im.storage_path);
+    (pathsByPool[im.pool_id] ||= []).push({ id: im.id, storage_path: im.storage_path });
     bytesByPool[im.pool_id] = (bytesByPool[im.pool_id] || 0) + (im.bytes || 0);
     pathById[im.id] = im.storage_path;
   }
@@ -147,9 +147,27 @@ export async function loadAll() {
     const firstPath = rp.map((p) => firstPathByPool[p.id]).find(Boolean);
     base.thumbUrl = firstPath ? pubUrl(firstPath) : null;
     // all pool images tagged by role — used by the swap-image picker
-    base.poolImages = rp.flatMap((p) => (pathsByPool[p.id] || []).map((sp) => ({ role: p.role, url: pubUrl(sp) })));
+    base.poolImages = rp.flatMap((p) => (pathsByPool[p.id] || []).map((im) => ({ role: p.role, id: im.id, url: pubUrl(im.storage_path) })));
     return base;
   });
+
+  // ---- today's per-rule overrides (skip / swap) ----
+  const todayKey = dateKeyWib(new Date().toISOString());
+  const ruleIds = (rulesRaw || []).map((r) => r.id);
+  if (ruleIds.length) {
+    const { data: ovs = [] } = await supabase.from("day_override").select("rule_id, type, swap_image_id").eq("on_date", todayKey).in("rule_id", ruleIds);
+    const ovByRule = Object.fromEntries((ovs || []).map((o) => [o.rule_id, o]));
+    for (const r of rules) {
+      const ov = ovByRule[r.id];
+      if (!ov) continue;
+      r.todayOverride = ov.type; // "skip" | "swap"
+      if (ov.type === "skip") { r.todayStatus = "Skipped"; r.nextRun = "Dilewati hari ini"; }
+      if (ov.type === "swap" && ov.swap_image_id) {
+        const sp = pathById[ov.swap_image_id];
+        if (sp) r.thumbUrl = pubUrl(sp);
+      }
+    }
+  }
 
   // ---- real storage usage (sum of pool_image bytes), per channel + total ----
   const ruleChannelId = Object.fromEntries((rulesRaw || []).map((r) => [r.id, r.channel_id]));
@@ -279,6 +297,19 @@ export async function uploadLibraryMedia(file, channelSlug, channelDbId, meta) {
   if (error) throw error;
   return a.id;
 }
+
+// Per-day rule override (skip today / swap today's image). Upsert by (rule_id, on_date).
+// dateWib is "YYYY-MM-DD" (WIB). type = "skip" | "swap"; swapImageId for swap.
+export async function setDayOverride(ruleId, dateWib, type, swapImageId = null) {
+  const { error } = await supabase.from("day_override")
+    .upsert({ rule_id: ruleId, on_date: dateWib, type, swap_image_id: type === "swap" ? swapImageId : null }, { onConflict: "rule_id,on_date" });
+  if (error) throw error;
+}
+export async function clearDayOverride(ruleId, dateWib) {
+  const { error } = await supabase.from("day_override").delete().eq("rule_id", ruleId).eq("on_date", dateWib);
+  if (error) throw error;
+}
+export const todayWibKey = () => dateKeyWib(new Date().toISOString());
 
 // Rename a channel's display name.
 export async function renameChannel(id, name) {

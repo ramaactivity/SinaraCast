@@ -55,11 +55,30 @@ export async function POST(request) {
     .select("id, channel_id, name, mode, active, cadence_type, interval_days, weekdays, post_time, weekday_time, weekend_time, grace_minutes, created_at")
     .eq("active", true).is("archived_at", null).in("channel_id", Object.keys(chById).length ? Object.keys(chById) : ["00000000-0000-0000-0000-000000000000"]);
 
+  // per-day overrides for today (skip / swap)
+  const ruleIds = rules.map((r) => r.id);
+  let overrides = {};
+  if (ruleIds.length) {
+    const { data: ovs = [] } = await svc.from("day_override").select("rule_id, type, swap_image_id").eq("on_date", today).in("rule_id", ruleIds);
+    overrides = Object.fromEntries((ovs || []).map((o) => [o.rule_id, o]));
+  }
+
   const fired = [];
   for (const rule of rules) {
     const channel = chById[rule.channel_id];
     if (!channel) continue;
     if (!isFireDay(rule, dow, today, nowWib)) continue;
+    const ov = overrides[rule.id];
+    if (ov?.type === "skip") {
+      // honor "lewati hari ini": claim the daily key as skipped so nothing posts and no missed-run alert fires
+      const { data: sk } = await svc.from("post_run").insert({
+        channel_id: channel.id, rule_id: rule.id, status: "skipped", trigger: "swap",
+        scheduled_at: nowWib.toISOString(), claim_key: `auto:${rule.id}:${today}`, attempt_count: 0,
+        fail_reason: "Dilewati manual hari ini",
+      }).select("id").maybeSingle();
+      if (sk) { await svc.from("post_attempt").insert({ run_id: sk.id, outcome: "Dilewati manual (lewati hari ini)", is_fail: false }); fired.push({ rule: rule.name, channel: channel.slug, skipped: "manual" }); }
+      continue;
+    }
     const isWeekend = dow === 0 || dow === 6;
     const schedMin = hhmmToMin(rule.mode === "schedule" ? (isWeekend ? rule.weekend_time : rule.weekday_time) : rule.post_time);
     if (schedMin == null) continue;
@@ -87,7 +106,7 @@ export async function POST(request) {
     const role = roleForNow(rule.mode, dow);
     const claimKey = `auto:${rule.id}:${today}`;
     try {
-      const res = await publishForRule(svc, { channel, rule, role, trigger: "scheduled", claimKey, scheduledAtISO: new Date().toISOString() });
+      const res = await publishForRule(svc, { channel, rule, role, trigger: ov?.type === "swap" ? "swap" : "scheduled", claimKey, scheduledAtISO: new Date().toISOString(), forceImageId: ov?.type === "swap" ? ov.swap_image_id : undefined });
       if (res.skipped) continue;
       fired.push({ rule: rule.name, channel: channel.slug, ok: res.ok, error: res.error, permalink: res.permalink });
     } catch (e) {

@@ -211,8 +211,10 @@ function NextInspector({ r, b, ch }) {
       <div style={{ height: 1, background: "var(--line)", margin: "16px 0" }} />
       <div style={{ fontFamily: FR, fontSize: 11.5, fontWeight: 600, color: "var(--ink-500)", marginBottom: 10 }}>Khusus hari ini</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
-        <Button variant="secondary" size="sm" style={{ padding: "0 10px" }} icon={<Icons.skip size={15} />} disabled={paused} onClick={() => { app.updateRule(r.id, { todayStatus: "Skipped", nextRun: "Dilewati hari ini" }); app.toast(`“${r.name}” dilewati hari ini`, "info"); }}>Lewati</Button>
-        <Button variant="secondary" size="sm" style={{ padding: "0 10px" }} icon={<Icons.swap size={15} />} disabled={paused} onClick={() => setSwap(true)}>Ganti gambar</Button>
+        {r.todayOverride === "skip"
+          ? <Button variant="secondary" size="sm" style={{ padding: "0 10px" }} icon={<Icons.retry size={15} />} disabled={paused} onClick={() => app.unskipToday(r)}>Batalkan</Button>
+          : <Button variant="secondary" size="sm" style={{ padding: "0 10px" }} icon={<Icons.skip size={15} />} disabled={paused} onClick={() => app.skipToday(r)}>Lewati</Button>}
+        <Button variant="secondary" size="sm" style={{ padding: "0 10px" }} icon={<Icons.swap size={15} />} disabled={paused || r.todayOverride === "skip"} onClick={() => setSwap(true)}>Ganti gambar</Button>
       </div>
       <div style={{ marginTop: 9 }}>
         <Button variant="primary" size="sm" full icon={<Icons.play size={15} />} disabled={paused || !r.active} onClick={() => app.postNow(r)}>Terbitkan sekarang</Button>
@@ -243,7 +245,7 @@ function SwapModal({ open, onClose, r }) {
             </div>}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
           <Button variant="secondary" onClick={onClose}>Batal</Button>
-          <Button variant="primary" disabled={pick === null} icon={<Icons.check size={17} />} onClick={() => { const url = imgs[pick]?.url; onClose(); app.updateRule(r.id, { thumbUrl: url, nextRun: `${r.nextRun.split(",")[0]} · gambar diganti` }); app.toast("Gambar untuk hari ini diganti", "success"); }}>Pakai gambar ini</Button>
+          <Button variant="primary" disabled={pick === null} icon={<Icons.check size={17} />} onClick={() => { const im = imgs[pick]; onClose(); app.swapToday(r, im?.id, im?.url); }}>Pakai gambar ini</Button>
         </div>
       </div>
     </Modal>

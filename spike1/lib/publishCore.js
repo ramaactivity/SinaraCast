@@ -47,7 +47,7 @@ export async function notify(svc, { ownerId, channelId, type, title, body, runId
 // Publish ONE Story for a rule. Idempotent via claimKey (unique post_run.claim_key):
 // if the claim already exists, returns { skipped:true } without posting.
 // `role` = 'weekday' | 'weekend' | 'single'.
-export async function publishForRule(svc, { channel, rule, role, trigger, claimKey, scheduledAtISO }) {
+export async function publishForRule(svc, { channel, rule, role, trigger, claimKey, scheduledAtISO, forceImageId }) {
   // pick pool + no-repeat image
   const { data: pool } = await svc.from("pool").select("id").eq("rule_id", rule.id).eq("role", role).single();
   if (!pool) return { ok: false, error: `Pool ${role} belum ada` };
@@ -55,7 +55,9 @@ export async function publishForRule(svc, { channel, rule, role, trigger, claimK
   if (!imgs.length) return { ok: false, error: `Pool ${role} kosong` };
   let unused = imgs.filter((i) => !i.used_in_cycle);
   if (!unused.length) { await svc.from("pool_image").update({ used_in_cycle: false }).eq("pool_id", pool.id); unused = imgs; }
-  const pick = unused[Math.floor(Math.random() * unused.length)];
+  // "swap today" forces a specific image; otherwise pick from the unused remainder (no-repeat).
+  const forced = forceImageId && imgs.find((i) => i.id === forceImageId);
+  const pick = forced || unused[Math.floor(Math.random() * unused.length)];
 
   // claim (atomic idempotency)
   const { data: run, error: claimErr } = await svc.from("post_run").insert({

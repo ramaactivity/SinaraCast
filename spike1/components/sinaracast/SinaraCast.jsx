@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { Icons } from "./icons";
-import { loadAll, setRuleActive, setChannelPaused, setPauseAll, saveSettingsFields, markNotifRead, markAllNotifsRead, renameChannel, archiveChannel, deleteAllData } from "./dataLayer";
+import { loadAll, setRuleActive, setChannelPaused, setPauseAll, saveSettingsFields, markNotifRead, markAllNotifsRead, renameChannel, archiveChannel, deleteAllData, setDayOverride, clearDayOverride, todayWibKey } from "./dataLayer";
 import { AppCtx } from "./store";
 import { Sidebar } from "./shell";
 import { Panel, EmptyState, Toast, ConfirmDialog, Spinner } from "./ui";
@@ -230,6 +230,23 @@ export default function SinaraCast() {
   };
   const disconnectTelegram = () => saveSettings({ telegram: { connected: false, handle: "" } });
 
+  // Per-day overrides for a rule (persisted so the engine actually honors them).
+  const skipToday = async (r) => {
+    updateRule(r.id, { todayStatus: "Skipped", nextRun: "Dilewati hari ini", todayOverride: "skip" });
+    try { await setDayOverride(r.id, todayWibKey(), "skip"); showToast(`“${r.name}” dilewati hari ini`, "info"); }
+    catch (e) { showToast(`Gagal: ${e.message || e}`, "error"); await reload(); }
+  };
+  const unskipToday = async (r) => {
+    updateRule(r.id, { todayStatus: "Scheduled", todayOverride: null });
+    try { await clearDayOverride(r.id, todayWibKey()); await reload(); showToast(`“${r.name}” diaktifkan lagi hari ini`, "info"); }
+    catch (e) { showToast(`Gagal: ${e.message || e}`, "error"); await reload(); }
+  };
+  const swapToday = async (r, imageId, url) => {
+    updateRule(r.id, { thumbUrl: url || r.thumbUrl, todayOverride: "swap" });
+    try { await setDayOverride(r.id, todayWibKey(), "swap", imageId); showToast("Gambar untuk hari ini diganti", "success"); }
+    catch (e) { showToast(`Gagal: ${e.message || e}`, "error"); await reload(); }
+  };
+
   // Rename a channel's display name (optimistic + persist).
   const renameChannelFn = async (c, name) => {
     const trimmed = (name || "").trim();
@@ -286,6 +303,7 @@ export default function SinaraCast() {
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
     toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, saveSettings,
     connectTelegram, disconnectTelegram, renameChannel: renameChannelFn, archiveChannel: archiveChannelFn, exportData, deleteEverything,
+    skipToday, unskipToday, swapToday,
     isMobile, openMenu: () => setDrawerOpen(true) };
 
   // Auth gate
