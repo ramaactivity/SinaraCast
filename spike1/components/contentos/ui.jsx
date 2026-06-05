@@ -303,11 +303,13 @@ export const BRANDS = {
 
 export function BrandAvatar({ brand, size = 34, ring, src }) {
   const b = typeof brand === "string" ? BRANDS[brand] : brand;
+  const [failed, setFailed] = useState(false);
   const radius = size > 40 ? 13 : 10;
   const shadow = ring ? `0 0 0 3px #fff, 0 6px 14px ${b?.soft || "var(--line)"}` : `0 4px 10px rgba(90,96,120,.14)`;
-  // Real Instagram profile photo when available; otherwise the initials avatar.
-  if (src) return (
-    <img src={src} alt={b?.name || ""} referrerPolicy="no-referrer"
+  // Real Instagram profile photo when available; fall back to initials if it
+  // fails to load (IG CDN URLs can expire).
+  if (src && !failed) return (
+    <img src={src} alt={b?.name || ""} referrerPolicy="no-referrer" onError={() => setFailed(true)}
       style={{ width: size, height: size, borderRadius: radius, flex: "0 0 auto", objectFit: "cover", boxShadow: shadow, background: "var(--line)", display: "block" }} />
   );
   return (
