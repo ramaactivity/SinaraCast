@@ -18,8 +18,9 @@ export async function POST(request) {
   try {
     const token = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     if (!token) return NextResponse.json({ ok: false, error: "No auth token" }, { status: 401 });
-    const { kind } = await request.json().catch(() => ({}));
+    const { kind, storagePath } = await request.json().catch(() => ({}));
     if (kind !== "video" && kind !== "photo") return NextResponse.json({ ok: false, error: "kind harus 'video' atau 'photo'" }, { status: 400 });
+    const origin = new URL(request.url).origin;
 
     const { data: ures } = await createClient(URL_, ANON).auth.getUser(token);
     const user = ures?.user;
@@ -39,16 +40,20 @@ export async function POST(request) {
       .order("created_at", { ascending: false }).limit(20);
 
     if (kind === "video") {
-      const vid = (assets || []).find(isVideo);
-      if (!vid) return NextResponse.json({ ok: false, error: "Belum ada video di akun ini. Upload satu video (9:16) ke akun TikTok lewat app dulu." }, { status: 400 });
-      const result = await publishTikTokVideoOneoff(svc, { channel, storagePath: vid.storage_path, caption: "Tes SinaraCast — video (privat)" });
+      // The /spike-tiktok page uploads the chosen file to Supabase storage and
+      // passes its path here. Fall back to any video already in the channel.
+      const sp = storagePath || (assets || []).find(isVideo)?.storage_path;
+      if (!sp) return NextResponse.json({ ok: false, error: "Pilih file video dulu di halaman uji (atau upload video 9:16 ke akun ini lewat app)." }, { status: 400 });
+      const result = await publishTikTokVideoOneoff(svc, { channel, storagePath: sp, caption: "Tes SinaraCast — video (privat)" });
       return NextResponse.json(result, { status: result.ok ? 200 : 502 });
     }
 
-    // photo
+    // photo (R2). Prefer images already in the channel; otherwise probe with a
+    // bundled image on our own domain to surface the domain-verification result.
     const pics = (assets || []).filter((a) => !isVideo(a)).slice(0, 10).map((a) => a.storage_path);
-    if (!pics.length) return NextResponse.json({ ok: false, error: "Belum ada foto di akun ini. Upload 1–10 gambar ke akun TikTok lewat app dulu." }, { status: 400 });
-    const result = await publishTikTokPhotoOneoff(svc, { channel, storagePaths: pics, caption: "Tes SinaraCast — foto (privat)" });
+    const result = pics.length
+      ? await publishTikTokPhotoOneoff(svc, { channel, storagePaths: pics, caption: "Tes SinaraCast — foto (privat)" })
+      : await publishTikTokPhotoOneoff(svc, { channel, photoUrls: [`${origin}/test-story.jpg`], caption: "Tes SinaraCast — foto (privat)" });
     return NextResponse.json(result, { status: result.ok ? 200 : 502 });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });

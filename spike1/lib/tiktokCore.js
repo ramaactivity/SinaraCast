@@ -122,15 +122,17 @@ export async function publishTikTokVideoOneoff(svc, { channel, storagePath, capt
 // public URLs are on *.supabase.co (not ours), so until a domain is verified
 // this is expected to fail with `url_ownership_unverified` — that's the spike's
 // key finding.
-export async function publishTikTokPhotoOneoff(svc, { channel, storagePaths = [], caption = "" }) {
+export async function publishTikTokPhotoOneoff(svc, { channel, storagePaths = [], photoUrls = null, caption = "" }) {
   channel = await tiktokRefreshIfDue(svc, channel);
   const token = channel.access_token;
-  const photoUrls = storagePaths.map((p) => publicImageUrl(p)).filter(Boolean);
-  if (!photoUrls.length) return { ok: false, error: "Tidak ada foto untuk diposting." };
+  // Explicit photoUrls win (e.g. a bundled test image on our own domain, used to
+  // probe domain verification); otherwise derive from Supabase storage paths.
+  const urls = (photoUrls && photoUrls.length) ? photoUrls : storagePaths.map((p) => publicImageUrl(p)).filter(Boolean);
+  if (!urls.length) return { ok: false, error: "Tidak ada foto untuk diposting." };
 
   const init = await ttCall("/v2/post/publish/content/init/", token, {
     post_info: { title: caption, privacy_level: "SELF_ONLY", disable_comment: false, auto_add_music: true },
-    source_info: { source: "PULL_FROM_URL", photo_cover_index: 0, photo_images: photoUrls },
+    source_info: { source: "PULL_FROM_URL", photo_cover_index: 0, photo_images: urls },
     post_mode: "DIRECT_POST",
     media_type: "PHOTO",
   });
