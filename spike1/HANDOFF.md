@@ -24,4 +24,13 @@ Catatan untuk Rama. Berisi (A) apa yang dikerjakan, (B) yang perlu kamu tes/laku
 
 NOTE umum: semua publish video (Reels/Story video) belum diuji end-to-end di akun nyata — itu yang paling penting kamu tes.
 
-(Daftar ini akan terus saya tambah selama sesi.)
+6. **Story video di JADWAL OTOMATIS (recurring)** — pool jadwal sekarang bisa diisi video 9:16 (≤60 dtk, ≤50MB), bukan cuma gambar. Engine deteksi otomatis (video → `video_url`). Jadi satu jadwal bisa campur gambar & video, tetap diacak.
+7. **Pilih akun di "Buat Postingan"** — ada dropdown akun (kalau punya >1 akun) biar bisa posting ke akun mana saja tanpa ganti via sidebar.
+
+## B. PERLU KAMU TES (lanjutan)
+5. **[TES] Story video recurring** — Buat/Ubah jadwal → unggah video 9:16 pendek ke pool → Post now/test → cek terbit sebagai Story video.
+6. **[PENTING] Verifikasi semua publish VIDEO (Reels, Story video one-off & recurring) di akun nyata.** Ini yang paling krusial — kode sudah jalan & build hijau, tapi belum pernah benar-benar mem-publish video ke Instagram. Risiko utama: (a) izin Meta untuk video, (b) timeout transcoding kalau video panjang/berat (pakai video pendek dulu). Kalau ada error, screenshot pesannya.
+
+## Catatan teknis (untukku saat kembali)
+- Reels poll transcoding dibatasi ~50 dtk (budget cron 60 dtk). Video panjang bisa timeout. Solusi nanti: publisher resumable (simpan creation_id, lanjut di tick berikutnya).
+- Bucket `pool-images` kini juga simpan video (maks 50MB free-tier). File video one-off dihapus otomatis setelah terbit; file video di pool recurring TIDAK dihapus (dipakai berulang).
