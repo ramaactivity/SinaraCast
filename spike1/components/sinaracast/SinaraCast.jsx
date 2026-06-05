@@ -89,6 +89,24 @@ export default function SinaraCast() {
     setChannel((cur) => cur || d.channels[0]?.id || "");
   }, []);
 
+  // Refresh data when the tab regains focus / becomes visible, so server-side
+  // publishes (the per-minute cron) show up in Riwayat/Kalender without a manual
+  // reload. Throttled so rapid focus changes don't hammer the database.
+  const lastRefresh = React.useRef(0);
+  React.useEffect(() => {
+    if (!session?.user?.id) return;
+    const maybe = () => {
+      if (document.visibilityState === "hidden") return;
+      const now = Date.now();
+      if (now - lastRefresh.current < 15000) return; // at most once / 15s
+      lastRefresh.current = now;
+      reload().catch((e) => console.error("focus reload failed", e));
+    };
+    window.addEventListener("focus", maybe);
+    document.addEventListener("visibilitychange", maybe);
+    return () => { window.removeEventListener("focus", maybe); document.removeEventListener("visibilitychange", maybe); };
+  }, [session?.user?.id, reload]);
+
   // Handle the OAuth result coming back from the popup (postMessage) — the
   // common path: SinaraCast tab stays open, popup closes itself.
   React.useEffect(() => {

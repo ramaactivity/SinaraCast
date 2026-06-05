@@ -214,6 +214,10 @@ export async function loadAll() {
 
   // ---- activity: real post_run rows (reverse chronological) + their attempts ----
   const ruleNameById = Object.fromEntries((rulesRaw || []).map((r) => [r.id, r.name]));
+  // One-off posts have no rule — label a run by its caption (or type) instead of "(jadwal dihapus)".
+  const schedById = Object.fromEntries((schedRaw || []).map((s) => [s.id, s]));
+  const oneoffTypeLabel = (s) => s.post_type === "feed" ? "Feed (sekali)" : s.post_type === "reels" ? "Reels (sekali)" : "Story (sekali)";
+  const oneoffLabel = (s) => (s.caption && s.caption.trim()) ? s.caption.trim().slice(0, 40) : oneoffTypeLabel(s);
   const POOL_LABEL = { weekday: "Weekday", weekend: "Weekend", single: "Pool" };
   const RUN_STATUS = { published: "Published", failed: "Failed", publishing: "Publishing", pending: "Publishing", skipped: "Skipped" };
   const runIds = (runsRaw || []).map((r) => r.id);
@@ -229,7 +233,9 @@ export async function loadAll() {
     id: r.id,
     ch: slugById[r.channel_id] || "",
     ruleId: r.rule_id,
-    rule: ruleNameById[r.rule_id] || "(rule dihapus)",
+    rule: r.rule_id
+      ? (ruleNameById[r.rule_id] || "(jadwal dihapus)")
+      : (schedById[r.scheduled_post_id] ? oneoffLabel(schedById[r.scheduled_post_id]) : "Postingan sekali"),
     status: RUN_STATUS[r.status] || r.status,
     trigger: r.trigger,
     sched: fmtDateTimeWib(r.scheduled_at),
