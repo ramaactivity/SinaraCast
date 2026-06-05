@@ -123,7 +123,7 @@ export function CalendarView() {
       else cells.push({ type: "day", day: n });
     }
   }
-  const cap = mode === "week" ? 8 : 3;
+  const cap = mode === "week" ? 8 : 2;
   const rows = cells.length / 7; // grid week-rows (DOW header is a separate 'auto' row)
 
   return (
@@ -211,19 +211,18 @@ export function CalendarView() {
                     borderRadius: 14, padding: "8px 10px 9px", minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", gap: 6, transition: "box-shadow .14s, border-color .14s, transform .14s", position: "relative" }}
                   onMouseEnter={e => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.transform = "translateY(-1px)"; if (!isToday) e.currentTarget.style.borderColor = "var(--primary-200)"; }}
                   onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; if (!isToday) e.currentTarget.style.borderColor = "var(--line-soft)"; }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: "0 0 auto" }}>
                     {isToday
                       ? <span style={{ minWidth: 23, height: 23, padding: "0 6px", borderRadius: 8, background: "var(--primary-grad)", color: "#fff", display: "inline-grid", placeItems: "center", fontFamily: FCa, fontWeight: 700, fontSize: 12, boxShadow: "var(--shadow-primary)" }}>{pad2(day)}</span>
                       : <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 600, color: weekend ? "var(--ink-300)" : "var(--ink-500)" }}>{pad2(day)}</span>}
-                    {items.length > 0 && <span style={{ fontFamily: FCa, fontSize: 10, fontWeight: 600, color: "var(--ink-300)" }}>{items.length}</span>}
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, overflow: "hidden" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, minHeight: 0, overflow: "hidden" }}>
                     {items.slice(0, cap).map((it, i) => {
                       const b = brandFor(it.ch, app.channels);
                       const sc = stColor(it.status);
                       const oneoff = it.kind === "oneoff";
                       return (
-                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, background: sc.bg, borderRadius: 7, padding: "3px 7px 3px 6px", borderLeft: oneoff ? `2.5px solid ${b.accent}` : "none", overflow: "hidden" }}>
+                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, background: sc.bg, borderRadius: 7, padding: "2px 7px 2px 6px", borderLeft: oneoff ? `2.5px solid ${b.accent}` : "none", overflow: "hidden", flex: "0 0 auto" }}>
                           <span style={{ width: 6, height: 6, borderRadius: oneoff ? 1.5 : "50%", background: sc.dot, flex: "0 0 auto" }} />
                           <span style={{ fontFamily: FCa, fontSize: 10.5, color: "var(--ink-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
                             <b style={{ fontWeight: 700, color: "var(--ink-700)" }}>{it.time}</b> {it.title}
@@ -231,7 +230,7 @@ export function CalendarView() {
                         </div>
                       );
                     })}
-                    {items.length > cap && <span style={{ fontFamily: FCa, fontSize: 10, fontWeight: 600, color: "var(--ink-400)", paddingLeft: 6, marginTop: 1 }}>+{items.length - cap} lagi</span>}
+                    {items.length > cap && <span style={{ fontFamily: FCa, fontSize: 10, fontWeight: 600, color: "var(--ink-400)", paddingLeft: 6, marginTop: 1, flex: "0 0 auto" }}>+{items.length - cap} lagi</span>}
                   </div>
                 </button>
               );
