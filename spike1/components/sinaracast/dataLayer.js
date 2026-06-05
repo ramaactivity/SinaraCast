@@ -100,23 +100,35 @@ function mapRule(r, slugById) {
 }
 
 export async function loadAll() {
-  const { data: channelsRaw = [] } = await supabase
-    .from("channel")
-    .select("id, slug, name, handle, token_status, token_expires_at, last_refresh_at, paused, resume_date, followers, color_token, avatar_url")
-    .is("archived_at", null)
-    .order("created_at", { ascending: true });
+  // Fire every independent read in parallel (was ~10 sequential round-trips).
+  const [
+    { data: channelsRaw = [] },
+    { data: rulesRaw = [] },
+    { data: pools = [] },
+    { data: imgs = [] },
+    { data: assetsRaw = [] },
+    { data: runsRaw = [] },
+    { data: schedRaw = [] },
+    { data: notifsRaw = [] },
+    { data: settingsRaw },
+    { data: profileRaw },
+  ] = await Promise.all([
+    supabase.from("channel").select("id, slug, name, handle, token_status, token_expires_at, last_refresh_at, paused, resume_date, followers, color_token, avatar_url").is("archived_at", null).order("created_at", { ascending: true }),
+    supabase.from("recurring_rule").select("*").is("archived_at", null),
+    supabase.from("pool").select("id, rule_id, role"),
+    supabase.from("pool_image").select("id, pool_id, used_in_cycle, storage_path, position, bytes").order("position"),
+    supabase.from("media_asset").select("id, channel_id, storage_path, tag, created_at").order("created_at", { ascending: false }),
+    supabase.from("post_run").select("id, channel_id, rule_id, pool_role, image_id, status, trigger, scheduled_at, published_at, permalink, fail_reason, created_at").order("created_at", { ascending: false }).limit(150),
+    supabase.from("scheduled_post").select("id, channel_id, post_type, caption, scheduled_at, status").not("scheduled_at", "is", null),
+    supabase.from("notification").select("id, channel_id, type, title, body, run_id, read, created_at").order("created_at", { ascending: false }).limit(50),
+    supabase.from("app_settings").select("*").maybeSingle(),
+    supabase.from("app_user").select("*").maybeSingle(),
+  ]);
 
   const slugById = Object.fromEntries((channelsRaw || []).map((c) => [c.id, c.slug]));
   const channels = (channelsRaw || []).map(mapChannel);
 
-  const { data: rulesRaw = [] } = await supabase
-    .from("recurring_rule")
-    .select("*")
-    .is("archived_at", null);
-
   // pools + image counts per rule (for "X gambar" + cycle) + first thumbnail
-  const { data: pools = [] } = await supabase.from("pool").select("id, rule_id, role");
-  const { data: imgs = [] } = await supabase.from("pool_image").select("id, pool_id, used_in_cycle, storage_path, position, bytes").order("position");
   const imgByPool = {};
   const firstPathByPool = {};
   const pathsByPool = {};
@@ -193,8 +205,6 @@ export async function loadAll() {
       for (const sp of (pathsByPool[p.id] || [])) pushMedia(slug, { id: `pool:${sp}`, url: pubUrl(sp), tag: r.name, usage: r.name });
     }
   }
-  const { data: assetsRaw = [] } = await supabase
-    .from("media_asset").select("id, channel_id, storage_path, tag, created_at").order("created_at", { ascending: false });
   for (const a of assetsRaw || []) {
     const tag = a.tag === "feed" ? "Feed" : a.tag === "story" ? "Story" : a.tag === "reels" ? "Reels" : (a.tag || "Library");
     pushMedia(slugById[a.channel_id], { id: a.id, url: pubUrl(a.storage_path), tag, usage: null });
@@ -204,11 +214,6 @@ export async function loadAll() {
   const ruleNameById = Object.fromEntries((rulesRaw || []).map((r) => [r.id, r.name]));
   const POOL_LABEL = { weekday: "Weekday", weekend: "Weekend", single: "Pool" };
   const RUN_STATUS = { published: "Published", failed: "Failed", publishing: "Publishing", pending: "Publishing", skipped: "Skipped" };
-  const { data: runsRaw = [] } = await supabase
-    .from("post_run")
-    .select("id, channel_id, rule_id, pool_role, image_id, status, trigger, scheduled_at, published_at, permalink, fail_reason, created_at")
-    .order("created_at", { ascending: false })
-    .limit(150);
   const runIds = (runsRaw || []).map((r) => r.id);
   let attemptsRaw = [];
   if (runIds.length) {
@@ -237,10 +242,6 @@ export async function loadAll() {
 
   // ---- calendar: real one-off scheduled posts ----
   const SCHED_STATUS = { draft: "Draft", scheduled: "Scheduled", publishing: "Publishing", published: "Published", failed: "Failed", canceled: "Skipped" };
-  const { data: schedRaw = [] } = await supabase
-    .from("scheduled_post")
-    .select("id, channel_id, post_type, caption, scheduled_at, status")
-    .not("scheduled_at", "is", null);
   const oneoffs = (schedRaw || []).map((s) => {
     const d = toWib(s.scheduled_at);
     return {
@@ -254,17 +255,11 @@ export async function loadAll() {
   });
 
   // ---- in-app notifications (alerts mirror) ----
-  const { data: notifsRaw = [] } = await supabase
-    .from("notification")
-    .select("id, channel_id, type, title, body, run_id, read, created_at")
-    .order("created_at", { ascending: false })
-    .limit(50);
   const notifs = (notifsRaw || []).map((n) => ({
     id: n.id, type: n.type, ch: n.channel_id ? slugById[n.channel_id] || null : null,
     title: n.title, body: n.body, runId: n.run_id, read: n.read, time: fmtNotifTime(n.created_at),
   }));
 
-  const { data: settingsRaw } = await supabase.from("app_settings").select("*").maybeSingle();
   const settings = {
     pauseAll: settingsRaw?.pause_all ?? false,
     resumeDate: settingsRaw?.resume_date ? fmtDate(settingsRaw.resume_date) : "",
@@ -276,7 +271,6 @@ export async function loadAll() {
     storage,
   };
 
-  const { data: profileRaw } = await supabase.from("app_user").select("*").maybeSingle();
   const profile = {
     name: profileRaw?.name || "Rama",
     email: profileRaw?.email || "",
