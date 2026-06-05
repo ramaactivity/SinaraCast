@@ -15,14 +15,13 @@ export function ConnectionsView() {
   const phase = app.dataLoading ? "loading" : "ready";
   const [editBrand, setEditBrand] = uCn(null);
   const channels = app.channels;
-  const atCap = channels.length >= 4;
   // live setup checklist
   const connectedCt = channels.filter(c => c.status === "Connected").length;
   const META_STEPS = [
     { t: "Akun developer Meta dibuat", done: channels.length > 0 },
     { t: "Aplikasi dalam Development Mode", done: channels.length > 0 },
     { t: "IG diubah ke Business + Page tersambung", done: channels.length > 0 },
-    { t: `Channel terhubung (${connectedCt}/4)`, done: connectedCt > 0 },
+    { t: `Akun terhubung (${connectedCt})`, done: connectedCt > 0 },
     { t: "Alert Telegram tersambung", done: !!app.settings.telegram.connected },
   ];
 
@@ -36,12 +35,11 @@ export function ConnectionsView() {
   return (
     <div>
       <Topbar title="Manajemen Akun" sub="Kelola akun Instagram, koneksi, dan Telegram"
-        right={<Button variant="amber" icon={<Icons.plus size={18} sw={2} />} disabled={atCap}
-          onClick={() => atCap ? app.toast("Maksimal 4 akun. Hapus salah satu untuk menambah.", "error") : app.connectChannel()}>Tambah akun</Button>} />
+        right={<Button variant="amber" icon={<Icons.plus size={18} sw={2} />}
+          onClick={() => app.connectChannel()}>Tambah akun</Button>} />
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {atCap && <div style={{ display: "flex", alignItems: "center", gap: 9, background: "var(--primary-100)", borderRadius: 13, padding: "10px 14px", fontFamily: FC, fontSize: 12.5, color: "#B07B22" }}><Icons.info size={16} />Sudah mencapai batas 4 akun.</div>}
 
           {phase === "loading" && [0, 1, 2, 3].map(i => <Panel key={i}><div style={{ display: "flex", gap: 14, alignItems: "center" }}><Skeleton w={48} h={48} r={13} /><div style={{ flex: 1 }}><Skeleton w="35%" h={16} /><div style={{ height: 8 }} /><Skeleton w="55%" h={12} /></div></div></Panel>)}
 

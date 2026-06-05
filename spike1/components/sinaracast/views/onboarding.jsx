@@ -16,7 +16,7 @@ export function OnboardingView() {
   const steps = [
     { id: "dev", title: "Akun developer Meta", done: chCt > 0 },
     { id: "biz", title: "Ubah IG ke Business + hubungkan Page", done: chCt > 0 },
-    { id: "connect", title: `Sambungkan akun (${chCt}/4)`, done: chCt > 0 },
+    { id: "connect", title: `Sambungkan akun (${chCt})`, done: chCt > 0 },
     { id: "telegram", title: "Siapkan Telegram", done: tgOn },
   ];
   const firstUndone = steps.findIndex(s => !s.done);
