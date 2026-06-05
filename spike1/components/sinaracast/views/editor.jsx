@@ -44,6 +44,29 @@ function readDims(file) {
     img.src = url;
   });
 }
+// Center-crop an image to a target ratio (like Instagram) → new JPEG File + dims.
+function cropToRatio(file, ratio) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+      let cw = iw, ch = Math.round(iw / ratio);
+      if (ch > ih) { ch = ih; cw = Math.round(ih * ratio); }
+      const sx = Math.round((iw - cw) / 2), sy = Math.round((ih - ch) / 2);
+      const canvas = document.createElement("canvas");
+      canvas.width = cw; canvas.height = ch;
+      canvas.getContext("2d").drawImage(img, sx, sy, cw, ch, 0, 0, cw, ch);
+      canvas.toBlob((blob) => {
+        URL.revokeObjectURL(url);
+        if (!blob) return rej(new Error("crop"));
+        res({ file: new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }), width: cw, height: ch });
+      }, "image/jpeg", 0.92);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("read")); };
+    img.src = url;
+  });
+}
 
 export function EditorView() {
   const app = useApp();
@@ -144,12 +167,17 @@ export function EditorView() {
       if (!["image/jpeg", "image/png"].includes(file.type)) { app.toast("Hanya JPG / PNG / video MP4", "error"); continue; }
       if (file.size > 8 * 1024 * 1024) { app.toast("Maksimal 8 MB", "error"); continue; }
       let dim; try { dim = await readDims(file); } catch { app.toast("Gagal membaca gambar", "error"); continue; }
-      if (Math.abs(dim.width / dim.height - 9 / 16) > 0.04) { app.toast(`Rasio harus 9:16 — gambar ini ${dim.width}×${dim.height}`, "error"); continue; }
+      // Auto center-crop to 9:16 (Story) instead of rejecting off-ratio photos.
+      let upFile = file, upDim = dim;
+      if (Math.abs(dim.width / dim.height - 9 / 16) > 0.04) {
+        try { const c = await cropToRatio(file, 9 / 16); upFile = c.file; upDim = { width: c.width, height: c.height }; app.toast("Gambar dipotong otomatis ke 9:16", "info"); }
+        catch { app.toast("Gagal menyesuaikan gambar", "error"); continue; }
+      }
       setUploading(true);
       try {
-        const row = await uploadPoolImage(file, chId, dim);
+        const row = await uploadPoolImage(upFile, chId, upDim);
         await commitRow(row, rep); rep = null;
-        app.toast("Gambar diunggah & divalidasi (9:16) ✓", "success");
+        app.toast("Gambar diunggah ✓", "success");
       } catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
       finally { setUploading(false); }
     }

@@ -34,6 +34,30 @@ function readDims(file) {
     img.src = url;
   });
 }
+// Center-crop an image file to a target width/height ratio (like Instagram does
+// when you upload an off-ratio photo). Returns a new JPEG File + its dimensions.
+function cropToRatio(file, ratio) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+      let cw = iw, ch = Math.round(iw / ratio);
+      if (ch > ih) { ch = ih; cw = Math.round(ih * ratio); } // too tall → crop top/bottom; else crop sides
+      const sx = Math.round((iw - cw) / 2), sy = Math.round((ih - ch) / 2);
+      const canvas = document.createElement("canvas");
+      canvas.width = cw; canvas.height = ch;
+      canvas.getContext("2d").drawImage(img, sx, sy, cw, ch, 0, 0, cw, ch);
+      canvas.toBlob((blob) => {
+        URL.revokeObjectURL(url);
+        if (!blob) return rej(new Error("crop"));
+        res({ file: new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }), width: cw, height: ch });
+      }, "image/jpeg", 0.92);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("read")); };
+    img.src = url;
+  });
+}
 const isVid = (m) => !!(m && (m.isVideo || ["mp4", "mov"].includes(m.format) || /\.(mp4|mov)(\?|$)/i.test(m.url || "")));
 const pad = (n) => String(n).padStart(2, "0");
 const todayWib = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
@@ -130,14 +154,26 @@ export function ComposerView() {
       if (!["image/jpeg", "image/png"].includes(file.type)) { app.toast("Hanya JPG / PNG", "error"); continue; }
       if (file.size > 8 * 1024 * 1024) { app.toast("Maksimal 8 MB", "error"); continue; }
       let dim; try { dim = await readDims(file); } catch { app.toast("Gagal membaca gambar", "error"); continue; }
-      // Story requires 9:16; Feed accepts 4:5 (0.8) up to 1.91:1 landscape.
+      // Instagram accepts any photo and crops it. Mirror that: auto center-crop to a
+      // supported ratio instead of rejecting. Story → 9:16; Feed → clamp to 4:5..1.91:1.
       const ratio = dim.width / dim.height;
-      if (isFeed) {
-        if (ratio < 0.8 || ratio > 1.91) { app.toast(`Feed harus rasio 4:5 s/d 1.91:1 — gambar ini ${dim.width}×${dim.height}`, "error"); continue; }
-      } else if (Math.abs(ratio - 9 / 16) > 0.04) { app.toast(`Story harus 9:16 — gambar ini ${dim.width}×${dim.height}`, "error"); continue; }
+      let upFile = file, upDim = dim;
+      try {
+        if (isFeed) {
+          if (ratio < 0.8 || ratio > 1.91) {
+            const c = await cropToRatio(file, ratio < 0.8 ? 0.8 : 1.91);
+            upFile = c.file; upDim = { width: c.width, height: c.height };
+            app.toast("Gambar disesuaikan ke rasio Instagram", "info");
+          }
+        } else if (Math.abs(ratio - 9 / 16) > 0.04) {
+          const c = await cropToRatio(file, 9 / 16);
+          upFile = c.file; upDim = { width: c.width, height: c.height };
+          app.toast("Gambar dipotong otomatis ke 9:16", "info");
+        }
+      } catch { app.toast("Gagal menyesuaikan gambar", "error"); continue; }
       setUploading(true);
       try {
-        const row = await uploadPoolImage(file, channel.id, dim);
+        const row = await uploadPoolImage(upFile, channel.id, upDim);
         setMedia(m => rep != null ? m.map((x, k) => (k === rep ? row : x)) : (isFeed ? [...m, row] : [row]));
         rep = null;
         app.toast("Gambar diunggah ✓", "success");
