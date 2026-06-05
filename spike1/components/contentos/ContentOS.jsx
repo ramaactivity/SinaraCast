@@ -203,6 +203,32 @@ export default function ContentOS() {
       showToast(`Gagal menyimpan: ${e.message || e}`, "error");
     }
   };
+  // Telegram linking: open the bot deep link, then poll app_settings until the
+  // webhook flips telegram_connected (user pressed Start in Telegram).
+  const connectTelegram = async () => {
+    try {
+      const res = await fetch("/api/telegram/connect", { method: "POST", headers: { Authorization: `Bearer ${session?.access_token}` } });
+      const j = await res.json().catch(() => ({}));
+      if (!j.ok || !j.url) throw new Error(j.error || "Gagal memulai");
+      window.open(j.url, "_blank");
+      showToast("Buka Telegram & tekan Start…", "info");
+      let tries = 0;
+      const iv = setInterval(async () => {
+        tries++;
+        try {
+          const { data } = await supabase.from("app_settings").select("telegram_connected, telegram_handle").maybeSingle();
+          if (data?.telegram_connected) {
+            clearInterval(iv);
+            setSettings(p => ({ ...p, telegram: { connected: true, handle: data.telegram_handle || "" } }));
+            showToast("Telegram tersambung ✓", "success");
+          }
+        } catch { /* keep polling */ }
+        if (tries >= 20) clearInterval(iv);
+      }, 3000);
+    } catch (e) { showToast(`Gagal: ${e.message || e}`, "error"); }
+  };
+  const disconnectTelegram = () => saveSettings({ telegram: { connected: false, handle: "" } });
+
   // Persist Settings-view preference fields (telegram, daily ping, grace).
   // Optimistic: apply the patch, write it, revert to the prior snapshot on error.
   const saveSettings = async (patch, { toast: t = false } = {}) => {
@@ -221,6 +247,7 @@ export default function ContentOS() {
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
     toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, saveSettings,
+    connectTelegram, disconnectTelegram,
     isMobile, openMenu: () => setDrawerOpen(true) };
 
   // Auth gate

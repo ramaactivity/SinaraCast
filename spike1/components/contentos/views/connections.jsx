@@ -119,12 +119,12 @@ function TelegramCard() {
           <IconButton icon={<Icons.x size={16} />} tip="Putuskan" onClick={() => app.confirm({ title: "Putuskan Telegram?", danger: true, confirmLabel: "Putuskan",
             body: "Alert kegagalan tidak bisa dimatikan, tapi tanpa Telegram hanya muncul di in-app center.",
             consequence: "Kamu tetap menerima alert di dalam aplikasi, tapi tidak lagi via Telegram.",
-            onConfirm: () => { app.setSettings(s => ({ ...s, telegram: { ...s.telegram, connected: false } })); app.toast("Telegram diputus", "info"); } })} />
+            onConfirm: () => app.disconnectTelegram() })} />
         </div>
       ) : (
         <div>
           <p style={{ fontFamily: FC, fontSize: 12.5, color: "var(--ink-500)", lineHeight: 1.5, margin: "0 0 12px" }}>Hubungkan bot Telegram untuk menerima alert kegagalan publish, token, dan run terlewat.</p>
-          <Button size="sm" variant="primary" full icon={<Icons.telegram size={16} />} onClick={() => { app.setSettings(s => ({ ...s, telegram: { connected: true, handle: "@rama" } })); app.toast("Telegram terhubung", "success"); }}>Hubungkan Telegram</Button>
+          <Button size="sm" variant="primary" full icon={<Icons.telegram size={16} />} onClick={() => app.connectTelegram()}>Hubungkan Telegram</Button>
         </div>
       )}
     </Panel>

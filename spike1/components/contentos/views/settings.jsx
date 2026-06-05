@@ -52,8 +52,9 @@ export function SettingsView() {
             <SectionTitle sub="Telegram & in-app">Alert</SectionTitle>
             <div style={{ marginTop: -4 }}>
               <Row title="Telegram" body={s.telegram.connected ? `Terhubung sebagai ${s.telegram.handle}` : "Belum terhubung"}>
-                {s.telegram.connected ? <span className="cos-pill" style={{ color: "var(--green-500)", background: "var(--green-100)" }}><span className="dot" style={{ background: "var(--green-500)" }} />Terhubung</span>
-                  : <Button size="sm" variant="primary" onClick={() => { set({ telegram: { connected: true, handle: "@rama" } }); app.toast("Telegram terhubung", "success"); }}>Hubungkan</Button>}
+                {s.telegram.connected
+                  ? <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span className="cos-pill" style={{ color: "var(--green-500)", background: "var(--green-100)" }}><span className="dot" style={{ background: "var(--green-500)" }} />Terhubung</span><Button size="sm" variant="ghost" onClick={() => app.confirm({ title: "Putuskan Telegram?", confirmLabel: "Putuskan", body: "Alert tidak lagi dikirim ke Telegram (tetap muncul di app).", onConfirm: () => app.disconnectTelegram() })}>Putuskan</Button></div>
+                  : <Button size="sm" variant="primary" onClick={() => app.connectTelegram()}>Hubungkan</Button>}
               </Row>
               <Row title="Alert kegagalan" body="Publish gagal, token, run terlewat. Selalu aktif — tidak bisa dimatikan.">
                 <span style={{ fontFamily: FSe, fontSize: 12, fontWeight: 600, color: "var(--ink-400)" }}>Selalu aktif</span>
