@@ -181,6 +181,7 @@ export async function publishStoryOneoff(svc, { channel, post }) {
   await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
   await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
   await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `One-off terbit — ${chLabel}`, body: "Story one-off terbit ke Instagram.", runId: run.id });
+  if (isVideo) await svc.storage.from("pool-images").remove([storagePath]).catch(() => {}); // free the video file (free-tier storage)
   return { ok: true, permalink, runId: run.id };
 }
 
@@ -368,6 +369,7 @@ export async function publishReelsOneoff(svc, { channel, post }) {
   await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
   await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
   await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `Reels terbit — ${chLabel}`, body: "Reels one-off terbit ke Instagram.", runId: run.id });
+  await svc.storage.from("pool-images").remove([storagePath]).catch(() => {}); // free the video file (free-tier storage)
   return { ok: true, permalink, runId: run.id };
 }
 

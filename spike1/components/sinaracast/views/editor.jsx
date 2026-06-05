@@ -87,6 +87,9 @@ export function EditorView() {
   const curImgs = images[role] || [];
   const reqRoles = mode === "schedule" ? ["weekday", "weekend"] : ["single"];
   const emptyRole = reqRoles.find((r) => (images[r] || []).length === 0);
+  // FR-21: warn if another active rule on this channel posts at the same time.
+  const myTimes = (mode === "schedule" ? [wdTime, weTime] : [time]).filter(Boolean);
+  const clashRule = app.rules.find((o) => o.ch === chId && o.id !== existing?.id && o.active && myTimes.includes(o.time));
   const errors = {};
   if (touched && !name.trim()) errors.name = "Beri nama jadwalnya dulu.";
   if (touched && emptyRole) errors.pool = `Kumpulan ${emptyRole === "weekday" ? "hari kerja " : emptyRole === "weekend" ? "akhir pekan " : ""}masih kosong, minimal 1 gambar.`;
@@ -219,6 +222,10 @@ export function EditorView() {
             <Field label={`Toleransi telat — ${grace} menit`} hint="Berapa lama masih boleh telat sebelum dianggap terlewat." style={{ marginTop: 14 }}>
               <input type="range" min={10} max={60} step={5} value={grace} onChange={(e) => setGrace(+e.target.value)} style={{ width: "100%", accentColor: "var(--green-500)" }} />
             </Field>
+            {clashRule && <div style={{ display: "flex", gap: 9, marginTop: 14, background: "var(--st-publishing-bg)", borderRadius: 11, padding: "10px 12px" }}>
+              <Icons.warn size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
+              <span style={{ fontFamily: FE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Jam ini sama dengan jadwal “{clashRule.name}”. Postingan tetap jalan (diproses bergiliran), tapi pertimbangkan jam berbeda biar tidak menumpuk.</span>
+            </div>}
           </Panel>
 
           <Panel>
