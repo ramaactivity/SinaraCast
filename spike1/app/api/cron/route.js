@@ -72,7 +72,7 @@ export async function POST(request) {
     if (ov?.type === "skip") {
       // honor "lewati hari ini": claim the daily key as skipped so nothing posts and no missed-run alert fires
       const { data: sk } = await svc.from("post_run").insert({
-        channel_id: channel.id, rule_id: rule.id, status: "skipped", trigger: "swap",
+        channel_id: channel.id, rule_id: rule.id, status: "skipped", trigger: "scheduled",
         scheduled_at: nowWib.toISOString(), claim_key: `auto:${rule.id}:${today}`, attempt_count: 0,
         fail_reason: "Dilewati manual hari ini",
       }).select("id").maybeSingle();

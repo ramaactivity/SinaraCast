@@ -4,7 +4,7 @@ import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { uploadPoolImage, uploadReelVideo, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost } from "../dataLayer";
-import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, Segmented, MediaThumb, SectionTitle, Spinner, Chip, Input } from "../ui";
+import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, Segmented, MediaThumb, SectionTitle, Spinner, Chip, Input, Select } from "../ui";
 const { useState: uCo, useRef, useEffect } = React;
 const FCo = "var(--font)";
 const MAX_VIDEO_MB = 50;
@@ -40,9 +40,9 @@ const isoToWibParts = (iso) => { const d = new Date(new Date(iso).getTime() + 7 
 export function ComposerView() {
   const app = useApp();
   const postId = app.params.postId || null; // present → edit mode
-  const chId = app.params.ch || app.channel;
-  const channel = app.channels.find(c => c.id === chId);
-  const b = brandFor(chId, app.channels);
+  const [chId, setChId] = uCo(app.params.ch || app.channel);
+  const channel = app.channels.find(c => c.id === chId) || app.channels.find(c => c.id === app.channel) || app.channels[0];
+  const b = brandFor(channel?.id, app.channels);
 
   const [type, setType] = uCo("story");
   const [media, setMedia] = uCo([]); // [{ storage_path, url, width, height, format, bytes, aspect_ok, assetId? }]
@@ -104,7 +104,7 @@ export function ComposerView() {
         if (Math.abs(vr - 9 / 16) > 0.06) { app.toast(`Reels sebaiknya 9:16 — video ini ${meta.width}×${meta.height}`, "error"); continue; }
         if (meta.duration && meta.duration > 90) { app.toast("Reels maksimal 90 detik", "error"); continue; }
         setUploading(true);
-        try { const row = await uploadReelVideo(file, chId, meta); setMedia([row]); app.toast("Video diunggah ✓", "success"); }
+        try { const row = await uploadReelVideo(file, channel.id, meta); setMedia([row]); app.toast("Video diunggah ✓", "success"); }
         catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
         finally { setUploading(false); }
         continue;
@@ -117,7 +117,7 @@ export function ComposerView() {
         if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) { app.toast(`Story video sebaiknya 9:16 — video ini ${meta.width}×${meta.height}`, "error"); continue; }
         if (meta.duration && meta.duration > 60) { app.toast("Story video maksimal 60 detik", "error"); continue; }
         setUploading(true);
-        try { const row = await uploadReelVideo(file, chId, meta); setMedia([row]); app.toast("Video diunggah ✓", "success"); }
+        try { const row = await uploadReelVideo(file, channel.id, meta); setMedia([row]); app.toast("Video diunggah ✓", "success"); }
         catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
         finally { setUploading(false); }
         continue;
@@ -134,7 +134,7 @@ export function ComposerView() {
       } else if (Math.abs(ratio - 9 / 16) > 0.04) { app.toast(`Story harus 9:16 — gambar ini ${dim.width}×${dim.height}`, "error"); continue; }
       setUploading(true);
       try {
-        const row = await uploadPoolImage(file, chId, dim);
+        const row = await uploadPoolImage(file, channel.id, dim);
         setMedia(m => [...m, row]);
         app.toast("Gambar diunggah ✓", "success");
       } catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
@@ -197,7 +197,13 @@ export function ComposerView() {
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel>
-            <SectionTitle sub="Pilih mau posting apa">Jenis postingan</SectionTitle>
+            <SectionTitle sub="Pilih akun & jenis postingan">Akun & jenis</SectionTitle>
+            {!postId && app.channels.length > 1 && (
+              <Field label="Posting ke akun" style={{ marginBottom: 14 }}>
+                <Select value={channel.id} onChange={(v) => { setChId(v); app.setChannel(v); setMedia([]); }}
+                  options={app.channels.map(c => ({ value: c.id, label: `${c.name} · ${c.handle}` }))} />
+              </Field>
+            )}
             <Segmented full options={[{ value: "story", label: "Story" }, { value: "feed", label: "Feed" }, { value: "reels", label: "Reels" }]} value={type} onChange={(v) => { setType(v); setMedia([]); }} />
             {isFeed && <div style={{ display: "flex", gap: 9, marginTop: 12, background: "var(--st-publishing-bg)", borderRadius: 11, padding: "10px 12px" }}>
               <Icons.info size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />

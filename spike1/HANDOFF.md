@@ -13,4 +13,15 @@ Catatan untuk Rama. Berisi (A) apa yang dikerjakan, (B) yang perlu kamu tes/laku
 1. **[TES] Reels end-to-end** — ini BELUM diverifikasi di akun nyata. Buat Postingan → Reels → unggah video 9:16 pendek (≤30 dtk biar transcoding cepat) → jadwalkan 2 menit ke depan → cek apakah terbit di Instagram + muncul di Riwayat. ⚠️ Risiko: kalau video lama/berat, transcoding bisa >60 dtk dan cron timeout → ditandai gagal. Pakai video pendek dulu.
 2. **[CEK] Izin Reels di Meta App** — pastikan scope `instagram_business_content_publish` mengizinkan publish Reels untuk akun (Dev Mode). Kalau gagal dengan error permission, kabari saya.
 
+2. **Story video (one-off)** — postingan Story sekarang bisa berupa gambar ATAU video (9:16, ≤60 dtk, ≤50MB). publisher pakai `video_url` untuk video.
+3. **"Lewati hari ini" & "Ganti gambar" sekarang BENERAN** (FR-9) — dulu cuma di layar, engine tetap posting. Sekarang tersimpan ke `day_override` dan cron menghormatinya (skip = tidak posting hari itu; swap = pakai gambar pilihan). Tombol "Lewati" berubah jadi "Batalkan" saat aktif.
+4. **Hemat penyimpanan** — file video one-off (Reels & Story video) otomatis dihapus dari storage setelah berhasil terbit (postingan sudah ada di IG). Menjaga kuota free-tier 50MB.
+5. **Peringatan jam bentrok** (FR-21) — editor jadwal memperingatkan kalau jamnya sama dengan jadwal lain di akun yang sama.
+
+## B. PERLU KAMU TES / LAKUKAN MANUAL (lanjutan)
+3. **[TES] Story video** — Buat Postingan → Story → unggah video 9:16 pendek → jadwalkan → cek terbit sebagai Story video.
+4. **[TES] Lewati/Ganti gambar hari ini** — di Jadwal Otomatis, panel kanan "Khusus hari ini": klik "Lewati" lalu cek jadwal itu TIDAK terbit hari ini (dan muncul "Dilewati" di Riwayat). Klik "Ganti gambar" → pilih → cek gambar itu yang terbit.
+
+NOTE umum: semua publish video (Reels/Story video) belum diuji end-to-end di akun nyata — itu yang paling penting kamu tes.
+
 (Daftar ini akan terus saya tambah selama sesi.)
