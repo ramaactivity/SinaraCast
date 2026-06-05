@@ -125,7 +125,7 @@ export async function publishForRule(svc, { channel, rule, role, trigger, claimK
 
 // Publish a one-off Story scheduled_post. Claims it (scheduled → publishing) so
 // only one worker posts it, writes a post_run for Activity, and notifies.
-// Story-only for now (Feed/carousel publishing is a separate spike).
+// Handles photo or video Stories (detects asset format).
 export async function publishStoryOneoff(svc, { channel, post }) {
   // atomic claim — first writer flips scheduled→publishing
   const { data: claimed } = await svc.from("scheduled_post")

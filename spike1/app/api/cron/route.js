@@ -133,7 +133,7 @@ export async function POST(request) {
       fired.push({ rule: rule.name, channel: channel.slug, ok: false, error: String(e?.message || e) });
     }
   }
-  // ---- one-off posts (Story + Feed) due now, on eligible channels ----
+  // ---- one-off posts (Story / Feed / Reels) due now, on eligible channels ----
   const oneoffs = [];
   const chIds = Object.keys(chById);
   if (chIds.length) {

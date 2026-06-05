@@ -38,6 +38,11 @@ Saya audit pipeline video sendiri dan perbaiki bug nyata yang ditemukan:
 - Poll transcoding dikecilkan biar muat di 60 dtk.
 - ⚠️ **Caveat dobel-posting:** kalau nanti ada postingan "tertahan" lalu kamu paksa reset manual ke "scheduled", ada risiko kecil terbit dua kali (kalau IG ternyata sudah memposting sebelum timeout). Jadi: kalau ada yang tertahan, lebih aman buat ulang daripada reset manual.
 
+## Tambahan (sesi lanjutan, sambil kamu makan siang)
+- ✅ **Telegram TERVERIFIKASI BERFUNGSI** — saya kirim pesan tes nyata ke chat-mu (@humpreyyy2), terkirim sukses. Jalur pemberitahuan beneran jalan. (Cek Telegram-mu, ada pesan tes dariku.)
+- **Tombol "Kirim tes"** ditambah di Settings & Manajemen Akun (kartu Telegram) — kamu bisa kirim pesan tes kapan saja untuk memastikan alert sampai.
+- **Perf:** `loadAll()` dulu ~10 query berurutan tiap login/reload, sekarang paralel (1 batch). Loading lebih cepat.
+
 ## Catatan teknis (untukku saat kembali)
 - Reels poll transcoding dibatasi ~50 dtk (budget cron 60 dtk). Video panjang bisa timeout. Solusi nanti: publisher resumable (simpan creation_id, lanjut di tick berikutnya).
 - Bucket `pool-images` kini juga simpan video (maks 50MB free-tier). File video one-off dihapus otomatis setelah terbit; file video di pool recurring TIDAK dihapus (dipakai berulang).
