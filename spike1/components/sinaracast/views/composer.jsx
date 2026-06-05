@@ -33,6 +33,7 @@ function readDims(file) {
     img.src = url;
   });
 }
+const isVid = (m) => !!(m && (m.isVideo || ["mp4", "mov"].includes(m.format) || /\.(mp4|mov)(\?|$)/i.test(m.url || "")));
 const pad = (n) => String(n).padStart(2, "0");
 const todayWib = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
 const isoToWibParts = (iso) => { const d = new Date(new Date(iso).getTime() + 7 * 3600 * 1000); return { date: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`, time: `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}` }; };
@@ -220,7 +221,7 @@ export function ComposerView() {
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {media.map((m, i) => (
                 <div key={i} style={{ position: "relative" }}>
-                  {m.isVideo
+                  {isVid(m)
                     ? <video src={m.url} muted playsInline controls style={{ width: 120, aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", background: "#000", display: "block" }} />
                     : <MediaThumb seed={i} src={m.url} w={isFeed ? 96 : 90} ratio={isFeed ? 1 : 16 / 9} label={isFeed ? "Feed" : "9:16"} />}
                   <button onClick={() => setMedia(ms => ms.filter((_, x) => x !== i))} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
@@ -256,7 +257,7 @@ export function ComposerView() {
           <Panel>
             <SectionTitle sub="Perkiraan tampilan">Pratinjau</SectionTitle>
             <div style={{ display: "flex", justifyContent: "center" }}>
-              {media[0]?.isVideo
+              {isVid(media[0])
                 ? <video src={media[0].url} muted playsInline controls style={{ width: 150, aspectRatio: "9/16", objectFit: "cover", borderRadius: 14, border: "1px solid var(--line)", background: "#000", display: "block" }} />
                 : <MediaThumb seed={0} src={media[0]?.url} w={140} ratio={isFeed ? 1 : 16 / 9} label={isReels ? "Reels 9:16" : isFeed ? "Feed" : "Story 9:16"} />}
             </div>
