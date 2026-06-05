@@ -32,6 +32,7 @@ export default function ContentOS() {
   const [rules, setRules] = uA([]);
   const [runs, setRuns] = uA([]);
   const [oneoffs, setOneoffs] = uA([]);
+  const [library, setLibrary] = uA({});
   const [notifs, setNotifs] = uA([]);
   const [channels, setChannels] = uA([]);
   const [settings, setSettings] = uA(DEFAULT_SETTINGS);
@@ -73,7 +74,7 @@ export default function ContentOS() {
     setDataLoading(true);
     loadAll().then((d) => {
       if (!active) return;
-      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setNotifs(d.notifs);
+      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setLibrary(d.library || {}); setNotifs(d.notifs);
       setSettings(d.settings); setProfile(d.profile);
       setChannel((cur) => cur || d.channels[0]?.id || "");
       setDataLoading(false);
@@ -83,7 +84,7 @@ export default function ContentOS() {
 
   const reload = useCallback(async () => {
     const d = await loadAll();
-    setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setNotifs(d.notifs);
+    setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setLibrary(d.library || {}); setNotifs(d.notifs);
     setSettings(d.settings); setProfile(d.profile);
     setChannel((cur) => cur || d.channels[0]?.id || "");
   }, []);
@@ -243,7 +244,7 @@ export default function ContentOS() {
     }
   };
 
-  const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, oneoffs, notifs, setNotifs,
+  const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, oneoffs, library, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
     toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, saveSettings,

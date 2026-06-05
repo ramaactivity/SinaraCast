@@ -10,19 +10,21 @@ import {
 const { useState: uCn } = React;
 const FC = "var(--font)";
 
-const META_STEPS = [
-  { t: "Akun developer Meta dibuat", done: true },
-  { t: "Aplikasi dalam Development Mode", done: true },
-  { t: "IG diubah ke Business + Page tersambung", done: true },
-  { t: "Channel terhubung (4/4)", done: false },
-];
-
 export function ConnectionsView() {
   const app = useApp();
   const phase = app.dataLoading ? "loading" : "ready";
   const [editBrand, setEditBrand] = uCn(null);
   const channels = app.channels;
   const atCap = channels.length >= 4;
+  // live setup checklist
+  const connectedCt = channels.filter(c => c.status === "Connected").length;
+  const META_STEPS = [
+    { t: "Akun developer Meta dibuat", done: channels.length > 0 },
+    { t: "Aplikasi dalam Development Mode", done: channels.length > 0 },
+    { t: "IG diubah ke Business + Page tersambung", done: channels.length > 0 },
+    { t: `Channel terhubung (${connectedCt}/4)`, done: connectedCt > 0 },
+    { t: "Alert Telegram tersambung", done: !!app.settings.telegram.connected },
+  ];
 
   const nameOf = (c) => BRANDS[c.brand]?.name || c.name || c.handle;
   // Reconnect runs the same OAuth flow; the callback matches by ig_user_id and

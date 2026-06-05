@@ -1,7 +1,6 @@
 "use client";
 import React from "react";
 import { Icons } from "../icons";
-import { MOCK } from "../mockdata";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { Panel, Button } from "../ui";
@@ -10,15 +9,26 @@ const FOb = "var(--font)";
 
 export function OnboardingView() {
   const app = useApp();
-  const [steps, setSteps] = uOb(MOCK.ONBOARDING);
-  const [active, setActive] = uOb(2);
+  // Progress derived from real state: connecting a channel implies the Meta
+  // app + Business steps are done; Telegram from the linked flag.
+  const chCt = app.channels.length;
+  const tgOn = !!app.settings.telegram.connected;
+  const steps = [
+    { id: "dev", title: "Akun developer Meta", done: chCt > 0 },
+    { id: "biz", title: "Ubah IG ke Business + hubungkan Page", done: chCt > 0 },
+    { id: "connect", title: `Sambungkan channel (${chCt}/4)`, done: chCt > 0 },
+    { id: "telegram", title: "Siapkan Telegram", done: tgOn },
+  ];
+  const firstUndone = steps.findIndex(s => !s.done);
+  const [active, setActive] = uOb(firstUndone === -1 ? 0 : firstUndone);
   const doneCt = steps.filter(s => s.done).length;
   const pct = Math.round(doneCt / steps.length * 100);
 
   const complete = (i) => {
-    setSteps(ss => ss.map((s, x) => x === i ? { ...s, done: true, current: false } : x === i + 1 ? { ...s, current: true } : s));
+    const id = steps[i].id;
+    if (id === "connect") return app.connectChannel();
+    if (id === "telegram") return app.connectTelegram();
     setActive(i + 1 < steps.length ? i + 1 : i);
-    app.toast("Langkah selesai", "success");
   };
 
   return (
@@ -63,8 +73,8 @@ export function OnboardingView() {
 const STEP_BODY = {
   dev: ["Buat akun developer Meta", ["Buka developers.facebook.com dan masuk.", "Buat aplikasi baru, pilih tipe Business.", "Catat App ID — akan dipakai saat menghubungkan channel."]],
   biz: ["Ubah IG ke Business + hubungkan Page", ["Di Instagram, ubah akun ke Professional → Business.", "Tautkan setiap akun IG ke Facebook Page-nya.", "Pastikan kamu admin Page tersebut."]],
-  connect: ["Sambungkan channel", ["Otorisasi SinaraCast lewat Meta untuk tiap channel.", "Beri izin: konten publikasi & manajemen.", "Ulangi untuk keempat brand (maks 4)."]],
-  telegram: ["Siapkan Telegram", ["Mulai chat dengan bot SinaraCast di Telegram.", "Kirim /start lalu salin kode tampil.", "Tempel kode di Settings → Alert untuk menautkan."]],
+  connect: ["Sambungkan channel", ["Klik ‘Sambungkan channel’ — popup Instagram terbuka.", "Login & beri izin (konten publikasi).", "Ulangi untuk tiap brand (maks 4)."]],
+  telegram: ["Siapkan Telegram", ["Klik ‘Hubungkan Telegram’ — bot SinaraCast terbuka.", "Tekan Start di Telegram.", "Otomatis tersambung — alert publish masuk ke sana."]],
 };
 
 function StepDetail({ step, idx, total, onComplete, onBack, app }) {
@@ -89,7 +99,7 @@ function StepDetail({ step, idx, total, onComplete, onBack, app }) {
         {idx > 0 && <Button variant="secondary" icon={<Icons.chevLeft size={17} />} onClick={onBack}>Sebelumnya</Button>}
         <Button variant="ghost" icon={<Icons.external size={16} />} onClick={() => app.toast("Membuka Runbook…", "info")}>Buka Runbook</Button>
         <div style={{ marginLeft: "auto" }}>
-          <Button variant="primary" icon={step.done ? <Icons.check size={17} /> : <Icons.chevRight size={17} />} iconRight onClick={onComplete}>{step.done ? "Selesai" : idx === total - 1 ? "Selesaikan setup" : "Tandai selesai"}</Button>
+          <Button variant="primary" icon={step.done ? <Icons.check size={17} /> : <Icons.chevRight size={17} />} iconRight onClick={onComplete}>{step.done ? "Selesai ✓" : step.id === "connect" ? "Sambungkan channel" : step.id === "telegram" ? "Hubungkan Telegram" : "Tandai selesai"}</Button>
         </div>
       </div>
     </div>

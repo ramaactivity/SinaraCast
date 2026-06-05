@@ -127,6 +127,22 @@ export async function loadAll() {
     perChannel: Object.fromEntries((channelsRaw || []).map((c) => [c.slug, toMB(bytesByChannel[c.slug] || 0)])),
   };
 
+  // ---- media library per channel (pool images + one-off media_assets) ----
+  const mediaByChannel = {}; // slug → [{ id, url, tag, usage }]
+  const pushMedia = (slug, item) => { if (!slug) return; (mediaByChannel[slug] ||= []).push(item); };
+  for (const r of rulesRaw || []) {
+    const slug = slugById[r.channel_id];
+    for (const p of (poolsByRule[r.id] || [])) {
+      for (const sp of (pathsByPool[p.id] || [])) pushMedia(slug, { id: `pool:${sp}`, url: pubUrl(sp), tag: r.name, usage: r.name });
+    }
+  }
+  const { data: assetsRaw = [] } = await supabase
+    .from("media_asset").select("id, channel_id, storage_path, tag, created_at").order("created_at", { ascending: false });
+  for (const a of assetsRaw || []) {
+    const tag = a.tag === "feed" ? "Feed" : a.tag === "story" ? "Story" : (a.tag || "Library");
+    pushMedia(slugById[a.channel_id], { id: a.id, url: pubUrl(a.storage_path), tag, usage: null });
+  }
+
   // ---- activity: real post_run rows (reverse chronological) + their attempts ----
   const ruleNameById = Object.fromEntries((rulesRaw || []).map((r) => [r.id, r.name]));
   const POOL_LABEL = { weekday: "Weekday", weekend: "Weekend", single: "Pool" };
@@ -211,7 +227,18 @@ export async function loadAll() {
     joined: profileRaw?.joined_at ? fmtDate(profileRaw.joined_at) : "—",
   };
 
-  return { channels, rules, runs, oneoffs, notifs, settings, profile };
+  return { channels, rules, runs, oneoffs, notifs, settings, profile, library: mediaByChannel };
+}
+
+// Upload an image to a channel's media library (media_asset, tag 'library').
+export async function uploadLibraryMedia(file, channelSlug, channelDbId, meta) {
+  const row = await uploadPoolImage(file, channelSlug, meta); // → storage
+  const { data: a, error } = await supabase.from("media_asset").insert({
+    channel_id: channelDbId, storage_path: row.storage_path, tag: "library",
+    width: row.width, height: row.height, aspect_ok: row.aspect_ok ?? true, format: row.format, bytes: row.bytes,
+  }).select("id").single();
+  if (error) throw error;
+  return a.id;
 }
 
 // Mark one / all notifications read (RLS scopes these to the signed-in owner).
