@@ -49,23 +49,22 @@ export function ConnectionsView() {
             const b = BRANDS[c.brand] || { name: c.name || c.handle, short: (c.name || "?").slice(0, 2).toUpperCase(), accent: "var(--ink-500)", soft: "var(--line)", grad: "linear-gradient(135deg,#9aa0ab,#7a8090)" };
             return (
               <Panel key={c.id} pad={20}>
-                <div style={{ display: "flex", alignItems: "center", gap: 15, flexWrap: app.isMobile ? "wrap" : "nowrap", rowGap: 14 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
                   <BrandAvatar brand={b} src={c.avatarUrl} size={48} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                      <span style={{ fontFamily: FC, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>{b.name}</span>
-                      <Status s={c.status} pulse={c.status === "Needs reconnect"} />
-                      {c.paused && <Status s="Paused" />}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                      <span style={{ fontFamily: FC, fontWeight: 600, fontSize: 16, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{b.name}</span>
+                      <span style={{ flex: "0 0 auto" }}><Status s={c.paused ? "Paused" : c.status} pulse={c.status === "Needs reconnect"} /></span>
                     </div>
-                    <div style={{ display: "flex", gap: 16, marginTop: 5, fontFamily: FC, fontSize: 12, color: "var(--ink-500)", flexWrap: "wrap", rowGap: 4 }}>
-                      <span>{c.handle}</span><span>·</span><span>{c.followers} pengikut</span>
-                      <span>·</span><span>Koneksi aktif s/d {c.tokenExpires}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6, fontFamily: FC, fontSize: 12, color: "var(--ink-500)", flexWrap: "wrap", rowGap: 3 }}>
+                      <span>{c.handle}</span><span style={{ color: "var(--ink-300)" }}>·</span><span>{c.followers} pengikut</span>
+                      <span style={{ color: "var(--ink-300)" }}>·</span><span>Aktif s/d {c.tokenExpires}</span>
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: app.isMobile ? 0 : "auto", width: app.isMobile ? "100%" : "auto", justifyContent: app.isMobile ? "flex-start" : "flex-end" }}>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flex: "0 0 auto", marginLeft: app.isMobile ? 0 : "auto", marginTop: app.isMobile ? 4 : 0, width: app.isMobile ? "100%" : "auto", justifyContent: app.isMobile ? "flex-start" : "flex-end" }}>
                     {c.status === "Needs reconnect" || c.status === "Expiring"
                       ? <Button size="sm" variant={c.status === "Needs reconnect" ? "danger" : "secondary"} icon={<Icons.retry size={15} />} onClick={() => reconnect(c)}>Sambungkan ulang</Button>
-                      : <Button size="sm" variant="secondary" icon={c.paused ? <Icons.play size={15} /> : <Icons.pause size={15} />} onClick={() => togglePause(c)}>{c.paused ? "Lanjutkan" : "Jeda"}</Button>}
+                      : <Button size="sm" variant={c.paused ? "primary" : "secondary"} icon={c.paused ? <Icons.play size={15} /> : <Icons.pause size={15} />} onClick={() => togglePause(c)}>{c.paused ? "Lanjutkan" : "Jeda"}</Button>}
                     <IconButton icon={<Icons.edit size={17} />} tip="Ubah nama" onClick={() => setEditBrand(c)} />
                     <IconButton icon={<Icons.trash size={17} />} tone="danger" tip="Hapus akun" onClick={() => app.confirm({
                       title: `Hapus ${b.name}?`, danger: true, confirmLabel: "Hapus akun",

@@ -211,8 +211,8 @@ function NextInspector({ r, b, ch }) {
       <div style={{ height: 1, background: "var(--line)", margin: "16px 0" }} />
       <div style={{ fontFamily: FR, fontSize: 11.5, fontWeight: 600, color: "var(--ink-500)", marginBottom: 10 }}>Khusus hari ini</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
-        <Button variant="secondary" size="sm" icon={<Icons.skip size={15} />} disabled={paused} onClick={() => { app.updateRule(r.id, { todayStatus: "Skipped", nextRun: "Dilewati hari ini" }); app.toast(`“${r.name}” dilewati hari ini`, "info"); }}>Lewati hari ini</Button>
-        <Button variant="secondary" size="sm" icon={<Icons.swap size={15} />} disabled={paused} onClick={() => setSwap(true)}>Ganti gambar</Button>
+        <Button variant="secondary" size="sm" style={{ padding: "0 10px" }} icon={<Icons.skip size={15} />} disabled={paused} onClick={() => { app.updateRule(r.id, { todayStatus: "Skipped", nextRun: "Dilewati hari ini" }); app.toast(`“${r.name}” dilewati hari ini`, "info"); }}>Lewati</Button>
+        <Button variant="secondary" size="sm" style={{ padding: "0 10px" }} icon={<Icons.swap size={15} />} disabled={paused} onClick={() => setSwap(true)}>Ganti gambar</Button>
       </div>
       <div style={{ marginTop: 9 }}>
         <Button variant="primary" size="sm" full icon={<Icons.play size={15} />} disabled={paused || !r.active} onClick={() => app.postNow(r)}>Terbitkan sekarang</Button>

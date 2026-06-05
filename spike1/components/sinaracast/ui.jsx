@@ -180,16 +180,66 @@ export function Textarea({ invalid, style, ...p }) {
       border: `1px solid ${invalid ? "var(--danger)" : f ? "var(--primary-300)" : "var(--line)"}`,
       boxShadow: f ? "0 0 0 3px rgba(252,192,76,.18)" : "var(--shadow-sm)", ...style }} />;
 }
-export function Select({ options = [], value, onChange, style }) {
+/* ---------------- Floating popover (portal-positioned, never clipped) ----------------
+   Anchors to a ref, renders into document.body at fixed coords, flips up when there's
+   no room below, clamps to the viewport, and closes on outside-click / Escape / scroll. */
+function Floating({ anchorRef, open, onClose, width, estHeight = 280, children }) {
+  const [rect, setRect] = useState(null);
+  useEffect(() => {
+    if (!open) { setRect(null); return; }
+    const update = () => { const r = anchorRef.current?.getBoundingClientRect(); if (r) setRect({ top: r.top, bottom: r.bottom, left: r.left, width: r.width }); };
+    update();
+    const onDoc = (e) => { if (!anchorRef.current?.contains(e.target) && !e.target.closest?.("[data-floating]")) onClose(); };
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("resize", update); window.removeEventListener("scroll", update, true); document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  if (!open || !rect) return null;
+  const vw = window.innerWidth, vh = window.innerHeight, m = 8;
+  const w = Math.min(width || rect.width, vw - 16);
+  const left = Math.min(Math.max(m, rect.left), vw - w - m);
+  const openUp = (vh - rect.bottom) < estHeight && rect.top > (vh - rect.bottom);
+  const pos = openUp ? { bottom: vh - rect.top + m } : { top: rect.bottom + m };
+  return createPortal(
+    <div data-floating style={{ position: "fixed", left, width: w, zIndex: 1000, animation: "scPop .14s", ...pos }}>{children}</div>,
+    document.body
+  );
+}
+
+export function Select({ options = [], value, onChange, style, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef(null);
+  const cur = options.find((o) => (o.value ?? o) === value);
   return (
-    <div style={{ position: "relative" }}>
-      <select value={value} onChange={e => onChange && onChange(e.target.value)}
-        style={{ ...inputBase, appearance: "none", paddingRight: 38, cursor: "pointer", ...style }}>
-        {options.map(o => <option key={o.value ?? o} value={o.value ?? o}>{o.label ?? o}</option>)}
-      </select>
-      <span style={{ position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)", color: "var(--ink-400)", pointerEvents: "none" }}>
-        <Icons.chevDown size={17} />
-      </span>
+    <div ref={ref} style={{ position: "relative" }}>
+      <button type="button" onClick={() => setOpen((o) => !o)} style={{
+        ...inputBase, display: "flex", alignItems: "center", cursor: "pointer", textAlign: "left", paddingRight: 38,
+        borderColor: open ? "var(--primary-500)" : "var(--line)", boxShadow: open ? "0 0 0 3px rgba(255,159,67,.16)" : "var(--shadow-sm)", ...style,
+      }}>
+        <span style={{ flex: 1, color: cur ? "var(--ink-900)" : "var(--ink-400)" }}>{cur ? (cur.label ?? cur) : (placeholder || "Pilih…")}</span>
+        <span style={{ position: "absolute", right: 13, top: "50%", color: "var(--ink-400)", pointerEvents: "none", transition: "transform .15s", transform: `translateY(-50%) rotate(${open ? 180 : 0}deg)` }}><Icons.chevDown size={17} /></span>
+      </button>
+      <Floating anchorRef={ref} open={open} onClose={() => setOpen(false)} estHeight={Math.min(options.length * 42 + 12, 280)}>
+        <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 13, boxShadow: "var(--shadow-lg)", padding: 5 }}>
+          {options.map((o) => {
+            const v = o.value ?? o, on = v === value;
+            return (
+              <button key={v} type="button" onClick={() => { onChange && onChange(v); setOpen(false); }} style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "9px 11px", border: "none", cursor: "pointer", borderRadius: 9,
+                background: on ? "var(--primary-100)" : "transparent", color: on ? "var(--primary-500)" : "var(--ink-700)",
+                fontFamily: F, fontSize: 13.5, fontWeight: on ? 600 : 500, textAlign: "left",
+              }}
+              onMouseEnter={(e) => { if (!on) e.currentTarget.style.background = "var(--line-soft)"; }}
+              onMouseLeave={(e) => { if (!on) e.currentTarget.style.background = "transparent"; }}>
+                <span style={{ flex: 1 }}>{o.label ?? o}</span>{on && <Icons.check size={15} sw={2.4} />}
+              </button>
+            );
+          })}
+        </div>
+      </Floating>
     </div>
   );
 }
@@ -201,13 +251,14 @@ const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 function TimeColumn({ items, value, onPick, label }) {
   const ref = React.useRef(null);
   useEffect(() => {
-    const el = ref.current?.querySelector('[data-on="1"]');
-    if (el) el.scrollIntoView({ block: "center" });
+    const c = ref.current; if (!c) return;
+    const el = c.querySelector('[data-on="1"]');
+    if (el) c.scrollTop = el.offsetTop - c.clientHeight / 2 + el.clientHeight / 2; // scroll the column only, never the page
   }, []);
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
       <div style={{ textAlign: "center", fontFamily: F, fontSize: 10, fontWeight: 700, letterSpacing: ".08em", color: "var(--ink-400)", textTransform: "uppercase", padding: "8px 0 6px" }}>{label}</div>
-      <div ref={ref} style={{ maxHeight: 168, overflowY: "auto", padding: "0 6px 6px", display: "flex", flexDirection: "column", gap: 2, scrollbarWidth: "thin" }}>
+      <div ref={ref} className="sc-scroll" style={{ maxHeight: 168, overflowY: "auto", padding: "0 6px 6px", display: "flex", flexDirection: "column", gap: 2, scrollbarWidth: "thin" }}>
         {items.map((n) => {
           const on = n === value;
           return (
@@ -230,22 +281,12 @@ function TimeColumn({ items, value, onPick, label }) {
 
 export function TimeField({ value, onChange, style }) {
   const [open, setOpen] = useState(false);
-  const wrap = React.useRef(null);
+  const ref = React.useRef(null);
   const [hh, mm] = (value || "00:00").split(":").map((x) => parseInt(x, 10) || 0);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e) => { if (wrap.current && !wrap.current.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
-  }, [open]);
-
   const set = (h, m) => onChange && onChange(`${pad2(h)}:${pad2(m)}`);
 
   return (
-    <div ref={wrap} style={{ position: "relative" }}>
+    <div ref={ref} style={{ position: "relative" }}>
       <button type="button" onClick={() => setOpen((o) => !o)} style={{
         ...inputBase, paddingLeft: 42, paddingRight: 14, display: "flex", alignItems: "center", cursor: "pointer",
         textAlign: "left", borderColor: open ? "var(--primary-500)" : "var(--line)",
@@ -255,12 +296,8 @@ export function TimeField({ value, onChange, style }) {
         <span style={{ flex: 1, fontVariantNumeric: "tabular-nums" }}>{pad2(hh)}.{pad2(mm)}</span>
         <span style={{ fontFamily: F, fontSize: 11, fontWeight: 600, color: "var(--ink-400)" }}>WIB</span>
       </button>
-      {open && (
-        <div style={{
-          position: "absolute", zIndex: 50, top: "calc(100% + 8px)", left: 0, right: 0, minWidth: 190,
-          background: "#fff", border: "1px solid var(--line)", borderRadius: 16, boxShadow: "var(--shadow-lg, 0 18px 44px rgba(30,32,44,.18))",
-          overflow: "hidden", animation: "none",
-        }}>
+      <Floating anchorRef={ref} open={open} onClose={() => setOpen(false)} width={Math.max(232, 0)} estHeight={300}>
+        <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 16, boxShadow: "var(--shadow-lg)", overflow: "hidden" }}>
           <div style={{ display: "flex", borderBottom: "1px solid var(--line-soft)" }}>
             <TimeColumn items={HOURS} value={hh} label="Jam" onPick={(h) => set(h, mm)} />
             <div style={{ width: 1, background: "var(--line-soft)", margin: "8px 0" }} />
@@ -273,7 +310,7 @@ export function TimeField({ value, onChange, style }) {
               style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: "var(--primary-500)", cursor: "pointer", fontFamily: F, fontSize: 12, fontWeight: 700, color: "#fff" }}>Selesai</button>
           </div>
         </div>
-      )}
+      </Floating>
     </div>
   );
 }
