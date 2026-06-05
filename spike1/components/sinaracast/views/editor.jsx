@@ -8,9 +8,21 @@ import {
   Segmented, EmptyState, Chip, SectionTitle, Banner, Spinner,
 } from "../ui";
 import {
-  uploadPoolImage, createRuleWithPools, updateRuleFields, loadRuleDetail, addPoolImageRow, removePoolImageRow,
+  uploadPoolImage, uploadReelVideo, createRuleWithPools, updateRuleFields, loadRuleDetail, addPoolImageRow, removePoolImageRow,
 } from "../dataLayer";
 import { Lightbox } from "../lightbox";
+const MAX_VIDEO_MB = 50;
+const isVideoUrl = (u) => /\.(mp4|mov)(\?|$)/i.test(u || "");
+function readVideoMeta(file) {
+  return new Promise((res, rej) => {
+    const v = document.createElement("video");
+    const url = URL.createObjectURL(file);
+    v.preload = "metadata";
+    v.onloadedmetadata = () => { res({ width: v.videoWidth, height: v.videoHeight, duration: v.duration }); URL.revokeObjectURL(url); };
+    v.onerror = () => { rej(new Error("read")); URL.revokeObjectURL(url); };
+    v.src = url;
+  });
+}
 const { useState: uEd, useRef, useEffect } = React;
 const FE = "var(--font)";
 
@@ -97,7 +109,23 @@ export function EditorView() {
   async function onFiles(e) {
     const files = [...(e.target.files || [])]; e.target.value = "";
     for (const file of files) {
-      if (!["image/jpeg", "image/png"].includes(file.type)) { app.toast("Hanya JPG / PNG", "error"); continue; }
+      // Story pools can also hold a 9:16 video (≤60s).
+      if (["video/mp4", "video/quicktime"].includes(file.type)) {
+        if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(`Video maksimal ${MAX_VIDEO_MB} MB`, "error"); continue; }
+        let meta; try { meta = await readVideoMeta(file); } catch { app.toast("Gagal membaca video", "error"); continue; }
+        if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) { app.toast(`Video harus 9:16 — video ini ${meta.width}×${meta.height}`, "error"); continue; }
+        if (meta.duration && meta.duration > 60) { app.toast("Story video maksimal 60 detik", "error"); continue; }
+        setUploading(true);
+        try {
+          const row = await uploadReelVideo(file, chId, meta);
+          if (!isNew && poolIdByRole[role]) { row.id = await addPoolImageRow(poolIdByRole[role], row, (images[role] || []).length); row.poolId = poolIdByRole[role]; }
+          setImages((im) => ({ ...im, [role]: [...(im[role] || []), row] }));
+          app.toast("Video diunggah ✓", "success");
+        } catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
+        finally { setUploading(false); }
+        continue;
+      }
+      if (!["image/jpeg", "image/png"].includes(file.type)) { app.toast("Hanya JPG / PNG / video MP4", "error"); continue; }
       if (file.size > 8 * 1024 * 1024) { app.toast("Maksimal 8 MB", "error"); continue; }
       let dim; try { dim = await readDims(file); } catch { app.toast("Gagal membaca gambar", "error"); continue; }
       if (Math.abs(dim.width / dim.height - 9 / 16) > 0.04) { app.toast(`Rasio harus 9:16 — gambar ini ${dim.width}×${dim.height}`, "error"); continue; }
@@ -150,7 +178,7 @@ export function EditorView() {
 
   return (
     <div>
-      <input ref={fileRef} type="file" accept="image/jpeg,image/png" multiple onChange={onFiles} style={{ display: "none" }} />
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,video/mp4,video/quicktime" multiple onChange={onFiles} style={{ display: "none" }} />
       <Topbar title={existing ? "Ubah jadwal" : "Buat jadwal"}
         sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} size={18} /> {b.name} · {channel.handle}</span>}
         right={<div style={{ display: "flex", gap: 10 }}>
@@ -178,7 +206,7 @@ export function EditorView() {
           </Panel>
 
           <Panel>
-            <SectionTitle sub="Unggah gambar Story. Syarat: ukuran 9:16, JPG/PNG, maks 8 MB."
+            <SectionTitle sub={`Unggah gambar (JPG/PNG, 8 MB) atau video (MP4, ${MAX_VIDEO_MB} MB, ≤60 dtk). Semua 9:16.`}
               right={<Button size="sm" variant="secondary" disabled={uploading} icon={uploading ? <Spinner size={15} /> : <Icons.upload size={16} />} onClick={() => fileRef.current?.click()}>{uploading ? "Mengunggah…" : "Unggah gambar"}</Button>}>Kumpulan gambar</SectionTitle>
             {errors.pool && <Banner tone="warn" icon={<Icons.warn size={17} />} title="Gambar tidak boleh kosong" body={errors.pool} />}
             {mode === "schedule" && (
@@ -259,9 +287,12 @@ function PoolGrid({ imgs, onAdd, onRemove }) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12 }}>
       {imgs.map((im, i) => (
         <div key={im.storage_path || i} style={{ position: "relative" }}>
-          <img src={im.url} alt="" onClick={() => setView(i)} title="Klik untuk pratinjau"
-            style={{ width: "100%", aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block", cursor: "zoom-in" }}
-            onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "var(--shadow-md)")} onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")} />
+          {(im.isVideo || isVideoUrl(im.url) || isVideoUrl(im.storage_path))
+            ? <video src={im.url} muted playsInline controls
+                style={{ width: "100%", aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block", background: "#000" }} />
+            : <img src={im.url} alt="" onClick={() => setView(i)} title="Klik untuk pratinjau"
+                style={{ width: "100%", aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block", cursor: "zoom-in" }}
+                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "var(--shadow-md)")} onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")} />}
           <button onClick={() => onRemove(i)} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
         </div>
       ))}

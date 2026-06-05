@@ -51,7 +51,7 @@ export async function publishForRule(svc, { channel, rule, role, trigger, claimK
   // pick pool + no-repeat image
   const { data: pool } = await svc.from("pool").select("id").eq("rule_id", rule.id).eq("role", role).single();
   if (!pool) return { ok: false, error: `Pool ${role} belum ada` };
-  let { data: imgs = [] } = await svc.from("pool_image").select("id, storage_path, used_in_cycle").eq("pool_id", pool.id);
+  let { data: imgs = [] } = await svc.from("pool_image").select("id, storage_path, used_in_cycle, format").eq("pool_id", pool.id);
   if (!imgs.length) return { ok: false, error: `Pool ${role} kosong` };
   let unused = imgs.filter((i) => !i.used_in_cycle);
   if (!unused.length) { await svc.from("pool_image").update({ used_in_cycle: false }).eq("pool_id", pool.id); unused = imgs; }
@@ -79,17 +79,21 @@ export async function publishForRule(svc, { channel, rule, role, trigger, claimK
     return { ok: false, error: reason, runId: run.id };
   };
 
-  const imageUrl = publicImageUrl(pick.storage_path);
+  const mediaUrl = publicImageUrl(pick.storage_path);
+  const pickIsVideo = pick.format === "mp4" || pick.format === "mov" || /\.(mp4|mov)$/i.test(pick.storage_path || "");
 
-  // 1) container
-  let r = await igCall("POST", `/${channel.ig_user_id}/media`, { media_type: "STORIES", image_url: imageUrl, access_token: channel.access_token });
+  // 1) container — image_url for photos, video_url for video Stories
+  const cParams = pickIsVideo
+    ? { media_type: "STORIES", video_url: mediaUrl, access_token: channel.access_token }
+    : { media_type: "STORIES", image_url: mediaUrl, access_token: channel.access_token };
+  let r = await igCall("POST", `/${channel.ig_user_id}/media`, cParams);
   if (!r.json.id) return fail(r.json.error?.message || "Gagal membuat kontainer media");
   const creationId = r.json.id;
-  await log("Kontainer media dibuat");
+  await log(pickIsVideo ? "Kontainer Story video dibuat, video diproses…" : "Kontainer media dibuat");
 
-  // 2) poll FINISHED
+  // 2) poll FINISHED (video transcoding takes longer)
   let statusCode = "";
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < (pickIsVideo ? 20 : 18); i++) {
     r = await igCall("GET", `/${creationId}`, { fields: "status_code", access_token: channel.access_token });
     statusCode = r.json.status_code;
     if (statusCode === "FINISHED") break;

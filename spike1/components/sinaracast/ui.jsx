@@ -435,7 +435,9 @@ export function MediaThumb({ seed = 0, w = 84, label, invalid, selected, used, o
       border: selected ? "2.5px solid var(--green-500)" : invalid ? "2px solid var(--danger)" : "1px solid var(--line)",
       boxShadow: "var(--shadow-sm)", overflow: "hidden", flex: "0 0 auto" }}>
       {src
-        ? <img src={src} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        ? (/\.(mp4|mov)(\?|$)/i.test(src)
+            ? <video src={src} muted playsInline preload="metadata" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#000" }} />
+            : <img src={src} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />)
         : <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(135deg, rgba(255,255,255,.18) 0 7px, transparent 7px 14px)" }} />}
       {label && <div style={{ position: "absolute", left: 6, bottom: 6, fontFamily: "ui-monospace,monospace", fontSize: 9, color: "rgba(62,67,81,.6)" }}>{label}</div>}
       {invalid && <div style={{ position: "absolute", top: 6, left: 6, width: 20, height: 20, borderRadius: "50%", background: "var(--danger)", color: "#fff", display: "grid", placeItems: "center" }}><Icons.x size={12} sw={2.4} /></div>}
