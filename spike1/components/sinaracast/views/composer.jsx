@@ -109,7 +109,20 @@ export function ComposerView() {
         finally { setUploading(false); }
         continue;
       }
-      if (!isFeed && media.length >= 1) { app.toast("Story hanya 1 gambar", "info"); break; }
+      // Story can be an image OR a video.
+      if (type === "story" && ["video/mp4", "video/quicktime"].includes(file.type)) {
+        if (media.length >= 1) { app.toast("Story hanya 1 media", "info"); break; }
+        if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(`Video maksimal ${MAX_VIDEO_MB} MB`, "error"); continue; }
+        let meta; try { meta = await readVideoMeta(file); } catch { app.toast("Gagal membaca video", "error"); continue; }
+        if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) { app.toast(`Story video sebaiknya 9:16 — video ini ${meta.width}×${meta.height}`, "error"); continue; }
+        if (meta.duration && meta.duration > 60) { app.toast("Story video maksimal 60 detik", "error"); continue; }
+        setUploading(true);
+        try { const row = await uploadReelVideo(file, chId, meta); setMedia([row]); app.toast("Video diunggah ✓", "success"); }
+        catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
+        finally { setUploading(false); }
+        continue;
+      }
+      if (!isFeed && media.length >= 1) { app.toast("Story hanya 1 media", "info"); break; }
       if (isFeed && media.length >= 10) { app.toast("Carousel maksimal 10 gambar", "info"); break; }
       if (!["image/jpeg", "image/png"].includes(file.type)) { app.toast("Hanya JPG / PNG", "error"); continue; }
       if (file.size > 8 * 1024 * 1024) { app.toast("Maksimal 8 MB", "error"); continue; }
@@ -196,8 +209,8 @@ export function ComposerView() {
             </div>}
           </Panel>
           <Panel>
-            <SectionTitle sub={isReels ? "Satu video tegak 9:16" : isFeed ? "Sampai 10 gambar (carousel)" : "Satu gambar tegak 9:16"} right={<Button size="sm" variant="secondary" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={uploading || (isReels && media.length >= 1)} onClick={() => fileRef.current?.click()}>Unggah</Button>}>{isReels ? "Video" : "Gambar"}</SectionTitle>
-            <input ref={fileRef} type="file" accept={isReels ? "video/mp4,video/quicktime" : "image/jpeg,image/png"} multiple={isFeed} onChange={onFiles} style={{ display: "none" }} />
+            <SectionTitle sub={isReels ? "Satu video tegak 9:16" : isFeed ? "Sampai 10 gambar (carousel)" : "Satu gambar atau video tegak 9:16"} right={<Button size="sm" variant="secondary" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={uploading || ((isReels || (type === "story")) && media.length >= 1)} onClick={() => fileRef.current?.click()}>Unggah</Button>}>{isReels ? "Video" : isFeed ? "Gambar" : "Media"}</SectionTitle>
+            <input ref={fileRef} type="file" accept={isReels ? "video/mp4,video/quicktime" : isFeed ? "image/jpeg,image/png" : "image/jpeg,image/png,video/mp4,video/quicktime"} multiple={isFeed} onChange={onFiles} style={{ display: "none" }} />
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {media.map((m, i) => (
                 <div key={i} style={{ position: "relative" }}>
@@ -207,7 +220,7 @@ export function ComposerView() {
                   <button onClick={() => setMedia(ms => ms.filter((_, x) => x !== i))} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
                 </div>
               ))}
-              {!media.length && <div style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-400)", padding: "10px 2px" }}>{isReels ? "Belum ada video. Klik Unggah untuk menambahkan." : "Belum ada gambar. Klik Unggah untuk menambahkan."}</div>}
+              {!media.length && <div style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-400)", padding: "10px 2px" }}>{isReels ? "Belum ada video. Klik Unggah untuk menambahkan." : isFeed ? "Belum ada gambar. Klik Unggah untuk menambahkan." : "Belum ada media. Unggah gambar atau video."}</div>}
             </div>
           </Panel>
 

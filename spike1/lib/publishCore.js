@@ -126,13 +126,14 @@ export async function publishStoryOneoff(svc, { channel, post }) {
     .update({ status: "publishing" }).eq("id", post.id).eq("status", "scheduled").select("id").maybeSingle();
   if (!claimed) return { skipped: true };
 
-  // first media asset → public URL
+  // first media asset → public URL (image OR video)
   const { data: media = [] } = await svc.from("scheduled_post_media").select("asset_id, position").eq("post_id", post.id).order("position").limit(1);
-  let storagePath = null;
+  let storagePath = null, fmt = null;
   if (media[0]?.asset_id) {
-    const { data: a } = await svc.from("media_asset").select("storage_path").eq("id", media[0].asset_id).single();
-    storagePath = a?.storage_path;
+    const { data: a } = await svc.from("media_asset").select("storage_path, format").eq("id", media[0].asset_id).single();
+    storagePath = a?.storage_path; fmt = a?.format;
   }
+  const isVideo = fmt === "mp4" || fmt === "mov" || /\.(mp4|mov)$/i.test(storagePath || "");
 
   const { data: run } = await svc.from("post_run").insert({
     channel_id: channel.id, rule_id: null, scheduled_post_id: post.id, status: "publishing",
@@ -149,21 +150,26 @@ export async function publishStoryOneoff(svc, { channel, post }) {
     return { ok: false, error: reason, runId: run.id };
   };
   if (!storagePath) return fail("Media one-off tidak ditemukan");
-  const imageUrl = publicImageUrl(storagePath);
+  const mediaUrl = publicImageUrl(storagePath);
 
-  let r = await igCall("POST", `/${channel.ig_user_id}/media`, { media_type: "STORIES", image_url: imageUrl, access_token: channel.access_token });
+  // STORIES container: image_url for photos, video_url for video Stories.
+  const params = isVideo
+    ? { media_type: "STORIES", video_url: mediaUrl, access_token: channel.access_token }
+    : { media_type: "STORIES", image_url: mediaUrl, access_token: channel.access_token };
+  let r = await igCall("POST", `/${channel.ig_user_id}/media`, params);
   if (!r.json.id) return fail(r.json.error?.message || "Gagal membuat kontainer media");
-  const creationId = r.json.id; await log("Kontainer media dibuat");
+  const creationId = r.json.id; await log(isVideo ? "Kontainer Story video dibuat, video diproses…" : "Kontainer media dibuat");
+  const maxPolls = isVideo ? 20 : 18; // video transcoding takes longer
   let statusCode = "";
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < maxPolls; i++) {
     r = await igCall("GET", `/${creationId}`, { fields: "status_code", access_token: channel.access_token });
     statusCode = r.json.status_code;
     if (statusCode === "FINISHED") break;
     if (statusCode === "ERROR") return fail("Media diproses ERROR");
     await sleep(2500);
   }
-  if (statusCode !== "FINISHED") return fail("Timeout proses media");
-  await log("Media divalidasi (9:16)");
+  if (statusCode !== "FINISHED") return fail(isVideo ? "Video Story masih diproses (timeout). Coba video lebih pendek." : "Timeout proses media");
+  await log("Media siap");
   r = await igCall("POST", `/${channel.ig_user_id}/media_publish`, { creation_id: creationId, access_token: channel.access_token });
   if (!r.json.id) return fail(r.json.error?.message || "Publish gagal");
   const mediaId = r.json.id;
