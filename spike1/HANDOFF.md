@@ -31,6 +31,13 @@ NOTE umum: semua publish video (Reels/Story video) belum diuji end-to-end di aku
 5. **[TES] Story video recurring** — Buat/Ubah jadwal → unggah video 9:16 pendek ke pool → Post now/test → cek terbit sebagai Story video.
 6. **[PENTING] Verifikasi semua publish VIDEO (Reels, Story video one-off & recurring) di akun nyata.** Ini yang paling krusial — kode sudah jalan & build hijau, tapi belum pernah benar-benar mem-publish video ke Instagram. Risiko utama: (a) izin Meta untuk video, (b) timeout transcoding kalau video panjang/berat (pakai video pendek dulu). Kalau ada error, screenshot pesannya.
 
+## Audit & hardening (sudah saya lakukan)
+Saya audit pipeline video sendiri dan perbaiki bug nyata yang ditemukan:
+- **Anti "tertahan selamanya":** kalau publish video kepotong batas 60 dtk Vercel, postingan dulu bisa nyangkut di status "publishing" selamanya. Sekarang ada penyapu otomatis: yang nyangkut >10 menit ditandai gagal + kamu dapat alert (TIDAK di-retry otomatis, biar tidak dobel-posting).
+- **Anti rebutan waktu:** kalau satu video makan waktu lama, item lain di menit yang sama dulu bisa terlewat. Sekarang ada batas waktu ~45 dtk; sisanya jalan menit berikutnya.
+- Poll transcoding dikecilkan biar muat di 60 dtk.
+- ⚠️ **Caveat dobel-posting:** kalau nanti ada postingan "tertahan" lalu kamu paksa reset manual ke "scheduled", ada risiko kecil terbit dua kali (kalau IG ternyata sudah memposting sebelum timeout). Jadi: kalau ada yang tertahan, lebih aman buat ulang daripada reset manual.
+
 ## Catatan teknis (untukku saat kembali)
 - Reels poll transcoding dibatasi ~50 dtk (budget cron 60 dtk). Video panjang bisa timeout. Solusi nanti: publisher resumable (simpan creation_id, lanjut di tick berikutnya).
 - Bucket `pool-images` kini juga simpan video (maks 50MB free-tier). File video one-off dihapus otomatis setelah terbit; file video di pool recurring TIDAK dihapus (dipakai berulang).
