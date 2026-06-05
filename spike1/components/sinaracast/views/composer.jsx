@@ -4,7 +4,7 @@ import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { uploadPoolImage, uploadReelVideo, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost } from "../dataLayer";
-import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, Segmented, MediaThumb, SectionTitle, Spinner, Chip, Input, Select } from "../ui";
+import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, Segmented, MediaThumb, SectionTitle, Spinner, Chip, Input, Select, Status } from "../ui";
 import { Lightbox } from "../lightbox";
 const { useState: uCo, useRef, useEffect } = React;
 const FCo = "var(--font)";
@@ -179,6 +179,14 @@ export function ComposerView() {
     return <div><Topbar title="Buat Postingan" /><Panel style={{ height: 280, display: "grid", placeItems: "center" }}><Spinner size={28} /></Panel></div>;
   }
 
+  // This channel's one-off posts (drafts + scheduled), newest first, excluding the
+  // one being edited — so you can see & jump to your queue without leaving this page.
+  const myPosts = app.oneoffs
+    .filter((o) => o.ch === channel.id && o.id !== postId)
+    .map((o) => ({ ...o, _key: `${o.ym}-${pad(o.day)} ${o.time}` }))
+    .sort((a, b) => b._key.localeCompare(a._key))
+    .slice(0, 8);
+
   return (
     <div>
       <Topbar title={postId ? "Edit Postingan" : "Buat Postingan"} sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} src={channel.avatarUrl} size={18} /> {b.name} · {channel.handle}</span>}
@@ -272,6 +280,31 @@ export function ComposerView() {
           </Panel>
         </div>
       </div>
+
+      <Panel style={{ marginTop: 18 }}>
+        <SectionTitle sub="Draf & yang sudah dijadwalkan untuk akun ini" right={<Button size="sm" variant="ghost" icon={<Icons.calendar size={15} />} onClick={() => app.go("calendar")}>Lihat di kalender</Button>}>Postingan kamu</SectionTitle>
+        {myPosts.length === 0 ? (
+          <div style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-400)", padding: "8px 2px" }}>Belum ada draf atau postingan terjadwal untuk akun ini. Yang kamu buat di atas akan muncul di sini.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+            {myPosts.map((o) => (
+              <button key={o.id} onClick={() => app.go("composer", { ch: o.ch, postId: o.id })}
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, cursor: "pointer", background: "#fff", textAlign: "left", width: "100%" }}>
+                <BrandAvatar brand={b} src={channel.avatarUrl} size={32} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.title}</span>
+                    <span style={{ fontFamily: FCo, fontSize: 9.5, fontWeight: 600, color: b.accent, background: b.soft, padding: "1px 7px", borderRadius: 999, flex: "0 0 auto" }}>{o.type} · sekali</span>
+                  </div>
+                  <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{pad(o.day)}/{o.ym.slice(5)} · {o.time} WIB</div>
+                </div>
+                <Status s={o.status} />
+                <Icons.chevRight size={16} style={{ color: "var(--ink-300)", flex: "0 0 auto" }} />
+              </button>
+            ))}
+          </div>
+        )}
+      </Panel>
 
       <Lightbox imgs={media} index={view} onClose={() => setView(null)} onIndex={setView}
         ratio={isFeed ? null : 16 / 9}
