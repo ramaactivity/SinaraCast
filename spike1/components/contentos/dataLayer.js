@@ -275,6 +275,31 @@ export async function createRuleWithPools(p) {
   return rule.id;
 }
 
+// Create a one-off scheduled_post + its media_asset rows + links.
+// images: [{ storage_path, width, height, format, bytes, aspect_ok }] (already uploaded).
+// status: "scheduled" (cron will publish Story posts when due) or "draft".
+export async function createScheduledPost(p) {
+  const assetIds = [];
+  for (const im of (p.images || [])) {
+    const { data: a, error: ea } = await supabase.from("media_asset").insert({
+      channel_id: p.channelDbId, storage_path: im.storage_path, tag: p.postType,
+      width: im.width, height: im.height, aspect_ok: im.aspect_ok ?? true, format: im.format, bytes: im.bytes,
+    }).select("id").single();
+    if (ea) throw ea;
+    assetIds.push(a.id);
+  }
+  const { data: post, error: ep } = await supabase.from("scheduled_post").insert({
+    channel_id: p.channelDbId, post_type: p.postType, caption: p.caption || null,
+    first_comment: p.firstComment || null, scheduled_at: p.scheduledAtISO || null, status: p.status,
+  }).select("id").single();
+  if (ep) throw ep;
+  for (let i = 0; i < assetIds.length; i++) {
+    const { error: em } = await supabase.from("scheduled_post_media").insert({ post_id: post.id, asset_id: assetIds[i], position: i });
+    if (em) throw em;
+  }
+  return post.id;
+}
+
 // Update a rule's scalar fields (no pool/image changes).
 export async function updateRuleFields(id, f) {
   const { error } = await supabase.from("recurring_rule").update({

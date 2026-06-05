@@ -117,6 +117,65 @@ export async function publishForRule(svc, { channel, rule, role, trigger, claimK
   return { ok: true, mediaId, permalink, runId: run.id };
 }
 
+// Publish a one-off Story scheduled_post. Claims it (scheduled → publishing) so
+// only one worker posts it, writes a post_run for Activity, and notifies.
+// Story-only for now (Feed/carousel publishing is a separate spike).
+export async function publishStoryOneoff(svc, { channel, post }) {
+  // atomic claim — first writer flips scheduled→publishing
+  const { data: claimed } = await svc.from("scheduled_post")
+    .update({ status: "publishing" }).eq("id", post.id).eq("status", "scheduled").select("id").maybeSingle();
+  if (!claimed) return { skipped: true };
+
+  // first media asset → public URL
+  const { data: media = [] } = await svc.from("scheduled_post_media").select("asset_id, position").eq("post_id", post.id).order("position").limit(1);
+  let storagePath = null;
+  if (media[0]?.asset_id) {
+    const { data: a } = await svc.from("media_asset").select("storage_path").eq("id", media[0].asset_id).single();
+    storagePath = a?.storage_path;
+  }
+
+  const { data: run } = await svc.from("post_run").insert({
+    channel_id: channel.id, rule_id: null, scheduled_post_id: post.id, status: "publishing",
+    trigger: "scheduled", scheduled_at: post.scheduled_at || new Date().toISOString(),
+    claim_key: `oneoff:${post.id}`, attempt_count: 1,
+  }).select("id").single();
+  const log = (outcome, is_fail = false) => svc.from("post_attempt").insert({ run_id: run.id, outcome, is_fail });
+  const chLabel = channel.handle || channel.slug || "channel";
+  const fail = async (reason) => {
+    await log(reason, true);
+    await svc.from("post_run").update({ status: "failed", fail_reason: reason }).eq("id", run.id);
+    await svc.from("scheduled_post").update({ status: "failed" }).eq("id", post.id);
+    await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "error", title: `One-off gagal — ${chLabel}`, body: reason, runId: run.id });
+    return { ok: false, error: reason, runId: run.id };
+  };
+  if (!storagePath) return fail("Media one-off tidak ditemukan");
+  const imageUrl = publicImageUrl(storagePath);
+
+  let r = await igCall("POST", `/${channel.ig_user_id}/media`, { media_type: "STORIES", image_url: imageUrl, access_token: channel.access_token });
+  if (!r.json.id) return fail(r.json.error?.message || "Gagal membuat kontainer media");
+  const creationId = r.json.id; await log("Kontainer media dibuat");
+  let statusCode = "";
+  for (let i = 0; i < 18; i++) {
+    r = await igCall("GET", `/${creationId}`, { fields: "status_code", access_token: channel.access_token });
+    statusCode = r.json.status_code;
+    if (statusCode === "FINISHED") break;
+    if (statusCode === "ERROR") return fail("Media diproses ERROR");
+    await sleep(2500);
+  }
+  if (statusCode !== "FINISHED") return fail("Timeout proses media");
+  await log("Media divalidasi (9:16)");
+  r = await igCall("POST", `/${channel.ig_user_id}/media_publish`, { creation_id: creationId, access_token: channel.access_token });
+  if (!r.json.id) return fail(r.json.error?.message || "Publish gagal");
+  const mediaId = r.json.id;
+  r = await igCall("GET", `/${mediaId}`, { fields: "permalink", access_token: channel.access_token });
+  const permalink = r.json.permalink || null;
+  await log("Dipublikasikan ✓");
+  await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
+  await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
+  await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `One-off terbit — ${chLabel}`, body: "Story one-off terbit ke Instagram.", runId: run.id });
+  return { ok: true, permalink, runId: run.id };
+}
+
 // pool role for "now" given rule mode + WIB day-of-week
 export function roleForNow(mode, dowWib) {
   if (mode !== "schedule") return "single";

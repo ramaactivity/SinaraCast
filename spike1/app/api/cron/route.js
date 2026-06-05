@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { svcClient, publishForRule, roleForNow, notify } from "../../../lib/publishCore";
+import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff } from "../../../lib/publishCore";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -90,7 +90,29 @@ export async function POST(request) {
       fired.push({ rule: rule.name, channel: channel.slug, ok: false, error: String(e?.message || e) });
     }
   }
-  return NextResponse.json({ ok: true, at: nowWib.toISOString(), fired });
+  // ---- one-off Story posts due now (eligible channels only) ----
+  const oneoffs = [];
+  const chIds = Object.keys(chById);
+  if (chIds.length) {
+    const { data: posts = [] } = await svc.from("scheduled_post")
+      .select("id, channel_id, post_type, scheduled_at, status")
+      .eq("status", "scheduled").eq("post_type", "story")
+      .lte("scheduled_at", new Date().toISOString())
+      .in("channel_id", chIds);
+    for (const post of posts) {
+      const channel = chById[post.channel_id];
+      if (!channel) continue;
+      try {
+        const res = await publishStoryOneoff(svc, { channel, post });
+        if (res.skipped) continue;
+        oneoffs.push({ oneoff: post.id, channel: channel.slug, ok: res.ok, error: res.error, permalink: res.permalink });
+      } catch (e) {
+        oneoffs.push({ oneoff: post.id, channel: channel.slug, ok: false, error: String(e?.message || e) });
+      }
+    }
+  }
+
+  return NextResponse.json({ ok: true, at: nowWib.toISOString(), fired, oneoffs });
 }
 
 // allow GET for a quick manual ping/health (still secret-gated)
