@@ -10,7 +10,7 @@ import {
 const { useState: uRl } = React;
 const FR = "var(--font)";
 
-function modeLabel(m) { return m === "schedule" ? "Beda akhir pekan" : "Acak"; }
+function modeLabel(m) { return m === "schedule" ? "Beda akhir pekan" : "Satu kumpulan"; }
 
 export function RulesView() {
   const app = useApp();
