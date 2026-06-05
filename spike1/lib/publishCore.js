@@ -297,6 +297,72 @@ export async function publishFeedOneoff(svc, { channel, post }) {
   return { ok: true, permalink, runId: run.id };
 }
 
+// Publish a one-off Reels (video) + optional first comment. Same claim/visibility/
+// notify pattern. Video transcoding is slower than images, so we poll longer (still
+// within the cron's ~60s budget). [verify Reels publish end-to-end in Spike]
+export async function publishReelsOneoff(svc, { channel, post }) {
+  const { data: claimed } = await svc.from("scheduled_post")
+    .update({ status: "publishing" }).eq("id", post.id).eq("status", "scheduled").select("id").maybeSingle();
+  if (!claimed) return { skipped: true };
+
+  const { data: links = [] } = await svc.from("scheduled_post_media").select("asset_id, position").eq("post_id", post.id).order("position").limit(1);
+  let storagePath = null;
+  if (links[0]?.asset_id) {
+    const { data: a } = await svc.from("media_asset").select("storage_path").eq("id", links[0].asset_id).single();
+    storagePath = a?.storage_path;
+  }
+
+  const { data: run } = await svc.from("post_run").insert({
+    channel_id: channel.id, rule_id: null, scheduled_post_id: post.id, status: "publishing",
+    trigger: "scheduled", scheduled_at: post.scheduled_at || new Date().toISOString(),
+    claim_key: `oneoff:${post.id}`, attempt_count: 1,
+  }).select("id").single();
+  const log = (outcome, is_fail = false) => svc.from("post_attempt").insert({ run_id: run.id, outcome, is_fail });
+  const chLabel = channel.handle || channel.slug || "channel";
+  const fail = async (reason) => {
+    await log(reason, true);
+    await svc.from("post_run").update({ status: "failed", fail_reason: reason }).eq("id", run.id);
+    await svc.from("scheduled_post").update({ status: "failed" }).eq("id", post.id);
+    await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "error", title: `Reels gagal — ${chLabel}`, body: reason, runId: run.id });
+    return { ok: false, error: reason, runId: run.id };
+  };
+  if (!storagePath) return fail("Video Reels tidak ditemukan");
+  const token = channel.access_token, igu = channel.ig_user_id;
+
+  let r = await igCall("POST", `/${igu}/media`, { media_type: "REELS", video_url: publicImageUrl(storagePath), caption: post.caption || "", share_to_feed: "true", access_token: token });
+  if (!r.json.id) return fail(r.json.error?.message || "Gagal membuat kontainer Reels");
+  const containerId = r.json.id;
+  await log("Kontainer Reels dibuat, video diproses…");
+
+  let statusCode = "";
+  for (let i = 0; i < 20; i++) {
+    r = await igCall("GET", `/${containerId}`, { fields: "status_code", access_token: token });
+    statusCode = r.json.status_code;
+    if (statusCode === "FINISHED") break;
+    if (statusCode === "ERROR") return fail("Video Reels gagal diproses (ERROR)");
+    await sleep(2500);
+  }
+  if (statusCode !== "FINISHED") return fail("Video Reels masih diproses (timeout). Coba video lebih pendek lalu jadwalkan ulang.");
+  await log("Video Reels siap");
+
+  r = await igCall("POST", `/${igu}/media_publish`, { creation_id: containerId, access_token: token });
+  if (!r.json.id) return fail(r.json.error?.message || "Publish Reels gagal");
+  const mediaId = r.json.id;
+  r = await igCall("GET", `/${mediaId}`, { fields: "permalink", access_token: token });
+  const permalink = r.json.permalink || null;
+  await log("Dipublikasikan ✓");
+
+  if (post.first_comment) {
+    const cr = await igCall("POST", `/${mediaId}/comments`, { message: post.first_comment, access_token: token });
+    await log(cr.json.id ? "Komentar pertama diposting" : `Komentar pertama gagal: ${cr.json.error?.message || "?"}`, !cr.json.id);
+  }
+
+  await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
+  await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
+  await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `Reels terbit — ${chLabel}`, body: "Reels one-off terbit ke Instagram.", runId: run.id });
+  return { ok: true, permalink, runId: run.id };
+}
+
 // pool role for "now" given rule mode + WIB day-of-week
 export function roleForNow(mode, dowWib) {
   if (mode !== "schedule") return "single";

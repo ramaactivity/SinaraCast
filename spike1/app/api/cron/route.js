@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, refreshTokensDue } from "../../../lib/publishCore";
+import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, refreshTokensDue } from "../../../lib/publishCore";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -107,8 +107,8 @@ export async function POST(request) {
       const channel = chById[post.channel_id];
       if (!channel) continue;
       try {
-        const res = post.post_type === "feed"
-          ? await publishFeedOneoff(svc, { channel, post })
+        const res = post.post_type === "feed" ? await publishFeedOneoff(svc, { channel, post })
+          : post.post_type === "reels" ? await publishReelsOneoff(svc, { channel, post })
           : await publishStoryOneoff(svc, { channel, post });
         if (res.skipped) continue;
         oneoffs.push({ oneoff: post.id, type: post.post_type, channel: channel.slug, ok: res.ok, error: res.error, permalink: res.permalink });

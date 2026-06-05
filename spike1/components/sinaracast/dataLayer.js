@@ -178,7 +178,7 @@ export async function loadAll() {
   const { data: assetsRaw = [] } = await supabase
     .from("media_asset").select("id, channel_id, storage_path, tag, created_at").order("created_at", { ascending: false });
   for (const a of assetsRaw || []) {
-    const tag = a.tag === "feed" ? "Feed" : a.tag === "story" ? "Story" : (a.tag || "Library");
+    const tag = a.tag === "feed" ? "Feed" : a.tag === "story" ? "Story" : a.tag === "reels" ? "Reels" : (a.tag || "Library");
     pushMedia(slugById[a.channel_id], { id: a.id, url: pubUrl(a.storage_path), tag, usage: null });
   }
 
@@ -228,7 +228,7 @@ export async function loadAll() {
     return {
       id: s.id, ch: slugById[s.channel_id] || "", day: d.getUTCDate(),
       ym: `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}`,
-      type: s.post_type === "feed" ? "Feed" : "Story",
+      type: s.post_type === "feed" ? "Feed" : s.post_type === "reels" ? "Reels" : "Story",
       title: s.caption ? s.caption.slice(0, 40) : (s.post_type === "feed" ? "Feed post" : "Story"),
       time: `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`,
       status: SCHED_STATUS[s.status] || "Scheduled",
@@ -328,6 +328,20 @@ export async function uploadPoolImage(file, channelSlug, meta) {
   if (error) throw error;
   const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
   return { storage_path: path, url, bytes: file.size, format: ext, width: meta?.width, height: meta?.height, aspect_ok: true };
+}
+
+// Upload a Reels video (mp4/mov) to the same public bucket; returns row data
+// shaped like uploadPoolImage so createScheduledPost can make the media_asset.
+export async function uploadReelVideo(file, channelSlug, meta) {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u?.user?.id;
+  if (!uid) throw new Error("Not signed in");
+  const ext = file.type === "video/quicktime" ? "mov" : "mp4";
+  const path = `${uid}/${channelSlug}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+  if (error) throw error;
+  const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  return { storage_path: path, url, bytes: file.size, format: ext, width: meta?.width, height: meta?.height, aspect_ok: true, isVideo: true };
 }
 
 export async function deleteStoredImage(storage_path) {

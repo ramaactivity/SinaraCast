@@ -3,10 +3,21 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { uploadPoolImage, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost } from "../dataLayer";
+import { uploadPoolImage, uploadReelVideo, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost } from "../dataLayer";
 import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, Segmented, MediaThumb, SectionTitle, Spinner, Chip, Input } from "../ui";
 const { useState: uCo, useRef, useEffect } = React;
 const FCo = "var(--font)";
+const MAX_VIDEO_MB = 50;
+function readVideoMeta(file) {
+  return new Promise((res, rej) => {
+    const v = document.createElement("video");
+    const url = URL.createObjectURL(file);
+    v.preload = "metadata";
+    v.onloadedmetadata = () => { res({ width: v.videoWidth, height: v.videoHeight, duration: v.duration }); URL.revokeObjectURL(url); };
+    v.onerror = () => { rej(new Error("read")); URL.revokeObjectURL(url); };
+    v.src = url;
+  });
+}
 
 const brandFor = (slug, channels) => BRANDS[slug] || {
   name: channels.find(c => c.id === slug)?.name || slug,
@@ -51,7 +62,7 @@ export function ComposerView() {
     let active = true;
     loadScheduledPost(postId).then(({ post, media: m }) => {
       if (!active || !post) { if (active) setLoading(false); return; }
-      setType(post.post_type === "feed" ? "feed" : "story");
+      setType(post.post_type === "feed" ? "feed" : post.post_type === "reels" ? "reels" : "story");
       setCaption(post.caption || "");
       setFirstComment(post.first_comment || "");
       setOrigStatus(post.status);
@@ -64,9 +75,11 @@ export function ComposerView() {
 
   const isFeed = type === "feed";
   const isReels = type === "reels";
+  const hasCaption = isFeed || isReels;
   const capLimit = 2200;
   const overCap = caption.length > capLimit;
-  const valid = !isReels && media.length > 0 && (!isFeed || (caption.trim() && !overCap));
+  // Feed needs a caption; Story/Reels caption is optional. All need media.
+  const valid = media.length > 0 && !overCap && (!isFeed || caption.trim());
   // Postingan yang sudah terbit tidak bisa dijadwalkan ulang (cegah terbit dua kali).
   const locked = !!postId && ["published", "publishing"].includes(origStatus);
 
@@ -82,6 +95,20 @@ export function ComposerView() {
   async function onFiles(e) {
     const files = [...(e.target.files || [])]; e.target.value = "";
     for (const file of files) {
+      if (isReels) {
+        if (media.length >= 1) { app.toast("Reels hanya 1 video", "info"); break; }
+        if (!["video/mp4", "video/quicktime"].includes(file.type)) { app.toast("Reels harus video MP4/MOV", "error"); continue; }
+        if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(`Video maksimal ${MAX_VIDEO_MB} MB`, "error"); continue; }
+        let meta; try { meta = await readVideoMeta(file); } catch { app.toast("Gagal membaca video", "error"); continue; }
+        const vr = meta.width / meta.height;
+        if (Math.abs(vr - 9 / 16) > 0.06) { app.toast(`Reels sebaiknya 9:16 — video ini ${meta.width}×${meta.height}`, "error"); continue; }
+        if (meta.duration && meta.duration > 90) { app.toast("Reels maksimal 90 detik", "error"); continue; }
+        setUploading(true);
+        try { const row = await uploadReelVideo(file, chId, meta); setMedia([row]); app.toast("Video diunggah ✓", "success"); }
+        catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
+        finally { setUploading(false); }
+        continue;
+      }
       if (!isFeed && media.length >= 1) { app.toast("Story hanya 1 gambar", "info"); break; }
       if (isFeed && media.length >= 10) { app.toast("Carousel maksimal 10 gambar", "info"); break; }
       if (!["image/jpeg", "image/png"].includes(file.type)) { app.toast("Hanya JPG / PNG", "error"); continue; }
@@ -109,8 +136,8 @@ export function ComposerView() {
     if (!valid) { app.toast("Lengkapi media" + (isFeed ? " & caption" : "") + " dulu", "error"); return; }
     setSaving(true);
     const payload = {
-      channelDbId: channel._id, postType: type, caption: isFeed ? caption.trim() : null,
-      firstComment: isFeed ? firstComment.trim() : null, scheduledAtISO: scheduledISO(), status, images: media,
+      channelDbId: channel._id, postType: type, caption: hasCaption ? caption.trim() : null,
+      firstComment: hasCaption ? firstComment.trim() : null, scheduledAtISO: scheduledISO(), status, images: media,
     };
     try {
       if (postId) await updateScheduledPost(postId, payload);
@@ -145,7 +172,7 @@ export function ComposerView() {
         right={<div style={{ display: "flex", gap: 10 }}>
           <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("calendar")}>Kembali</Button>
           {postId && <Button variant="danger" icon={<Icons.trash size={15} />} disabled={saving} onClick={remove}>Hapus</Button>}
-          <Button variant="secondary" icon={saving ? <Spinner size={15} /> : <Icons.layers size={16} />} disabled={saving || !media.length || locked || isReels} onClick={() => save("draft")}>Simpan draf</Button>
+          <Button variant="secondary" icon={saving ? <Spinner size={15} /> : <Icons.layers size={16} />} disabled={saving || !media.length || locked} onClick={() => save("draft")}>Simpan draf</Button>
           <Button variant="primary" icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.calendar size={16} />} disabled={!valid || saving || locked} onClick={() => save("scheduled")}>{postId ? "Simpan & jadwalkan" : "Jadwalkan"}</Button>
         </div>} />
 
@@ -154,7 +181,7 @@ export function ComposerView() {
         <span style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Postingan ini sudah terbit, jadi tidak bisa dijadwalkan ulang. Kamu masih bisa menghapus catatannya.</span>
       </div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: isReels ? "1fr" : "minmax(0,1fr) 320px", gap: 18, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel>
             <SectionTitle sub="Pilih mau posting apa">Jenis postingan</SectionTitle>
@@ -163,44 +190,40 @@ export function ComposerView() {
               <Icons.info size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
               <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Feed terbit otomatis: 1 gambar atau carousel 2–10 gambar. Ukuran 4:5 sampai 1.91:1. Komentar pertama diposting otomatis setelah feed terbit.</span>
             </div>}
-            {isReels && <div style={{ display: "flex", gap: 11, marginTop: 12, background: "var(--st-publishing-bg)", borderRadius: 12, padding: "13px 15px" }}>
-              <Icons.film size={18} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-              <div>
-                <div style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13, color: "var(--ink-900)" }}>Reels segera hadir</div>
-                <div style={{ fontFamily: FCo, fontSize: 12, color: "var(--ink-500)", marginTop: 3, lineHeight: 1.45 }}>Reels butuh unggah video, yang sedang kami siapkan. Untuk sekarang kamu sudah bisa menjadwalkan Story dan Feed.</div>
-              </div>
+            {isReels && <div style={{ display: "flex", gap: 9, marginTop: 12, background: "var(--st-publishing-bg)", borderRadius: 11, padding: "10px 12px" }}>
+              <Icons.film size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
+              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Reels terbit otomatis: 1 video tegak 9:16, format MP4/MOV, maks {MAX_VIDEO_MB} MB, durasi ≤ 90 detik. Caption & komentar pertama opsional.</span>
             </div>}
           </Panel>
-          {!isReels && (<>
           <Panel>
-            <SectionTitle sub={isFeed ? "Sampai 10 gambar (carousel)" : "Satu gambar tegak 9:16"} right={<Button size="sm" variant="secondary" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={uploading} onClick={() => fileRef.current?.click()}>Unggah</Button>}>Gambar</SectionTitle>
-            <input ref={fileRef} type="file" accept="image/jpeg,image/png" multiple={isFeed} onChange={onFiles} style={{ display: "none" }} />
+            <SectionTitle sub={isReels ? "Satu video tegak 9:16" : isFeed ? "Sampai 10 gambar (carousel)" : "Satu gambar tegak 9:16"} right={<Button size="sm" variant="secondary" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={uploading || (isReels && media.length >= 1)} onClick={() => fileRef.current?.click()}>Unggah</Button>}>{isReels ? "Video" : "Gambar"}</SectionTitle>
+            <input ref={fileRef} type="file" accept={isReels ? "video/mp4,video/quicktime" : "image/jpeg,image/png"} multiple={isFeed} onChange={onFiles} style={{ display: "none" }} />
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {media.map((m, i) => (
                 <div key={i} style={{ position: "relative" }}>
-                  <MediaThumb seed={i} src={m.url} w={isFeed ? 96 : 90} ratio={isFeed ? 1 : 16 / 9} label={isFeed ? "Feed" : "9:16"} />
+                  {m.isVideo
+                    ? <video src={m.url} muted playsInline controls style={{ width: 120, aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", background: "#000", display: "block" }} />
+                    : <MediaThumb seed={i} src={m.url} w={isFeed ? 96 : 90} ratio={isFeed ? 1 : 16 / 9} label={isFeed ? "Feed" : "9:16"} />}
                   <button onClick={() => setMedia(ms => ms.filter((_, x) => x !== i))} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
                 </div>
               ))}
-              {!media.length && <div style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-400)", padding: "10px 2px" }}>Belum ada gambar. Klik Unggah untuk menambahkan.</div>}
+              {!media.length && <div style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-400)", padding: "10px 2px" }}>{isReels ? "Belum ada video. Klik Unggah untuk menambahkan." : "Belum ada gambar. Klik Unggah untuk menambahkan."}</div>}
             </div>
           </Panel>
 
-          {isFeed && (
+          {hasCaption && (
             <Panel>
-              <SectionTitle sub={`${caption.length} / ${capLimit} karakter`}>Tulisan (caption)</SectionTitle>
-              <Textarea placeholder="Tulis caption postingan…" value={caption} invalid={overCap} onChange={e => setCaption(e.target.value)} style={{ minHeight: 120 }} />
+              <SectionTitle sub={`${caption.length} / ${capLimit} karakter${isReels ? " · opsional" : ""}`}>Tulisan (caption)</SectionTitle>
+              <Textarea placeholder={isReels ? "Tulis caption Reels (opsional)…" : "Tulis caption postingan…"} value={caption} invalid={overCap} onChange={e => setCaption(e.target.value)} style={{ minHeight: 120 }} />
               {overCap && <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--danger)", marginTop: 6 }}>Kepanjangan, maksimal {capLimit} karakter.</div>}
               <Field label="Komentar pertama (untuk hashtag)" hint="Diposting otomatis di kolom komentar setelah postingan terbit." style={{ marginTop: 16 }}>
                 <Textarea value={firstComment} onChange={e => setFirstComment(e.target.value)} style={{ minHeight: 64 }} placeholder="#hashtag …" />
               </Field>
             </Panel>
           )}
-          </>)}
         </div>
 
         {/* schedule + preview */}
-        {!isReels && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel strong>
             <SectionTitle sub="Waktu WIB">Kapan terbit</SectionTitle>
@@ -214,12 +237,13 @@ export function ComposerView() {
           <Panel>
             <SectionTitle sub="Perkiraan tampilan">Pratinjau</SectionTitle>
             <div style={{ display: "flex", justifyContent: "center" }}>
-              <MediaThumb seed={0} src={media[0]?.url} w={140} ratio={isFeed ? 1 : 16 / 9} label={isFeed ? "Feed" : "Story 9:16"} />
+              {media[0]?.isVideo
+                ? <video src={media[0].url} muted playsInline controls style={{ width: 150, aspectRatio: "9/16", objectFit: "cover", borderRadius: 14, border: "1px solid var(--line)", background: "#000", display: "block" }} />
+                : <MediaThumb seed={0} src={media[0]?.url} w={140} ratio={isFeed ? 1 : 16 / 9} label={isReels ? "Reels 9:16" : isFeed ? "Feed" : "Story 9:16"} />}
             </div>
-            {isFeed && caption && <p style={{ fontFamily: FCo, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.5, marginTop: 12, maxHeight: 70, overflow: "hidden" }}><b style={{ color: "var(--ink-900)" }}>{channel.handle.replace(/^@/, "")}</b> {caption}</p>}
+            {hasCaption && caption && <p style={{ fontFamily: FCo, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.5, marginTop: 12, maxHeight: 70, overflow: "hidden" }}><b style={{ color: "var(--ink-900)" }}>{channel.handle.replace(/^@/, "")}</b> {caption}</p>}
           </Panel>
         </div>
-        )}
       </div>
     </div>
   );
