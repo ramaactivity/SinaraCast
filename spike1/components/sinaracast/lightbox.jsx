@@ -63,18 +63,18 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, ratio =
         <button onClick={onClose} aria-label="Tutup" style={{ width: 42, height: 42, borderRadius: "50%", border: "1px solid var(--line)", cursor: "pointer", background: "#fff", color: "var(--ink-500)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)" }}><Icons.x size={20} /></button>
       </div>
 
-      {/* stage: full-width image with floating arrows */}
-      <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 12px" }}>
+      {/* stage: arrows flank the image (close to it, not at the screen edges) */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "0 14px" }}>
+        {arrow(-1)}
         <div onClick={(e) => e.stopPropagation()}
           onTouchStart={(e) => (touch.current = e.touches[0].clientX)}
           onTouchEnd={(e) => { const dx = e.changedTouches[0].clientX - (touch.current ?? 0); if (Math.abs(dx) > 44) go(dx < 0 ? 1 : -1); }}
-          style={{ width: "100%", height: "100%", minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          style={{ flex: "0 1 auto", minWidth: 0, height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <img key={cur?.url} src={cur?.url} alt="" draggable={false}
             style={{ maxHeight: "100%", maxWidth: "100%", aspectRatio: String(1 / ratio), objectFit: "contain", borderRadius: "var(--r-lg)",
               boxShadow: "var(--shadow-lg)", background: "#fff", border: "1px solid var(--glass-border)", animation: "scPop .2s" }} />
         </div>
-        <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }}>{arrow(-1)}</div>
-        <div style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)" }}>{arrow(1)}</div>
+        {arrow(1)}
       </div>
 
       {/* actions */}

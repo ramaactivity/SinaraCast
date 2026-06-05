@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { createPortal } from "react-dom";
 import { Icons } from "./icons";
 const { useState, useEffect } = React;
 
@@ -433,15 +434,18 @@ export function Modal({ open, onClose, children, width = 460 }) {
     const k = e => e.key === "Escape" && onClose && onClose();
     window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
   }, [open]);
-  if (!open) return null;
-  return (
+  if (!open || typeof document === "undefined") return null;
+  // Portal to body so the scrim covers the whole viewport (escapes the app-shell's
+  // backdrop-filter/overflow clip) — seamless, no boxy edge.
+  return createPortal(
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, display: "grid", placeItems: "center", padding: 24,
       background: "rgba(62,67,81,.32)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", animation: "scFade .15s" }}>
       <div onClick={e => e.stopPropagation()} style={{ width, maxWidth: "100%", background: "#fff", borderRadius: "var(--r-xl)",
         boxShadow: "var(--shadow-lg)", animation: "scPop .18s", maxHeight: "88vh", overflow: "auto" }} className="sc-scroll">
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 export function ConfirmDialog({ open, onClose, onConfirm, title, body, consequence, confirmLabel = "Delete", danger = true }) {
