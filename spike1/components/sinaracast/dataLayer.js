@@ -100,19 +100,9 @@ function mapRule(r, slugById) {
 }
 
 export async function loadAll() {
-  // Fire every independent read in parallel (was ~10 sequential round-trips).
-  const [
-    { data: channelsRaw = [] },
-    { data: rulesRaw = [] },
-    { data: pools = [] },
-    { data: imgs = [] },
-    { data: assetsRaw = [] },
-    { data: runsRaw = [] },
-    { data: schedRaw = [] },
-    { data: notifsRaw = [] },
-    { data: settingsRaw },
-    { data: profileRaw },
-  ] = await Promise.all([
+  // Fire every independent read in parallel. allSettled (not all) so a single
+  // failed query can NEVER blank the whole app — each just falls back to empty.
+  const results = await Promise.allSettled([
     supabase.from("channel").select("id, slug, name, handle, token_status, token_expires_at, last_refresh_at, paused, resume_date, followers, color_token, avatar_url").is("archived_at", null).order("created_at", { ascending: true }),
     supabase.from("recurring_rule").select("*").is("archived_at", null),
     supabase.from("pool").select("id, rule_id, role"),
@@ -124,6 +114,17 @@ export async function loadAll() {
     supabase.from("app_settings").select("*").maybeSingle(),
     supabase.from("app_user").select("*").maybeSingle(),
   ]);
+  const at = (i) => (results[i].status === "fulfilled" ? results[i].value?.data : null);
+  const channelsRaw = at(0) || [];
+  const rulesRaw = at(1) || [];
+  const pools = at(2) || [];
+  const imgs = at(3) || [];
+  const assetsRaw = at(4) || [];
+  const runsRaw = at(5) || [];
+  const schedRaw = at(6) || [];
+  const notifsRaw = at(7) || [];
+  const settingsRaw = at(8);
+  const profileRaw = at(9);
 
   const slugById = Object.fromEntries((channelsRaw || []).map((c) => [c.id, c.slug]));
   const channels = (channelsRaw || []).map(mapChannel);
@@ -273,8 +274,8 @@ export async function loadAll() {
 
   // The email you're actually signed in with (source of truth = the auth session),
   // so a wrong-account login is obvious instead of showing empty data silently.
-  const { data: sess } = await supabase.auth.getSession();
-  const authEmail = sess?.session?.user?.email || "";
+  let authEmail = "";
+  try { const { data: sess } = await supabase.auth.getSession(); authEmail = sess?.session?.user?.email || ""; } catch (_) { /* non-fatal */ }
   const profile = {
     name: profileRaw?.name || (authEmail ? authEmail.split("@")[0] : "Kamu"),
     email: profileRaw?.email || authEmail,
