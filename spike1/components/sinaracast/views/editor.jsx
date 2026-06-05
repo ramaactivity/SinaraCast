@@ -10,6 +10,7 @@ import {
 import {
   uploadPoolImage, createRuleWithPools, updateRuleFields, loadRuleDetail, addPoolImageRow, removePoolImageRow,
 } from "../dataLayer";
+import { Lightbox } from "../lightbox";
 const { useState: uEd, useRef, useEffect } = React;
 const FE = "var(--font)";
 
@@ -234,22 +235,34 @@ export function EditorView() {
 }
 
 function PoolGrid({ imgs, onAdd, onRemove }) {
+  const [view, setView] = uEd(null); // lightbox index, or null
   if (!imgs.length) return (
     <div style={{ border: "1.5px dashed var(--line)", borderRadius: 16, padding: "30px 20px" }}>
       <EmptyState compact icon={<Icons.image size={26} />} title="Pool masih kosong" body="Unggah gambar Story (9:16) untuk mulai." action={<Button size="sm" variant="amber" icon={<Icons.upload size={16} />} onClick={onAdd}>Unggah gambar</Button>} />
     </div>
   );
+  // delete from the lightbox, then keep it open on a neighbouring image (or close)
+  const deleteAt = (idx) => {
+    const remaining = imgs.length - 1;
+    onRemove(idx);
+    setView(remaining <= 0 ? null : Math.min(idx, remaining - 1));
+  };
   return (
+    <>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12 }}>
       {imgs.map((im, i) => (
         <div key={im.storage_path || i} style={{ position: "relative" }}>
-          <img src={im.url} alt="" style={{ width: "100%", aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block" }} />
-          <button onClick={() => onRemove(i)} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
+          <img src={im.url} alt="" onClick={() => setView(i)} title="Klik untuk pratinjau"
+            style={{ width: "100%", aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block", cursor: "zoom-in" }}
+            onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "var(--shadow-md)")} onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")} />
+          <button onClick={() => onRemove(i)} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
         </div>
       ))}
       <button onClick={onAdd} style={{ aspectRatio: "9/16", borderRadius: 12, border: "1.5px dashed var(--line)", background: "rgba(255,255,255,.4)", cursor: "pointer", display: "grid", placeItems: "center", color: "var(--ink-400)" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><Icons.plus size={20} /><span style={{ fontFamily: FE, fontSize: 10 }}>Tambah</span></div>
       </button>
     </div>
+    <Lightbox imgs={imgs} index={view} onClose={() => setView(null)} onIndex={setView} onDelete={deleteAt} />
+    </>
   );
 }
