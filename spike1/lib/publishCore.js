@@ -236,11 +236,12 @@ export async function publishFeedOneoff(svc, { channel, post }) {
 
   const { data: links = [] } = await svc.from("scheduled_post_media").select("asset_id, position").eq("post_id", post.id).order("position");
   const assetIds = (links || []).map((l) => l.asset_id);
-  let paths = [];
+  let paths = [], anyVideo = false;
   if (assetIds.length) {
-    const { data: assets = [] } = await svc.from("media_asset").select("id, storage_path").in("id", assetIds);
-    const byId = Object.fromEntries((assets || []).map((a) => [a.id, a.storage_path]));
-    paths = (links || []).map((l) => byId[l.asset_id]).filter(Boolean);
+    const { data: assets = [] } = await svc.from("media_asset").select("id, storage_path, format").in("id", assetIds);
+    const byId = Object.fromEntries((assets || []).map((a) => [a.id, a]));
+    paths = (links || []).map((l) => byId[l.asset_id]?.storage_path).filter(Boolean);
+    anyVideo = (assets || []).some((a) => a.format === "mp4" || a.format === "mov" || /\.(mp4|mov)$/i.test(a.storage_path || ""));
   }
 
   const { data: run } = await svc.from("post_run").insert({
@@ -259,6 +260,7 @@ export async function publishFeedOneoff(svc, { channel, post }) {
     return { ok: false, error: reason, runId: run.id };
   };
   if (!paths.length) return fail("Media feed tidak ditemukan");
+  if (anyVideo) return fail("Feed belum mendukung video — pakai gambar, atau jadwalkan sebagai Reels.");
   const token = channel.access_token, igu = channel.ig_user_id;
   const caption = post.caption || "";
 
