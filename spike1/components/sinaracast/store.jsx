@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 /* ============================================================
-   Content OS — global store (context + hook).
+   SinaraCast — global store (context + hook).
    Holds: active view, active channel, notifications, pause
    state, toasts. Consumed by all views via useApp().
    ============================================================ */

@@ -63,7 +63,7 @@ export function Sidebar({ mobile, open, onClose }) {
           <>
             <div onClick={() => setSwOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
             <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, background: "#fff",
-              borderRadius: 16, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 6, animation: "cosPop .15s" }}>
+              borderRadius: 16, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 6, animation: "scPop .15s" }}>
               <div style={{ fontFamily: FS, fontSize: 10, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-400)", padding: "8px 10px 6px" }}>CHANNELS</div>
               {app.channels.map(c => {
                 const b = BRANDS[c.brand] || { name: c.name, accent: "var(--ink-500)", soft: "var(--line)" }, on = c.id === app.channel;

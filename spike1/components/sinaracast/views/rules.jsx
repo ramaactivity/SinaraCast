@@ -144,7 +144,7 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
           {menu && (
             <>
               <div onClick={() => setMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 50, background: "#fff", borderRadius: 13, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 5, width: 168, animation: "cosPop .14s" }}>
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 50, background: "#fff", borderRadius: 13, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 5, width: 168, animation: "scPop .14s" }}>
                 <Menu icon={<Icons.edit size={16} />} onClick={() => { setMenu(false); app.go("editor", { ch: r.ch, id: r.id }); }}>Edit rule</Menu>
                 <Menu icon={<Icons.play size={16} />} onClick={() => { setMenu(false); app.postNow(r); }}>Post now / test</Menu>
                 <div style={{ height: 1, background: "var(--line)", margin: "4px 0" }} />
@@ -231,7 +231,7 @@ function SwapModal({ open, onClose, r }) {
         <SectionTitle sub={`Pilih satu gambar dari pool untuk post hari ini saja — “${r.name}”`}>Swap gambar hari ini</SectionTitle>
         {imgs.length === 0
           ? <div style={{ padding: "28px 0", textAlign: "center", fontFamily: FR, fontSize: 13, color: "var(--ink-400)" }}>Belum ada gambar di pool ini.</div>
-          : <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10, maxHeight: 360, overflow: "auto" }} className="cos-scroll">
+          : <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10, maxHeight: 360, overflow: "auto" }} className="sc-scroll">
               {imgs.map((im, i) => (
                 <MediaThumb key={i} src={im.url} w={"100%"} ratio={16 / 9} selected={pick === i} onClick={() => setPick(i)} />
               ))}

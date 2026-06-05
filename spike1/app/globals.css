@@ -104,7 +104,7 @@
 .ds-overline{ font: 500 10px/1.4 var(--font); color: var(--ink-400); letter-spacing: 0.12em; text-transform: uppercase; }
 
 /* ============================================================
-   Content OS — extends the Ca Schedule design system.
+   SinaraCast — extends the Ca Schedule design system.
    Adds: semantic status colors, per-brand accents, app-shell
    tokens. All values stay in the DS language (soft, pastel,
    cool-tinted shadows, heavy rounding, Poppins).
@@ -139,23 +139,23 @@
 }
 
 /* status pill helper */
-.cos-pill {
+.sc-pill {
   display: inline-flex; align-items: center; gap: 6px;
   font-family: var(--font); font-weight: 600; font-size: 11px;
   padding: 4px 10px 4px 9px; border-radius: 999px; white-space: nowrap;
 }
-.cos-pill .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.sc-pill .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
 
 /* thin scrollbars to match the soft aesthetic */
-.cos-scroll::-webkit-scrollbar { width: 9px; height: 9px; }
-.cos-scroll::-webkit-scrollbar-thumb { background: rgba(140,144,158,.28); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
-.cos-scroll::-webkit-scrollbar-thumb:hover { background: rgba(140,144,158,.45); background-clip: content-box; }
-.cos-scroll::-webkit-scrollbar-track { background: transparent; }
+.sc-scroll::-webkit-scrollbar { width: 9px; height: 9px; }
+.sc-scroll::-webkit-scrollbar-thumb { background: rgba(140,144,158,.28); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+.sc-scroll::-webkit-scrollbar-thumb:hover { background: rgba(140,144,158,.45); background-clip: content-box; }
+.sc-scroll::-webkit-scrollbar-track { background: transparent; }
 
 /* ============================================================
    App shell / stage — ported from the prototype index.html.
    The app lives on a fixed 1320×860 canvas that scales to fit
-   the viewport (see ContentOS.jsx → fit()).
+   the viewport (see SinaraCast.jsx → fit()).
    ============================================================ */
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
@@ -166,11 +166,11 @@ body {
   color: var(--ink-900);
   -webkit-font-smoothing: antialiased;
 }
-#cos-stage { position: fixed; inset: 0; overflow: hidden; padding: 12px; }
-/* #cos-root is a fixed logical canvas; ContentOS.jsx → Stage sets width/height
+#sc-stage { position: fixed; inset: 0; overflow: hidden; padding: 12px; }
+/* #sc-root is a fixed logical canvas; SinaraCast.jsx → Stage sets width/height
    and a scale transform so the whole app fits any screen width (desktop fills,
    mobile shrinks proportionally). The 100%/100% here is the pre-JS fallback. */
-#cos-root { transform-origin: top left; display: flex; width: 100%; height: 100%; }
+#sc-root { transform-origin: top left; display: flex; width: 100%; height: 100%; }
 .app-shell {
   flex: 1; min-width: 0;
   display: flex; height: 100%; overflow: hidden;
@@ -185,18 +185,18 @@ input, textarea, select { font-family: var(--font); }
 @keyframes cosPulse { 0%,100%{opacity:1} 50%{opacity:.35} }
 @keyframes cosShimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 @keyframes cosSpin { to { transform: rotate(360deg) } }
-@keyframes cosFade { from{opacity:0} to{opacity:1} }
-@keyframes cosPop { from{opacity:0; transform:translateY(6px) scale(.98)} to{opacity:1; transform:none} }
+@keyframes scFade { from{opacity:0} to{opacity:1} }
+@keyframes scPop { from{opacity:0; transform:translateY(6px) scale(.98)} to{opacity:1; transform:none} }
 @keyframes cosToast { from{opacity:0; transform:translateX(-50%) translateY(10px)} to{opacity:1; transform:translateX(-50%)} }
 
 /* ============================================================
    Responsive — below 860px the app goes full-bleed and the
-   sidebar becomes an off-canvas drawer (handled in ContentOS).
+   sidebar becomes an off-canvas drawer (handled in SinaraCast).
    The two-column dashboard layouts collapse to a single column.
    ============================================================ */
 @media (max-width: 860px) {
   /* full-bleed, but respect the notch / home indicator when installed (standalone) */
-  #cos-stage { padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }
+  #sc-stage { padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }
   .app-shell { border-radius: 0; border: none; }
   :root { --content-pad: 16px; }
   /* every top-level "content + side panel" grid uses minmax(0,1fr) — stack them */

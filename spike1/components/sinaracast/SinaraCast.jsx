@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS = { pauseAll: false, resumeDate: "", timezone: "Asia/Jaka
   storage: { used: 0, total: 1024 } };
 const DEFAULT_PROFILE = { name: "Rama", email: "", method: "Magic link", joined: "—" };
 
-export default function ContentOS() {
+export default function SinaraCast() {
   const [view, setView] = uA("rules");
   const [params, setParams] = uA({});
   const [channel, setChannel] = uA("");
@@ -253,10 +253,10 @@ export default function ContentOS() {
 
   // Auth gate
   if (session === undefined || (session && dataLoading)) {
-    return <div id="cos-stage"><div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center" }}><Spinner size={34} /></div></div>;
+    return <div id="sc-stage"><div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center" }}><Spinner size={34} /></div></div>;
   }
   if (!session) {
-    return <div id="cos-stage"><div style={{ width: "100%", height: "100%" }}><SignInView /></div></div>;
+    return <div id="sc-stage"><div style={{ width: "100%", height: "100%" }}><SignInView /></div></div>;
   }
 
   const VIEWS = {
@@ -268,8 +268,8 @@ export default function ContentOS() {
   const View = VIEWS[view];
 
   return (
-    <div id="cos-stage">
-      <div id="cos-root">
+    <div id="sc-stage">
+      <div id="sc-root">
         <AppCtx.Provider value={ctx}>
           {view === "signin" ? (
             <>
@@ -281,9 +281,9 @@ export default function ContentOS() {
               <div className="app-shell">
                 <Sidebar mobile={isMobile} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
                 {isMobile && drawerOpen && (
-                  <div onClick={() => setDrawerOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(62,67,81,.42)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)", zIndex: 65, animation: "cosFade .15s" }} />
+                  <div onClick={() => setDrawerOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(62,67,81,.42)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)", zIndex: 65, animation: "scFade .15s" }} />
                 )}
-                <main id="content" className="cos-scroll" style={{ flex: 1, minWidth: 0, overflowY: "auto", overflowX: "hidden", padding: "24px var(--content-pad) 40px" }}>
+                <main id="content" className="sc-scroll" style={{ flex: 1, minWidth: 0, overflowY: "auto", overflowX: "hidden", padding: "24px var(--content-pad) 40px" }}>
                   {View ? <View key={view + (params.id || params.ch || "")} /> : <Stub name={view} />}
                 </main>
               </div>

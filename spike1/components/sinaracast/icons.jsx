@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-// Content OS icon set — thin line icons, 1.7 stroke, round caps (DS style).
+// SinaraCast icon set — thin line icons, 1.7 stroke, round caps (DS style).
 const I = ({ size = 20, sw = 1.7, children, vb = 24, ...p }) => (
   <svg width={size} height={size} viewBox={`0 0 ${vb} ${vb}`} fill="none"
     stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" {...p}>

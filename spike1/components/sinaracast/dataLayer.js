@@ -1,7 +1,7 @@
 "use client";
-// Loads real data from Supabase and maps it to the shapes the Content OS
-// components expect (the mockdata.js contract). access_token is NEVER selected
-// here — it stays server/worker-only (schema §7).
+// Loads real data from Supabase and maps it to the shapes the SinaraCast
+// components expect. access_token is NEVER selected here — it stays
+// server/worker-only (schema §7).
 import { supabase } from "./supabaseClient";
 
 const STATUS = { connected: "Connected", expiring: "Expiring", needs_reconnect: "Needs reconnect" };

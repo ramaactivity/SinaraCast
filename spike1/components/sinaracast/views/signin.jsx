@@ -33,7 +33,7 @@ export function SignInView() {
     setErr(""); setStage("verifying");
     const { error } = await supabase.auth.verifyOtp({ email, token: t, type: "email" });
     if (error) { setErr(error.message || "Kode salah atau kedaluwarsa."); setStage("sent"); return; }
-    // success → onAuthStateChange in ContentOS picks up the session and loads the app
+    // success → onAuthStateChange in SinaraCast picks up the session and loads the app
   };
 
   const busy = stage === "sending" || stage === "verifying";

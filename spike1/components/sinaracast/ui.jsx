@@ -4,7 +4,7 @@ import { Icons } from "./icons";
 const { useState, useEffect } = React;
 
 /* ============================================================
-   Content OS — reusable component library (DS components)
+   SinaraCast — reusable component library (DS components)
    All built from the Ca Schedule design system tokens.
    ============================================================ */
 
@@ -115,7 +115,7 @@ const ST = {
 export function Status({ s, pulse }) {
   const [fg, bg] = ST[s] || ST.Skipped;
   return (
-    <span className="cos-pill" style={{ color: fg, background: bg }}>
+    <span className="sc-pill" style={{ color: fg, background: bg }}>
       <span className="dot" style={{ background: fg, animation: pulse ? "cosPulse 1.4s infinite" : "none" }} />
       {s}
     </span>
@@ -429,9 +429,9 @@ export function Modal({ open, onClose, children, width = 460 }) {
   if (!open) return null;
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, display: "grid", placeItems: "center", padding: 24,
-      background: "rgba(62,67,81,.32)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", animation: "cosFade .15s" }}>
+      background: "rgba(62,67,81,.32)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", animation: "scFade .15s" }}>
       <div onClick={e => e.stopPropagation()} style={{ width, maxWidth: "100%", background: "#fff", borderRadius: "var(--r-xl)",
-        boxShadow: "var(--shadow-lg)", animation: "cosPop .18s", maxHeight: "88vh", overflow: "auto" }} className="cos-scroll">
+        boxShadow: "var(--shadow-lg)", animation: "scPop .18s", maxHeight: "88vh", overflow: "auto" }} className="sc-scroll">
         {children}
       </div>
     </div>
