@@ -82,8 +82,8 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, onRepla
         </div>
       </div>
 
-      {/* stage: arrows flank the media */}
-      <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "0 14px" }}>
+      {/* stage: arrows flank the media (vertical padding gives breathing room so tall 9:16 media never touches the edges) */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: single ? "14px 14px 40px" : "8px 14px 16px" }}>
         {arrow(-1)}
         <div onClick={(e) => e.stopPropagation()}
           onTouchStart={(e) => (touch.current = e.touches[0].clientX)}

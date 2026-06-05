@@ -89,7 +89,7 @@ export async function publishForRule(svc, { channel, rule, role, trigger, claimK
   let r = await igCall("POST", `/${channel.ig_user_id}/media`, cParams);
   if (!r.json.id) return fail(r.json.error?.message || "Gagal menyiapkan media di Instagram");
   const creationId = r.json.id;
-  await log(pickIsVideo ? "Kontainer Story video dibuat, video diproses…" : "Kontainer media dibuat");
+  await log(pickIsVideo ? "Menyiapkan video Story di Instagram…" : "Menyiapkan media di Instagram…");
 
   // 2) poll FINISHED (video transcoding takes longer)
   let statusCode = "";
@@ -101,7 +101,7 @@ export async function publishForRule(svc, { channel, rule, role, trigger, claimK
     await sleep(2500);
   }
   if (statusCode !== "FINISHED") return fail("Instagram belum selesai memproses media tepat waktu. Coba lagi.");
-  await log("Media divalidasi (9:16)");
+  await log("Media siap");
 
   // 3) publish
   r = await igCall("POST", `/${channel.ig_user_id}/media_publish`, { creation_id: creationId, access_token: channel.access_token });
@@ -146,7 +146,7 @@ export async function publishStoryOneoff(svc, { channel, post }) {
     trigger: "scheduled", scheduled_at: post.scheduled_at || new Date().toISOString(),
     claim_key: `oneoff:${post.id}`, attempt_count: 1,
   }).select("id").single();
-  if (!run) { await svc.from("scheduled_post").update({ status: "scheduled" }).eq("id", post.id); return { ok: false, error: "Gagal membuat catatan publish" }; }
+  if (!run) { await svc.from("scheduled_post").update({ status: "scheduled" }).eq("id", post.id); return { ok: false, error: "Gagal menyiapkan catatan publikasi" }; }
   const log = (outcome, is_fail = false) => svc.from("post_attempt").insert({ run_id: run.id, outcome, is_fail });
   const chLabel = channel.handle || channel.slug || "channel";
   const fail = async (reason) => {
@@ -165,7 +165,7 @@ export async function publishStoryOneoff(svc, { channel, post }) {
     : { media_type: "STORIES", image_url: mediaUrl, access_token: channel.access_token };
   let r = await igCall("POST", `/${channel.ig_user_id}/media`, params);
   if (!r.json.id) return fail(r.json.error?.message || "Gagal menyiapkan media di Instagram");
-  const creationId = r.json.id; await log(isVideo ? "Kontainer Story video dibuat, video diproses…" : "Kontainer media dibuat");
+  const creationId = r.json.id; await log(isVideo ? "Menyiapkan video Story di Instagram…" : "Menyiapkan media di Instagram…");
   // Video: persist the container id so a later cron tick can resume polling past
   // this function's 60s budget instead of hard-failing on a slow IG transcode.
   if (isVideo) await svc.from("post_run").update({ ig_media_id: creationId }).eq("id", run.id);
@@ -224,8 +224,8 @@ export async function refreshTokensDue(svc) {
       } else {
         await svc.from("channel").update({ token_status: "needs_reconnect" }).eq("id", c.id);
         await notify(svc, { ownerId: c.owner_id, channelId: c.id, type: "error",
-          title: `Channel perlu disambungkan ulang — ${c.slug}`,
-          body: "Token Instagram tidak bisa diperpanjang otomatis. Buka Connections → Sambungkan ulang.", runId: null });
+          title: `Akun perlu disambungkan ulang — ${c.slug}`,
+          body: "Koneksi ke Instagram kedaluwarsa dan tidak bisa diperpanjang otomatis. Buka Manajemen Akun lalu sambungkan ulang.", runId: null });
         out.push({ channel: c.slug, ok: false, error: j?.error?.message || "refresh gagal" });
       }
     } catch (e) { out.push({ channel: c.slug, ok: false, error: String(e?.message || e) }); }
@@ -255,7 +255,7 @@ export async function publishFeedOneoff(svc, { channel, post }) {
     trigger: "scheduled", scheduled_at: post.scheduled_at || new Date().toISOString(),
     claim_key: `oneoff:${post.id}`, attempt_count: 1,
   }).select("id").single();
-  if (!run) { await svc.from("scheduled_post").update({ status: "scheduled" }).eq("id", post.id); return { ok: false, error: "Gagal membuat catatan publish" }; }
+  if (!run) { await svc.from("scheduled_post").update({ status: "scheduled" }).eq("id", post.id); return { ok: false, error: "Gagal menyiapkan catatan publikasi" }; }
   const log = (outcome, is_fail = false) => svc.from("post_attempt").insert({ run_id: run.id, outcome, is_fail });
   const chLabel = channel.handle || channel.slug || "channel";
   const fail = async (reason) => {
@@ -280,12 +280,12 @@ export async function publishFeedOneoff(svc, { channel, post }) {
     const childIds = [];
     for (const p of paths.slice(0, 10)) {
       const r = await igCall("POST", `/${igu}/media`, { image_url: publicImageUrl(p), is_carousel_item: true, access_token: token });
-      if (!r.json.id) return fail(r.json.error?.message || "Gagal membuat item carousel");
+      if (!r.json.id) return fail(r.json.error?.message || "Gagal menyiapkan salah satu gambar carousel");
       childIds.push(r.json.id);
     }
-    await log(`Carousel ${childIds.length} item dibuat`);
+    await log(`${childIds.length} gambar carousel disiapkan`);
     const r = await igCall("POST", `/${igu}/media`, { media_type: "CAROUSEL", children: childIds.join(","), caption, access_token: token });
-    if (!r.json.id) return fail(r.json.error?.message || "Gagal membuat kontainer carousel");
+    if (!r.json.id) return fail(r.json.error?.message || "Gagal menyiapkan carousel di Instagram");
     containerId = r.json.id;
   }
 
@@ -298,11 +298,11 @@ export async function publishFeedOneoff(svc, { channel, post }) {
     if (statusCode === "ERROR") return fail("Media feed diproses ERROR");
     await sleep(2500);
   }
-  if (statusCode !== "FINISHED") return fail("Timeout proses media feed");
-  await log("Media feed divalidasi");
+  if (statusCode !== "FINISHED") return fail("Instagram belum selesai memproses gambar feed tepat waktu. Coba lagi.");
+  await log("Feed siap");
 
   let r = await igCall("POST", `/${igu}/media_publish`, { creation_id: containerId, access_token: token });
-  if (!r.json.id) return fail(r.json.error?.message || "Publish feed gagal");
+  if (!r.json.id) return fail(r.json.error?.message || "Gagal menerbitkan feed ke Instagram");
   const mediaId = r.json.id;
   r = await igCall("GET", `/${mediaId}`, { fields: "permalink", access_token: token });
   const permalink = r.json.permalink || null;
@@ -340,7 +340,7 @@ export async function publishReelsOneoff(svc, { channel, post }) {
     trigger: "scheduled", scheduled_at: post.scheduled_at || new Date().toISOString(),
     claim_key: `oneoff:${post.id}`, attempt_count: 1,
   }).select("id").single();
-  if (!run) { await svc.from("scheduled_post").update({ status: "scheduled" }).eq("id", post.id); return { ok: false, error: "Gagal membuat catatan publish" }; }
+  if (!run) { await svc.from("scheduled_post").update({ status: "scheduled" }).eq("id", post.id); return { ok: false, error: "Gagal menyiapkan catatan publikasi" }; }
   const log = (outcome, is_fail = false) => svc.from("post_attempt").insert({ run_id: run.id, outcome, is_fail });
   const chLabel = channel.handle || channel.slug || "channel";
   const fail = async (reason) => {
@@ -354,9 +354,9 @@ export async function publishReelsOneoff(svc, { channel, post }) {
   const token = channel.access_token, igu = channel.ig_user_id;
 
   let r = await igCall("POST", `/${igu}/media`, { media_type: "REELS", video_url: publicImageUrl(storagePath), caption: post.caption || "", share_to_feed: "true", access_token: token });
-  if (!r.json.id) return fail(r.json.error?.message || "Gagal membuat kontainer Reels");
+  if (!r.json.id) return fail(r.json.error?.message || "Gagal menyiapkan Reels di Instagram");
   const containerId = r.json.id;
-  await log("Kontainer Reels dibuat, video diproses…");
+  await log("Menyiapkan video Reels di Instagram…");
   // Persist container id so a later cron tick can resume past the 60s budget.
   await svc.from("post_run").update({ ig_media_id: containerId }).eq("id", run.id);
 
@@ -365,14 +365,14 @@ export async function publishReelsOneoff(svc, { channel, post }) {
     r = await igCall("GET", `/${containerId}`, { fields: "status_code", access_token: token });
     statusCode = r.json.status_code;
     if (statusCode === "FINISHED") break;
-    if (statusCode === "ERROR") return fail("Video Reels gagal diproses (ERROR)");
+    if (statusCode === "ERROR") return fail("Instagram gagal memproses video Reels ini.");
     await sleep(2500);
   }
   if (statusCode !== "FINISHED") { await log("Video Reels masih diproses Instagram — dilanjutkan otomatis menit berikutnya."); return { processing: true, runId: run.id }; }
   await log("Video Reels siap");
 
   r = await igCall("POST", `/${igu}/media_publish`, { creation_id: containerId, access_token: token });
-  if (!r.json.id) return fail(r.json.error?.message || "Publish Reels gagal");
+  if (!r.json.id) return fail(r.json.error?.message || "Gagal menerbitkan Reels ke Instagram");
   const mediaId = r.json.id;
   r = await igCall("GET", `/${mediaId}`, { fields: "permalink", access_token: token });
   const permalink = r.json.permalink || null;
@@ -413,7 +413,7 @@ export async function resumeOneoffContainer(svc, { channel, post, run }) {
     r = await igCall("GET", `/${containerId}`, { fields: "status_code", access_token: token });
     statusCode = r.json.status_code;
     if (statusCode === "FINISHED") break;
-    if (statusCode === "ERROR") return fail("Video gagal diproses Instagram (ERROR)");
+    if (statusCode === "ERROR") return fail("Instagram gagal memproses video ini.");
     await sleep(2500);
   }
   if (statusCode !== "FINISHED") { await log("Video masih diproses Instagram — dicek lagi menit berikutnya."); return { processing: true, runId: run.id }; }

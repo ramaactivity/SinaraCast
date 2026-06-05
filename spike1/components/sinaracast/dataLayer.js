@@ -108,7 +108,7 @@ export async function loadAll() {
     supabase.from("pool").select("id, rule_id, role"),
     supabase.from("pool_image").select("id, pool_id, used_in_cycle, storage_path, position, bytes").order("position"),
     supabase.from("media_asset").select("id, channel_id, storage_path, tag, created_at").order("created_at", { ascending: false }),
-    supabase.from("post_run").select("id, channel_id, rule_id, pool_role, image_id, status, trigger, scheduled_at, published_at, permalink, fail_reason, created_at").order("created_at", { ascending: false }).limit(150),
+    supabase.from("post_run").select("id, channel_id, rule_id, scheduled_post_id, pool_role, image_id, status, trigger, scheduled_at, published_at, permalink, fail_reason, created_at").order("created_at", { ascending: false }).limit(150),
     supabase.from("scheduled_post").select("id, channel_id, post_type, caption, scheduled_at, status").not("scheduled_at", "is", null),
     supabase.from("notification").select("id, channel_id, type, title, body, run_id, read, created_at").order("created_at", { ascending: false }).limit(50),
     supabase.from("app_settings").select("*").maybeSingle(),

@@ -47,11 +47,11 @@ export async function POST(request) {
       .select("id, channel_id").eq("status", "publishing").lt("scheduled_at", staleIso);
     for (const sp of stuck || []) {
       await svc.from("scheduled_post").update({ status: "failed" }).eq("id", sp.id);
-      await svc.from("post_run").update({ status: "failed", fail_reason: "Timeout proses (kemungkinan video terlalu berat)" }).eq("scheduled_post_id", sp.id).eq("status", "publishing");
+      await svc.from("post_run").update({ status: "failed", fail_reason: "Instagram tidak selesai memproses video tepat waktu (mungkin video terlalu berat)." }).eq("scheduled_post_id", sp.id).eq("status", "publishing");
       const ch = await svc.from("channel").select("owner_id").eq("id", sp.channel_id).maybeSingle();
       await notify(svc, { ownerId: ch.data?.owner_id, channelId: sp.channel_id, type: "error", title: "Postingan tertahan", body: "Sebuah postingan video gagal selesai diproses tepat waktu. Coba lagi dengan video lebih pendek." });
     }
-    await svc.from("post_run").update({ status: "failed", fail_reason: "Timeout proses" }).eq("status", "publishing").lt("created_at", staleIso).is("scheduled_post_id", null);
+    await svc.from("post_run").update({ status: "failed", fail_reason: "Tidak selesai diproses tepat waktu." }).eq("status", "publishing").lt("created_at", staleIso).is("scheduled_post_id", null);
   } catch (_) { /* sweep is best-effort */ }
 
   // Keep long-lived Instagram tokens fresh (~60d lifetime). Cheap: only touches
@@ -110,12 +110,12 @@ export async function POST(request) {
         const { data: skip } = await svc.from("post_run").insert({
           channel_id: channel.id, rule_id: rule.id, status: "skipped", trigger: "scheduled",
           scheduled_at: nowWib.toISOString(), claim_key: `auto:${rule.id}:${today}`, attempt_count: 0,
-          fail_reason: "Run terlewat — di luar grace window",
+          fail_reason: "Jadwal terlewat — sudah lewat dari tenggang waktu hari ini",
         }).select("id").maybeSingle();
         if (skip) {
-          await svc.from("post_attempt").insert({ run_id: skip.id, outcome: "Run terlewat — di luar grace window", is_fail: true });
+          await svc.from("post_attempt").insert({ run_id: skip.id, outcome: "Jadwal terlewat — sudah lewat dari tenggang waktu hari ini", is_fail: true });
           await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "warn",
-            title: `Run terlewat — ${channel.slug}`, body: `“${rule.name}” tidak berjalan dalam grace window hari ini.`, runId: skip.id });
+            title: `Jadwal terlewat — ${channel.handle || channel.slug}`, body: `Jadwal “${rule.name}” tidak sempat terbit dalam tenggang waktu hari ini.`, runId: skip.id });
           fired.push({ rule: rule.name, channel: channel.slug, missed: true });
         }
       }
