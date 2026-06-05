@@ -93,7 +93,7 @@ export async function publishForRule(svc, { channel, rule, role, trigger, claimK
 
   // 2) poll FINISHED (video transcoding takes longer)
   let statusCode = "";
-  for (let i = 0; i < (pickIsVideo ? 20 : 18); i++) {
+  for (let i = 0; i < (pickIsVideo ? 16 : 18); i++) {
     r = await igCall("GET", `/${creationId}`, { fields: "status_code", access_token: channel.access_token });
     statusCode = r.json.status_code;
     if (statusCode === "FINISHED") break;
@@ -146,6 +146,7 @@ export async function publishStoryOneoff(svc, { channel, post }) {
     trigger: "scheduled", scheduled_at: post.scheduled_at || new Date().toISOString(),
     claim_key: `oneoff:${post.id}`, attempt_count: 1,
   }).select("id").single();
+  if (!run) { await svc.from("scheduled_post").update({ status: "scheduled" }).eq("id", post.id); return { ok: false, error: "Gagal membuat catatan publish" }; }
   const log = (outcome, is_fail = false) => svc.from("post_attempt").insert({ run_id: run.id, outcome, is_fail });
   const chLabel = channel.handle || channel.slug || "channel";
   const fail = async (reason) => {
@@ -247,6 +248,7 @@ export async function publishFeedOneoff(svc, { channel, post }) {
     trigger: "scheduled", scheduled_at: post.scheduled_at || new Date().toISOString(),
     claim_key: `oneoff:${post.id}`, attempt_count: 1,
   }).select("id").single();
+  if (!run) { await svc.from("scheduled_post").update({ status: "scheduled" }).eq("id", post.id); return { ok: false, error: "Gagal membuat catatan publish" }; }
   const log = (outcome, is_fail = false) => svc.from("post_attempt").insert({ run_id: run.id, outcome, is_fail });
   const chLabel = channel.handle || channel.slug || "channel";
   const fail = async (reason) => {
@@ -281,7 +283,7 @@ export async function publishFeedOneoff(svc, { channel, post }) {
 
   // Wait for the (parent) container to finish processing.
   let statusCode = "";
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < 16; i++) {
     const r = await igCall("GET", `/${containerId}`, { fields: "status_code", access_token: token });
     statusCode = r.json.status_code;
     if (statusCode === "FINISHED") break;
@@ -330,6 +332,7 @@ export async function publishReelsOneoff(svc, { channel, post }) {
     trigger: "scheduled", scheduled_at: post.scheduled_at || new Date().toISOString(),
     claim_key: `oneoff:${post.id}`, attempt_count: 1,
   }).select("id").single();
+  if (!run) { await svc.from("scheduled_post").update({ status: "scheduled" }).eq("id", post.id); return { ok: false, error: "Gagal membuat catatan publish" }; }
   const log = (outcome, is_fail = false) => svc.from("post_attempt").insert({ run_id: run.id, outcome, is_fail });
   const chLabel = channel.handle || channel.slug || "channel";
   const fail = async (reason) => {
@@ -348,7 +351,7 @@ export async function publishReelsOneoff(svc, { channel, post }) {
   await log("Kontainer Reels dibuat, video diproses…");
 
   let statusCode = "";
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 16; i++) {
     r = await igCall("GET", `/${containerId}`, { fields: "status_code", access_token: token });
     statusCode = r.json.status_code;
     if (statusCode === "FINISHED") break;

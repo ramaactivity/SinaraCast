@@ -31,14 +31,33 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
   const svc = svcClient();
+  const startMs = Date.now();
+  const DEADLINE_MS = 45000; // stop starting new publishes ~45s in; leftovers retry next tick
+  const overBudget = () => Date.now() - startMs > DEADLINE_MS;
   const nowWib = new Date(Date.now() + 7 * 3600 * 1000);
   const dow = nowWib.getUTCDay();
   const today = wibDateStr(nowWib);
   const nowMin = nowWib.getUTCHours() * 60 + nowWib.getUTCMinutes();
 
+  // Recover anything stuck in "publishing" (e.g. a video transcode that ran past
+  // the 60s function budget last tick): mark it failed + alert so it isn't stranded.
+  const staleIso = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  try {
+    const { data: stuck = [] } = await svc.from("scheduled_post")
+      .select("id, channel_id").eq("status", "publishing").lt("scheduled_at", staleIso);
+    for (const sp of stuck || []) {
+      await svc.from("scheduled_post").update({ status: "failed" }).eq("id", sp.id);
+      await svc.from("post_run").update({ status: "failed", fail_reason: "Timeout proses (kemungkinan video terlalu berat)" }).eq("scheduled_post_id", sp.id).eq("status", "publishing");
+      const ch = await svc.from("channel").select("owner_id").eq("id", sp.channel_id).maybeSingle();
+      await notify(svc, { ownerId: ch.data?.owner_id, channelId: sp.channel_id, type: "error", title: "Postingan tertahan", body: "Sebuah postingan video gagal selesai diproses tepat waktu. Coba lagi dengan video lebih pendek." });
+    }
+    await svc.from("post_run").update({ status: "failed", fail_reason: "Timeout proses" }).eq("status", "publishing").lt("created_at", staleIso).is("scheduled_post_id", null);
+  } catch (_) { /* sweep is best-effort */ }
+
   // Keep long-lived Instagram tokens fresh (~60d lifetime). Cheap: only touches
   // channels expiring within 10 days, so it's a no-op on almost every tick.
-  const refreshed = await refreshTokensDue(svc);
+  let refreshed = [];
+  try { refreshed = await refreshTokensDue(svc); } catch (_) { /* don't abort the tick on refresh error */ }
 
   // eligible channels (connected, not paused, not archived) + owners not globally paused
   const { data: channels = [] } = await svc.from("channel")
@@ -103,6 +122,7 @@ export async function POST(request) {
       continue;
     }
 
+    if (overBudget()) break; // out of budget this tick; due rules retry next minute (still within grace)
     const role = roleForNow(rule.mode, dow);
     const claimKey = `auto:${rule.id}:${today}`;
     try {
@@ -123,6 +143,7 @@ export async function POST(request) {
       .lte("scheduled_at", new Date().toISOString())
       .in("channel_id", chIds);
     for (const post of posts) {
+      if (overBudget()) break; // leftover one-offs are still 'scheduled' → next tick picks them up
       const channel = chById[post.channel_id];
       if (!channel) continue;
       try {
