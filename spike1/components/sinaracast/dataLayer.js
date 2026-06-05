@@ -223,7 +223,7 @@ export async function loadAll() {
   const profile = {
     name: profileRaw?.name || "Rama",
     email: profileRaw?.email || "",
-    method: "Magic link",
+    method: "Kode lewat email",
     joined: profileRaw?.joined_at ? fmtDate(profileRaw.joined_at) : "—",
   };
 

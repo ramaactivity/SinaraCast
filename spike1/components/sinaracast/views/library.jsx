@@ -41,7 +41,7 @@ export function MediaLibraryView() {
 
   async function onFiles(e) {
     const files = [...(e.target.files || [])]; e.target.value = "";
-    if (!channel) { app.toast("Pilih channel dulu", "error"); return; }
+    if (!channel) { app.toast("Pilih akun dulu", "error"); return; }
     for (const file of files) {
       if (!["image/jpeg", "image/png"].includes(file.type)) { app.toast("Hanya JPG / PNG", "error"); continue; }
       if (file.size > 8 * 1024 * 1024) { app.toast("Maksimal 8 MB", "error"); continue; }
@@ -55,24 +55,24 @@ export function MediaLibraryView() {
   }
 
   if (!channel) {
-    return <div><Topbar title="Media Library" /><Panel pad={0}><EmptyState icon={<Icons.image size={28} />} title="Belum ada channel" body="Sambungkan channel dulu untuk mengelola media." /></Panel></div>;
+    return <div><Topbar title="Galeri" /><Panel pad={0}><EmptyState icon={<Icons.image size={28} />} title="Belum ada akun" body="Sambungkan akun dulu untuk mengelola gambar." /></Panel></div>;
   }
 
   return (
     <div>
-      <Topbar title="Media Library" sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} size={18} /> {b.name} · media dapat dipakai ulang</span>}
+      <Topbar title="Galeri" sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} size={18} /> {b.name} · gambar yang bisa dipakai ulang</span>}
         right={<Button variant="amber" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={17} />} disabled={uploading} onClick={() => fileRef.current?.click()}>Unggah</Button>} />
       <input ref={fileRef} type="file" accept="image/jpeg,image/png" multiple onChange={onFiles} style={{ display: "none" }} />
 
       <Panel>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, maxWidth: 320, minWidth: 200 }}><Input icon={<Icons.search size={18} />} placeholder="Cari berdasarkan tag/rule…" value={q} onChange={e => setQ(e.target.value)} /></div>
+          <div style={{ flex: 1, maxWidth: 320, minWidth: 200 }}><Input icon={<Icons.search size={18} />} placeholder="Cari berdasarkan label…" value={q} onChange={e => setQ(e.target.value)} /></div>
           {tags.length > 0 && <Segmented options={[{ value: "all", label: "Semua" }, ...tags.map(t => ({ value: t, label: t }))]} value={tag} onChange={setTag} />}
         </div>
 
         {phase === "loading" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(110px,1fr))", gap: 12 }}>{Array.from({ length: 16 }).map((_, i) => <Skeleton key={i} h={120} r={12} />)}</div>}
 
-        {phase === "ready" && items.length === 0 && <EmptyState compact icon={<Icons.image size={26} />} title={all.length === 0 ? "Belum ada media" : "Tidak ada media dengan filter ini"} body={all.length === 0 ? "Unggah gambar atau buat rule/one-off — semua media channel ini muncul di sini." : "Ganti filter atau kata kunci."} />}
+        {phase === "ready" && items.length === 0 && <EmptyState compact icon={<Icons.image size={26} />} title={all.length === 0 ? "Belum ada gambar" : "Tidak ada gambar yang cocok"} body={all.length === 0 ? "Unggah gambar, atau buat jadwal/postingan. Semua gambar akun ini muncul di sini." : "Ganti filter atau kata kunci."} />}
 
         {phase === "ready" && items.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(110px,1fr))", gap: 12 }}>

@@ -25,7 +25,7 @@ export function SettingsView() {
 
   return (
     <div>
-      <Topbar title="Settings" sub="Preferensi alert, jadwal, dan data" />
+      <Topbar title="Pengaturan" sub="Pemberitahuan, jadwal, dan data" />
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* pause all / vacation */}
@@ -33,14 +33,14 @@ export function SettingsView() {
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <span style={{ width: 46, height: 46, borderRadius: 14, flex: "0 0 auto", display: "grid", placeItems: "center", background: s.pauseAll ? "var(--st-paused)" : "var(--primary-grad)", color: "#fff" }}><Icons.pause size={22} /></span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: FSe, fontWeight: 600, fontSize: 15, color: "var(--ink-900)" }}>Jeda semua (vacation)</div>
-                <div style={{ fontFamily: FSe, fontSize: 12.5, color: "var(--ink-500)", marginTop: 2 }}>Hentikan semua posting di semua channel. Alert run-terlewat ikut disenyapkan.</div>
+                <div style={{ fontFamily: FSe, fontWeight: 600, fontSize: 15, color: "var(--ink-900)" }}>Mode Libur</div>
+                <div style={{ fontFamily: FSe, fontSize: 12.5, color: "var(--ink-500)", marginTop: 2 }}>Berhenti memposting di semua akun untuk sementara. Selama libur, kamu juga tidak diingatkan soal jadwal yang terlewat.</div>
               </div>
               <Toggle on={s.pauseAll} onChange={v => app.togglePauseAll(v)} />
             </div>
             {s.pauseAll && (
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(149,121,196,.25)" }}>
-                <Field label="Lanjut otomatis pada tanggal (opsional)">
+                <Field label="Lanjut otomatis pada tanggal (boleh dikosongkan)">
                   <Input type="date" value={s.resumeDate} onChange={e => set({ resumeDate: e.target.value })} />
                 </Field>
               </div>
@@ -49,17 +49,17 @@ export function SettingsView() {
 
           {/* alerts */}
           <Panel>
-            <SectionTitle sub="Telegram & in-app">Alert</SectionTitle>
+            <SectionTitle sub="Lewat Telegram & di dalam aplikasi">Pemberitahuan</SectionTitle>
             <div style={{ marginTop: -4 }}>
               <Row title="Telegram" body={s.telegram.connected ? `Terhubung sebagai ${s.telegram.handle}` : "Belum terhubung"}>
                 {s.telegram.connected
-                  ? <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span className="sc-pill" style={{ color: "var(--green-500)", background: "var(--green-100)" }}><span className="dot" style={{ background: "var(--green-500)" }} />Terhubung</span><Button size="sm" variant="ghost" onClick={() => app.confirm({ title: "Putuskan Telegram?", confirmLabel: "Putuskan", body: "Alert tidak lagi dikirim ke Telegram (tetap muncul di app).", onConfirm: () => app.disconnectTelegram() })}>Putuskan</Button></div>
+                  ? <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span className="sc-pill" style={{ color: "var(--green-500)", background: "var(--green-100)" }}><span className="dot" style={{ background: "var(--green-500)" }} />Terhubung</span><Button size="sm" variant="ghost" onClick={() => app.confirm({ title: "Putuskan Telegram?", confirmLabel: "Putuskan", body: "Pemberitahuan tidak lagi dikirim ke Telegram (tetap muncul di dalam aplikasi).", onConfirm: () => app.disconnectTelegram() })}>Putuskan</Button></div>
                   : <Button size="sm" variant="primary" onClick={() => app.connectTelegram()}>Hubungkan</Button>}
               </Row>
-              <Row title="Alert kegagalan" body="Publish gagal, token, run terlewat. Selalu aktif — tidak bisa dimatikan.">
+              <Row title="Pemberitahuan kalau gagal" body="Saat ada postingan gagal terbit, token bermasalah, atau jadwal terlewat. Selalu aktif.">
                 <span style={{ fontFamily: FSe, fontSize: 12, fontWeight: 600, color: "var(--ink-400)" }}>Selalu aktif</span>
               </Row>
-              <Row title="Ringkasan harian “posted ✓”" body="Notifikasi Telegram harian saat semua posting berhasil.">
+              <Row title="Laporan harian" body="Tiap hari dikabari di Telegram kalau semua postingan berhasil terbit.">
                 <Toggle on={s.dailyPing} onChange={v => app.saveSettings({ dailyPing: v })} />
               </Row>
             </div>
@@ -67,12 +67,12 @@ export function SettingsView() {
 
           {/* schedule defaults */}
           <Panel>
-            <SectionTitle sub="Berlaku untuk rule baru">Jadwal & waktu</SectionTitle>
+            <SectionTitle sub="Berlaku untuk jadwal baru">Jadwal & waktu</SectionTitle>
             <div style={{ marginTop: -4 }}>
-              <Row title="Zona waktu" body="Semua jadwal diautor & ditampilkan dalam WIB.">
+              <Row title="Zona waktu" body="Semua jadwal dibuat & ditampilkan dalam WIB.">
                 <span style={{ fontFamily: FSe, fontSize: 12.5, fontWeight: 500, color: "var(--ink-700)" }}>WIB (UTC+7)</span>
               </Row>
-              <Row title={`Grace window default — ${s.defaultGrace} menit`} body="Toleransi keterlambatan sebelum run ditandai terlewat.">
+              <Row title={`Toleransi telat — ${s.defaultGrace} menit`} body="Berapa lama postingan masih boleh telat sebelum dianggap terlewat.">
                 <input type="range" min={10} max={60} step={5} value={s.defaultGrace}
                   onChange={e => set({ defaultGrace: +e.target.value })}
                   onMouseUp={e => app.saveSettings({ defaultGrace: +e.target.value })}
@@ -86,17 +86,17 @@ export function SettingsView() {
           <Panel>
             <SectionTitle sub="Ekspor & hapus">Data</SectionTitle>
             <div style={{ marginTop: -4 }}>
-              <Row title="Ekspor data" body="Unduh semua channel, rule, run, dan pengaturan (JSON).">
-                <Button size="sm" variant="secondary" icon={<Icons.upload size={15} style={{ transform: "rotate(180deg)" }} />} onClick={() => app.exportData()}>Ekspor</Button>
+              <Row title="Unduh data saya" body="Simpan semua akun, jadwal, riwayat, dan pengaturan jadi satu file (JSON).">
+                <Button size="sm" variant="secondary" icon={<Icons.upload size={15} style={{ transform: "rotate(180deg)" }} />} onClick={() => app.exportData()}>Unduh</Button>
               </Row>
               <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 0" }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontFamily: FSe, fontWeight: 500, fontSize: 13.5, color: "var(--danger)" }}>Hapus semua data</div>
-                  <div style={{ fontFamily: FSe, fontSize: 12, color: "var(--ink-400)", marginTop: 2 }}>Menghapus semua channel, rule, dan media secara permanen.</div>
+                  <div style={{ fontFamily: FSe, fontSize: 12, color: "var(--ink-400)", marginTop: 2 }}>Menghapus semua akun, jadwal, dan gambar secara permanen.</div>
                 </div>
                 <Button size="sm" variant="danger" icon={<Icons.trash size={15} />} onClick={() => app.confirm({ title: "Hapus SEMUA data?", confirmLabel: "Hapus semua",
                   body: "Tindakan ini permanen dan tidak bisa dibatalkan.",
-                  consequence: "Semua channel, rule, pool media, dan riwayat run akan dihapus selamanya. Kamu harus menyiapkan ulang dari awal.",
+                  consequence: "Semua akun, jadwal, gambar, dan riwayat akan hilang selamanya. Kamu harus menyiapkan semuanya dari awal lagi.",
                   onConfirm: () => app.deleteEverything() })}>Hapus semua</Button>
               </div>
             </div>
@@ -138,8 +138,8 @@ function ProfileCard() {
       <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderTop: "1px solid var(--line)", fontFamily: FSe, fontSize: 12.5 }}>
         <span style={{ color: "var(--ink-400)" }}>Bergabung</span><span style={{ color: "var(--ink-700)", fontWeight: 500 }}>{p.joined}</span>
       </div>
-      <Button variant="secondary" full icon={<Icons.logout size={16} />} style={{ marginTop: 14 }} onClick={() => app.confirm({ title: "Keluar dari SinaraCast?", danger: false, confirmLabel: "Keluar",
-        body: "Kamu bisa masuk lagi kapan saja lewat magic link.", onConfirm: () => app.go("signin") })}>Keluar</Button>
+      <Button variant="secondary" full icon={<Icons.logout size={16} />} style={{ marginTop: 14 }} onClick={() => app.confirm({ title: "Keluar dari SinaraCast?", confirmLabel: "Keluar",
+        body: "Kamu bisa masuk lagi kapan saja lewat email.", onConfirm: () => app.signOut() })}>Keluar</Button>
     </Panel>
   );
 }
@@ -149,7 +149,7 @@ export function ProfileView() {
   const p = app.profile;
   return (
     <div>
-      <Topbar title="Profil" sub="Identitas & sesi" />
+      <Topbar title="Profil" sub="Akun kamu" />
       <div style={{ maxWidth: 520 }}>
         <Panel>
           <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 8 }}>
@@ -159,12 +159,12 @@ export function ProfileView() {
           </div>
           <Field label="Nama" style={{ marginTop: 14 }}><Input defaultValue={p.name} /></Field>
           <Field label="Email" style={{ marginTop: 14 }}><Input defaultValue={p.email} icon={<Icons.mail size={17} />} readOnly /></Field>
-          <Row title="Metode login" body="Tanpa kata sandi — tautan masuk dikirim ke email.">
+          <Row title="Cara masuk" body="Tanpa kata sandi. Kode masuk dikirim ke email kamu.">
             <span style={{ fontFamily: FSe, fontSize: 12.5, fontWeight: 500, color: "var(--ink-700)" }}>{p.method}</span>
           </Row>
           <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
             <Button variant="primary" icon={<Icons.check size={16} />} onClick={() => app.toast("Profil disimpan", "success")}>Simpan</Button>
-            <Button variant="secondary" icon={<Icons.logout size={16} />} onClick={() => app.confirm({ title: "Keluar?", danger: false, confirmLabel: "Keluar", body: "Kamu bisa masuk lagi lewat magic link.", onConfirm: () => app.go("signin") })}>Keluar</Button>
+            <Button variant="secondary" icon={<Icons.logout size={16} />} onClick={() => app.confirm({ title: "Keluar?", confirmLabel: "Keluar", body: "Kamu bisa masuk lagi lewat email.", onConfirm: () => app.signOut() })}>Keluar</Button>
           </div>
         </Panel>
       </div>

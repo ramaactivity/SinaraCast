@@ -2,15 +2,16 @@
 import React from "react";
 import { Icons } from "./icons";
 import { useApp } from "./store";
-import { BRANDS, BrandAvatar, Avatar } from "./ui";
+import { BRANDS, BrandAvatar, Avatar, statusLabel } from "./ui";
 const { useState: uSh } = React;
 const FS = "var(--font)";
 
 const NAV = [
-  { id: "rules", label: "Rules", icon: "rules", phase: "P1" },
-  { id: "calendar", label: "Calendar", icon: "calendar", phase: "P2" },
-  { id: "activity", label: "Activity", icon: "activity", phase: "P1" },
-  { id: "connections", label: "Connections", icon: "connections", phase: "P1" },
+  { id: "rules", label: "Jadwal Otomatis", icon: "rules" },
+  { id: "composer", label: "Buat Postingan", icon: "plus" },
+  { id: "calendar", label: "Kalender", icon: "calendar" },
+  { id: "activity", label: "Riwayat", icon: "activity" },
+  { id: "connections", label: "Manajemen Akun", icon: "connections" },
 ];
 
 const MenuIcon = ({ size = 22 }) => (
@@ -64,7 +65,7 @@ export function Sidebar({ mobile, open, onClose }) {
             <div onClick={() => setSwOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
             <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, background: "#fff",
               borderRadius: 16, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 6, animation: "scPop .15s" }}>
-              <div style={{ fontFamily: FS, fontSize: 10, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-400)", padding: "8px 10px 6px" }}>CHANNELS</div>
+              <div style={{ fontFamily: FS, fontSize: 10, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-400)", padding: "8px 10px 6px" }}>GANTI AKUN</div>
               {app.channels.map(c => {
                 const b = BRANDS[c.brand] || { name: c.name, accent: "var(--ink-500)", soft: "var(--line)" }, on = c.id === app.channel;
                 const dot = c.status === "Connected" ? "var(--st-success)" : c.status === "Expiring" ? "var(--st-publishing)" : "var(--st-failed)";
@@ -75,7 +76,7 @@ export function Sidebar({ mobile, open, onClose }) {
                     <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
                       <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 12.5, color: "var(--ink-900)" }}>{b.name}</div>
                       <div style={{ fontFamily: FS, fontSize: 10, color: "var(--ink-400)", display: "flex", alignItems: "center", gap: 5 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot }} />{c.status}{c.paused ? " · dijeda" : ""}
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot }} />{statusLabel(c.status)}{c.paused ? " · dijeda" : ""}
                       </div>
                     </div>
                     {on && <Icons.check size={16} style={{ color: "var(--primary-500)" }} />}
@@ -101,7 +102,7 @@ export function Sidebar({ mobile, open, onClose }) {
             <div style={{ fontFamily: FS, fontSize: 11.5, color: "var(--st-paused)", fontWeight: 500, lineHeight: 1.3 }}>Semua posting dijeda</div>
           </div>
         )}
-        <NavItem n={{ id: "settings", label: "Settings", icon: "settings" }} active={app.view === "settings"} onClick={() => app.go("settings")} />
+        <NavItem n={{ id: "settings", label: "Pengaturan", icon: "settings" }} active={app.view === "settings"} onClick={() => app.go("settings")} />
         {/* account */}
         <button onClick={() => app.go("profile")} style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", border: "1px solid var(--line)",
           background: app.view === "profile" ? "#fff" : "rgba(255,255,255,.5)", borderRadius: 14, cursor: "pointer", boxShadow: "var(--shadow-sm)" }}>
@@ -129,8 +130,7 @@ function NavItem({ n, active, onClick }) {
         fontFamily: FS, fontWeight: active ? 600 : 500, fontSize: 13.5, transition: "background .15s, color .15s" }}>
       <Ic size={19} sw={active ? 2 : 1.7} />
       <span>{n.label}</span>
-      {n.phase === "P2" && <span style={{ marginLeft: "auto", fontFamily: FS, fontSize: 9, fontWeight: 600, color: "var(--ink-300)", border: "1px solid var(--line)", borderRadius: 5, padding: "1px 5px" }}>P2</span>}
-      {active && n.phase !== "P2" && <span style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: "var(--primary-500)" }} />}
+      {active && <span style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: "var(--primary-500)" }} />}
     </button>
   );
 }

@@ -16,7 +16,7 @@ export function OnboardingView() {
   const steps = [
     { id: "dev", title: "Akun developer Meta", done: chCt > 0 },
     { id: "biz", title: "Ubah IG ke Business + hubungkan Page", done: chCt > 0 },
-    { id: "connect", title: `Sambungkan channel (${chCt}/4)`, done: chCt > 0 },
+    { id: "connect", title: `Sambungkan akun (${chCt}/4)`, done: chCt > 0 },
     { id: "telegram", title: "Siapkan Telegram", done: tgOn },
   ];
   const firstUndone = steps.findIndex(s => !s.done);
@@ -33,7 +33,7 @@ export function OnboardingView() {
 
   return (
     <div>
-      <Topbar title="Setup Meta" sub="Penyiapan satu kali — bisa dilanjutkan kapan saja"
+      <Topbar title="Penyiapan Awal" sub="Sekali saja, bisa dilanjutkan kapan saja"
         right={<Button variant="ghost" onClick={() => app.go("connections")}>Lewati untuk sekarang</Button>} />
 
       <div style={{ display: "grid", gridTemplateColumns: "300px minmax(0,1fr)", gap: 18, alignItems: "start" }}>
@@ -71,10 +71,10 @@ export function OnboardingView() {
 }
 
 const STEP_BODY = {
-  dev: ["Buat akun developer Meta", ["Buka developers.facebook.com dan masuk.", "Buat aplikasi baru, pilih tipe Business.", "Catat App ID — akan dipakai saat menghubungkan channel."]],
-  biz: ["Ubah IG ke Business + hubungkan Page", ["Di Instagram, ubah akun ke Professional → Business.", "Tautkan setiap akun IG ke Facebook Page-nya.", "Pastikan kamu admin Page tersebut."]],
-  connect: ["Sambungkan channel", ["Klik ‘Sambungkan channel’ — popup Instagram terbuka.", "Login & beri izin (konten publikasi).", "Ulangi untuk tiap brand (maks 4)."]],
-  telegram: ["Siapkan Telegram", ["Klik ‘Hubungkan Telegram’ — bot SinaraCast terbuka.", "Tekan Start di Telegram.", "Otomatis tersambung — alert publish masuk ke sana."]],
+  dev: ["Buat akun developer Meta", ["Buka developers.facebook.com dan masuk.", "Buat aplikasi baru, pilih tipe Business.", "Catat App ID; dipakai saat menyambungkan akun."]],
+  biz: ["Ubah IG ke Business + hubungkan Page", ["Di Instagram, ubah akun ke Professional, lalu Business.", "Tautkan setiap akun IG ke Facebook Page-nya.", "Pastikan kamu admin Page tersebut."]],
+  connect: ["Sambungkan akun", ["Klik ‘Sambungkan akun’, popup Instagram akan terbuka.", "Masuk & beri izin (untuk memposting konten).", "Ulangi untuk tiap akun (maks 4)."]],
+  telegram: ["Siapkan Telegram", ["Klik ‘Hubungkan Telegram’, bot SinaraCast akan terbuka.", "Tekan Start di Telegram.", "Otomatis tersambung. Pemberitahuan posting akan masuk ke sana."]],
 };
 
 function StepDetail({ step, idx, total, onComplete, onBack, app }) {
@@ -93,13 +93,13 @@ function StepDetail({ step, idx, total, onComplete, onBack, app }) {
       </div>
       <div style={{ background: "var(--primary-100)", borderRadius: 13, padding: "13px 16px", display: "flex", gap: 10, marginBottom: 24 }}>
         <Icons.info size={18} style={{ color: "var(--primary-500)", flex: "0 0 auto", marginTop: 1 }} />
-        <span style={{ fontFamily: FOb, fontSize: 12.5, color: "#B07B22", lineHeight: 1.5 }}>Butuh detail lengkap? Buka Meta Setup Runbook untuk panduan langkah demi langkah.</span>
+        <span style={{ fontFamily: FOb, fontSize: 12.5, color: "#B07B22", lineHeight: 1.5 }}>Butuh detail lengkap? Buka panduan Meta untuk langkah demi langkah.</span>
       </div>
       <div style={{ display: "flex", gap: 10 }}>
         {idx > 0 && <Button variant="secondary" icon={<Icons.chevLeft size={17} />} onClick={onBack}>Sebelumnya</Button>}
-        <Button variant="ghost" icon={<Icons.external size={16} />} onClick={() => app.toast("Membuka Runbook…", "info")}>Buka Runbook</Button>
+        <Button variant="ghost" icon={<Icons.external size={16} />} onClick={() => app.toast("Membuka panduan…", "info")}>Buka panduan</Button>
         <div style={{ marginLeft: "auto" }}>
-          <Button variant="primary" icon={step.done ? <Icons.check size={17} /> : <Icons.chevRight size={17} />} iconRight onClick={onComplete}>{step.done ? "Selesai ✓" : step.id === "connect" ? "Sambungkan channel" : step.id === "telegram" ? "Hubungkan Telegram" : "Tandai selesai"}</Button>
+          <Button variant="primary" icon={step.done ? <Icons.check size={17} /> : <Icons.chevRight size={17} />} iconRight onClick={onComplete}>{step.done ? "Selesai ✓" : step.id === "connect" ? "Sambungkan akun" : step.id === "telegram" ? "Hubungkan Telegram" : "Tandai selesai"}</Button>
         </div>
       </div>
     </div>

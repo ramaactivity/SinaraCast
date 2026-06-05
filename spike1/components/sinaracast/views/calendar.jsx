@@ -95,16 +95,16 @@ export function CalendarView() {
 
   return (
     <div>
-      <Topbar title="Calendar" sub="Konten terjadwal & terbit — semua waktu WIB"
+      <Topbar title="Kalender" sub="Jadwal & postingan yang akan terbit · waktu WIB"
         right={<div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <Segmented options={filters} value={filter} onChange={setFilter} />
           {!app.isMobile && <Segmented options={[{ value: "month", label: "Bulan" }, { value: "week", label: "Minggu" }]} value={mode} onChange={setMode} />}
-          <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("composer", { ch: filter === "all" ? app.channel : filter })}>One-off</Button>
+          <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("composer", { ch: filter === "all" ? app.channel : filter })}>Buat postingan</Button>
         </div>} />
 
       {phase === "loading" && <Panel style={{ height: 520 }}><Skeleton h={28} w="30%" /><div style={{ height: 16 }} /><div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 8 }}>{Array.from({ length: 35 }).map((_, i) => <Skeleton key={i} h={80} r={12} />)}</div></Panel>}
 
-      {phase === "ready" && totalItems === 0 && <Panel pad={0}><EmptyState icon={<Icons.calendar size={28} />} title="Belum ada konten terjadwal" body="Bulan ini belum ada run berulang maupun post one-off untuk filter ini." action={<Button variant="amber" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("composer", { ch: app.channel })}>Buat one-off post</Button>} /></Panel>}
+      {phase === "ready" && totalItems === 0 && <Panel pad={0}><EmptyState icon={<Icons.calendar size={28} />} title="Belum ada yang dijadwalkan" body="Bulan ini belum ada jadwal otomatis maupun postingan sekali untuk pilihan ini." action={<Button variant="amber" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("composer", { ch: app.channel })}>Buat postingan</Button>} /></Panel>}
 
       {phase === "ready" && totalItems > 0 && (
         <Panel pad={app.isMobile ? 14 : 18}>
@@ -113,7 +113,7 @@ export function CalendarView() {
               <span style={{ fontFamily: FCa, fontWeight: 600, fontSize: 17, color: "var(--ink-900)" }}>{MONTH}</span>
             </div>
             {!app.isMobile && <div style={{ display: "flex", gap: 14, fontFamily: FCa, fontSize: 11, color: "var(--ink-400)" }}>
-              <Legend c="var(--st-scheduled)" t="Terjadwal" /><Legend c="var(--st-success)" t="Terbit" /><Legend c="var(--st-failed)" t="Gagal" /><Legend c="var(--st-scheduled)" t="One-off" sq />
+              <Legend c="var(--st-scheduled)" t="Terjadwal" /><Legend c="var(--st-success)" t="Terbit" /><Legend c="var(--st-failed)" t="Gagal" /><Legend c="var(--st-scheduled)" t="Sekali" sq />
             </div>}
           </div>
 
@@ -198,7 +198,7 @@ function DayModal({ sel, onClose, monthLabel }) {
   return (
     <Modal open={!!sel} onClose={onClose} width={460}>
       <div style={{ padding: 24 }}>
-        <SectionTitle sub={`${sel.items.length} item terjadwal`} right={<Button size="sm" variant="amber" icon={<Icons.plus size={15} />} onClick={() => { onClose(); app.go("composer", { ch: app.channel, day: sel.day }); }}>One-off</Button>}>{pad2(sel.day)} {monthLabel}</SectionTitle>
+        <SectionTitle sub={`${sel.items.length} item terjadwal`} right={<Button size="sm" variant="amber" icon={<Icons.plus size={15} />} onClick={() => { onClose(); app.go("composer", { ch: app.channel, day: sel.day }); }}>Buat postingan</Button>}>{pad2(sel.day)} {monthLabel}</SectionTitle>
         {sel.items.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", fontFamily: FCa, fontSize: 13, color: "var(--ink-400)" }}>Tidak ada konten pada hari ini.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {sel.items.map((it, i) => {
@@ -209,7 +209,7 @@ function DayModal({ sel, onClose, monthLabel }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontFamily: FCa, fontWeight: 600, fontSize: 13, color: "var(--ink-900)" }}>{it.title}</span>
-                    <span style={{ fontFamily: FCa, fontSize: 9.5, fontWeight: 600, color: b.accent, background: b.soft, padding: "1px 7px", borderRadius: 999 }}>{it.kind === "oneoff" ? it.type + " · one-off" : "Recurring"}</span>
+                    <span style={{ fontFamily: FCa, fontSize: 9.5, fontWeight: 600, color: b.accent, background: b.soft, padding: "1px 7px", borderRadius: 999 }}>{it.kind === "oneoff" ? it.type + " · sekali" : "Rutin"}</span>
                   </div>
                   <div style={{ fontFamily: FCa, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{it.time} WIB · {b.name}</div>
                 </div>

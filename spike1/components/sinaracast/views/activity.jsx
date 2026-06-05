@@ -10,7 +10,7 @@ import {
 const { useState: uAc } = React;
 const FA = "var(--font)";
 
-const TRIGGER = { scheduled: "Terjadwal", manual: "Manual", retry: "Coba lagi", swap: "Swap" };
+const TRIGGER = { scheduled: "Otomatis", manual: "Manual", retry: "Coba lagi", swap: "Ganti gambar" };
 // Brand styling for a channel slug, with a neutral fallback for channels added
 // via OAuth that aren't in the preset BRANDS map.
 const brandFor = (slug, channels) => BRANDS[slug] || {
@@ -31,20 +31,20 @@ export function ActivityView() {
 
   return (
     <div>
-      <Topbar title="Activity" sub="Riwayat run lintas channel — semua waktu WIB"
+      <Topbar title="Riwayat" sub="Semua postingan dari semua akun · waktu WIB"
         right={<Segmented options={filters} value={filter} onChange={setFilter} />} />
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: 18, alignItems: "start" }}>
         <Panel flush style={{ overflow: "hidden" }}>
           {phase === "loading" && <div style={{ padding: 20 }}>{[0,1,2,3,4].map(i => <div key={i} style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 0", borderBottom: "1px solid var(--line)" }}><Skeleton w={34} h={48} r={9} /><div style={{ flex: 1 }}><Skeleton w="30%" h={14} /><div style={{ height: 7 }} /><Skeleton w="50%" h={11} /></div><Skeleton w={80} h={24} r={999} /></div>)}</div>}
 
-          {phase === "ready" && runs.length === 0 && <EmptyState icon={<Icons.activity size={28} />} title="Belum ada aktivitas" body="Run akan muncul di sini setelah rule berjalan atau kamu post-now." />}
+          {phase === "ready" && runs.length === 0 && <EmptyState icon={<Icons.activity size={28} />} title="Belum ada riwayat" body="Postingan akan muncul di sini setelah jadwal berjalan atau kamu terbitkan manual." />}
 
           {phase === "ready" && runs.length > 0 && (
             <div>
               {!app.isMobile && (
               <div style={{ display: "grid", gridTemplateColumns: "48px 1fr 130px 120px", gap: 12, padding: "14px 20px", borderBottom: "1px solid var(--line)", fontFamily: FA, fontSize: 10.5, fontWeight: 600, letterSpacing: ".06em", color: "var(--ink-400)" }}>
-                <span></span><span>RULE · CHANNEL</span><span>WAKTU (WIB)</span><span style={{ textAlign: "right" }}>STATUS</span>
+                <span></span><span>JADWAL · AKUN</span><span>WAKTU (WIB)</span><span style={{ textAlign: "right" }}>STATUS</span>
               </div>
               )}
               {runs.map(r => {
@@ -65,7 +65,7 @@ export function ActivityView() {
                     </div>
                     {!app.isMobile && <span style={{ fontFamily: FA, fontSize: 12, color: "var(--ink-500)" }}>{tstr}</span>}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
-                      {r.status === "Failed" && <IconButton size={30} icon={<Icons.retry size={15} />} tone="green" tip="Coba lagi" onClick={e => { e.stopPropagation(); const rule = app.rules.find(x => x.id === r.ruleId); rule ? app.postNow(rule) : app.toast("Rule untuk run ini sudah tidak ada", "error"); }} />}
+                      {r.status === "Failed" && <IconButton size={30} icon={<Icons.retry size={15} />} tone="green" tip="Coba lagi" onClick={e => { e.stopPropagation(); const rule = app.rules.find(x => x.id === r.ruleId); rule ? app.postNow(rule) : app.toast("Jadwal untuk postingan ini sudah tidak ada", "error"); }} />}
                       <Status s={r.status} pulse={r.status === "Publishing"} />
                     </div>
                   </div>
@@ -95,7 +95,7 @@ function StorageCard() {
         <span style={{ fontFamily: FA, fontSize: 12, color: "var(--ink-400)" }}>/ {total} MB</span>
       </div>
       <Progress value={pct} showWarn h={9} />
-      <div style={{ fontFamily: FA, fontSize: 11.5, color: pct >= 80 ? "var(--danger)" : "var(--ink-400)", marginTop: 9 }}>{pct}% terpakai{pct >= 80 ? " — mendekati batas" : ""}</div>
+      <div style={{ fontFamily: FA, fontSize: 11.5, color: pct >= 80 ? "var(--danger)" : "var(--ink-400)", marginTop: 9 }}>{pct}% terpakai{pct >= 80 ? ", hampir penuh" : ""}</div>
       {app.channels.length > 0 && <div style={{ height: 1, background: "var(--line)", margin: "16px 0" }} />}
       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
         {app.channels.map(c => { const b = brandFor(c.id, app.channels); const mb = perChannel[c.id] ?? 0; return (
@@ -125,7 +125,7 @@ function RunDetail({ run, onClose }) {
       <div style={{ padding: 24 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-            <span style={{ fontFamily: FA, fontWeight: 600, fontSize: 18, color: "var(--ink-900)" }}>Detail run</span>
+            <span style={{ fontFamily: FA, fontWeight: 600, fontSize: 18, color: "var(--ink-900)" }}>Detail postingan</span>
             <Status s={run.status} pulse={run.status === "Publishing"} />
           </div>
           <IconButton icon={<Icons.x size={18} />} onClick={onClose} />
@@ -135,12 +135,11 @@ function RunDetail({ run, onClose }) {
             <MediaThumb seed={run.img} src={run.thumbUrl} w={120} label="9:16" />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            {row("Channel", <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><BrandAvatar brand={b} size={18} /> {b.name}</span>)}
-            {row("Rule", run.rule)}
-            {row("Pool / gambar", `${run.pool} · #${run.img + 1}`)}
-            {row("Trigger", TRIGGER[run.trigger])}
+            {row("Akun", <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><BrandAvatar brand={b} size={18} /> {b.name}</span>)}
+            {row("Jadwal", run.rule)}
+            {row("Sumber", TRIGGER[run.trigger])}
             {row("Dijadwalkan", run.sched, true)}
-            {row("Aktual", run.actual, true)}
+            {row("Terbit", run.actual, true)}
           </div>
         </div>
 
@@ -148,7 +147,7 @@ function RunDetail({ run, onClose }) {
 
         {run.link && <a href={"https://" + run.link} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 16, textDecoration: "none", background: "var(--green-100)", borderRadius: 12, padding: "12px 14px", fontFamily: FA, fontSize: 12.5, fontWeight: 500, color: "var(--green-500)" }}><Icons.external size={16} />{run.link}</a>}
 
-        <div style={{ fontFamily: FA, fontWeight: 600, fontSize: 12.5, color: "var(--ink-500)", margin: "20px 0 10px" }}>Log percobaan</div>
+        <div style={{ fontFamily: FA, fontWeight: 600, fontSize: 12.5, color: "var(--ink-500)", margin: "20px 0 10px" }}>Riwayat proses</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
           {run.attempts.map((a, i) => (
             <div key={i} style={{ display: "flex", gap: 12, paddingBottom: i < run.attempts.length - 1 ? 14 : 0, position: "relative" }}>
@@ -164,7 +163,7 @@ function RunDetail({ run, onClose }) {
           ))}
         </div>
 
-        {run.status === "Failed" && <Button variant="primary" full icon={<Icons.retry size={16} />} style={{ marginTop: 20 }} onClick={() => { const rule = app.rules.find(x => x.id === run.ruleId); rule ? app.postNow(rule) : app.toast("Rule untuk run ini sudah tidak ada", "error"); onClose(); }}>Coba lagi sekarang</Button>}
+        {run.status === "Failed" && <Button variant="primary" full icon={<Icons.retry size={16} />} style={{ marginTop: 20 }} onClick={() => { const rule = app.rules.find(x => x.id === run.ruleId); rule ? app.postNow(rule) : app.toast("Jadwal untuk postingan ini sudah tidak ada", "error"); onClose(); }}>Coba lagi sekarang</Button>}
       </div>
     </Modal>
   );

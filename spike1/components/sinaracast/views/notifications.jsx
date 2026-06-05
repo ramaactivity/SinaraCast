@@ -27,7 +27,7 @@ export function NotificationsView() {
 
   return (
     <div>
-      <Topbar title="Notifikasi" sub={`${unread} belum dibaca · cermin dari alert Telegram`}
+      <Topbar title="Notifikasi" sub={`${unread} belum dibaca · sama dengan yang dikirim ke Telegram`}
         right={<div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <Segmented options={[{ value: "all", label: "Semua" }, { value: "unread", label: `Belum dibaca${unread ? " · " + unread : ""}` }]} value={tab} onChange={setTab} />
           <Button variant="secondary" size="sm" icon={<Icons.check size={16} />} onClick={() => { app.markAllRead(); app.toast("Semua ditandai dibaca", "info"); }} disabled={!unread}>Tandai dibaca</Button>
@@ -37,7 +37,7 @@ export function NotificationsView() {
         <Panel flush style={{ overflow: "hidden" }}>
           {phase === "loading" && <div style={{ padding: 8 }}>{[0,1,2,3].map(i => <div key={i} style={{ display: "flex", gap: 13, padding: 16, borderBottom: "1px solid var(--line)" }}><Skeleton w={40} h={40} r={12} /><div style={{ flex: 1 }}><Skeleton w="45%" h={14} /><div style={{ height: 8 }} /><Skeleton w="80%" h={11} /></div></div>)}</div>}
 
-          {phase === "ready" && notifs.length === 0 && <EmptyState icon={<Icons.bell size={28} />} title={tab === "unread" ? "Semua sudah dibaca" : "Belum ada notifikasi"} body={tab === "unread" ? "Tidak ada notifikasi yang belum dibaca." : "Alert kegagalan, token, dan run terlewat akan muncul di sini."} />}
+          {phase === "ready" && notifs.length === 0 && <EmptyState icon={<Icons.bell size={28} />} title={tab === "unread" ? "Semua sudah dibaca" : "Belum ada notifikasi"} body={tab === "unread" ? "Tidak ada notifikasi yang belum dibaca." : "Pemberitahuan gagal terbit, koneksi bermasalah, dan jadwal terlewat akan muncul di sini."} />}
 
           {phase === "ready" && notifs.map((n, i) => {
             const [fg, bg, Ic] = NTYPE[n.type] || NTYPE.warn;

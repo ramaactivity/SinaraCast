@@ -35,13 +35,13 @@ export function ConnectionsView() {
 
   return (
     <div>
-      <Topbar title="Connections" sub="Kelola channel, koneksi Meta, dan alert Telegram"
+      <Topbar title="Manajemen Akun" sub="Kelola akun Instagram, koneksi, dan Telegram"
         right={<Button variant="amber" icon={<Icons.plus size={18} sw={2} />} disabled={atCap}
-          onClick={() => atCap ? app.toast("Maksimal 4 channel. Hapus salah satu untuk menambah.", "error") : app.connectChannel()}>Tambah channel</Button>} />
+          onClick={() => atCap ? app.toast("Maksimal 4 akun. Hapus salah satu untuk menambah.", "error") : app.connectChannel()}>Tambah akun</Button>} />
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {atCap && <div style={{ display: "flex", alignItems: "center", gap: 9, background: "var(--primary-100)", borderRadius: 13, padding: "10px 14px", fontFamily: FC, fontSize: 12.5, color: "#B07B22" }}><Icons.info size={16} />Sudah mencapai batas 4 channel.</div>}
+          {atCap && <div style={{ display: "flex", alignItems: "center", gap: 9, background: "var(--primary-100)", borderRadius: 13, padding: "10px 14px", fontFamily: FC, fontSize: 12.5, color: "#B07B22" }}><Icons.info size={16} />Sudah mencapai batas 4 akun.</div>}
 
           {phase === "loading" && [0, 1, 2, 3].map(i => <Panel key={i}><div style={{ display: "flex", gap: 14, alignItems: "center" }}><Skeleton w={48} h={48} r={13} /><div style={{ flex: 1 }}><Skeleton w="35%" h={16} /><div style={{ height: 8 }} /><Skeleton w="55%" h={12} /></div></div></Panel>)}
 
@@ -59,22 +59,22 @@ export function ConnectionsView() {
                     </div>
                     <div style={{ display: "flex", gap: 16, marginTop: 5, fontFamily: FC, fontSize: 12, color: "var(--ink-500)", flexWrap: "wrap", rowGap: 4 }}>
                       <span>{c.handle}</span><span>·</span><span>{c.followers} pengikut</span>
-                      <span>·</span><span>Token: {c.tokenExpires}</span>
+                      <span>·</span><span>Koneksi aktif s/d {c.tokenExpires}</span>
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: app.isMobile ? 0 : "auto", width: app.isMobile ? "100%" : "auto", justifyContent: app.isMobile ? "flex-start" : "flex-end" }}>
                     {c.status === "Needs reconnect" || c.status === "Expiring"
                       ? <Button size="sm" variant={c.status === "Needs reconnect" ? "danger" : "secondary"} icon={<Icons.retry size={15} />} onClick={() => reconnect(c)}>Sambungkan ulang</Button>
                       : <Button size="sm" variant="secondary" icon={c.paused ? <Icons.play size={15} /> : <Icons.pause size={15} />} onClick={() => togglePause(c)}>{c.paused ? "Lanjutkan" : "Jeda"}</Button>}
-                    <IconButton icon={<Icons.edit size={17} />} tip="Ubah identitas" onClick={() => setEditBrand(c)} />
-                    <IconButton icon={<Icons.trash size={17} />} tone="danger" tip="Hapus channel" onClick={() => app.confirm({
-                      title: `Hapus ${b.name}?`, danger: true, confirmLabel: "Hapus channel",
-                      body: "Channel diputus dari SinaraCast.",
-                      consequence: `Rule milik ${b.name} berhenti memposting. Channel & media disembunyikan (diarsipkan), bukan dihapus permanen.`,
+                    <IconButton icon={<Icons.edit size={17} />} tip="Ubah nama" onClick={() => setEditBrand(c)} />
+                    <IconButton icon={<Icons.trash size={17} />} tone="danger" tip="Hapus akun" onClick={() => app.confirm({
+                      title: `Hapus ${b.name}?`, danger: true, confirmLabel: "Hapus akun",
+                      body: "Akun ini diputus dari SinaraCast.",
+                      consequence: `Jadwal milik ${b.name} berhenti memposting. Akun & gambarnya disembunyikan, bukan dihapus permanen.`,
                       onConfirm: () => app.archiveChannel(c) })} />
                   </div>
                 </div>
-                {c.status === "Needs reconnect" && <div style={{ marginTop: 13, background: "var(--danger-bg)", borderRadius: 11, padding: "10px 13px", fontFamily: FC, fontSize: 12, color: "var(--danger)", display: "flex", gap: 8 }}><Icons.alert size={16} style={{ flex: "0 0 auto" }} />Token Meta kedaluwarsa. Posting ditahan; tidak ada percobaan publish sampai tersambung kembali.</div>}
+                {c.status === "Needs reconnect" && <div style={{ marginTop: 13, background: "var(--danger-bg)", borderRadius: 11, padding: "10px 13px", fontFamily: FC, fontSize: 12, color: "var(--danger)", display: "flex", gap: 8 }}><Icons.alert size={16} style={{ flex: "0 0 auto" }} />Koneksi ke Instagram putus. Posting dihentikan sampai akun ini disambungkan kembali.</div>}
               </Panel>
             );
           })}
@@ -84,7 +84,7 @@ export function ConnectionsView() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <TelegramCard />
           <Panel>
-            <SectionTitle sub="Penyiapan satu kali">Checklist Meta</SectionTitle>
+            <SectionTitle sub="Sekali saja di awal">Langkah penyiapan</SectionTitle>
             <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
               {META_STEPS.map((s, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 11 }}>
@@ -95,7 +95,7 @@ export function ConnectionsView() {
                 </div>
               ))}
             </div>
-            <Button size="sm" variant="ghost" full icon={<Icons.external size={15} />} style={{ marginTop: 14, justifyContent: "flex-start" }} onClick={() => app.go("onboarding")}>Buka panduan setup lengkap</Button>
+            <Button size="sm" variant="ghost" full icon={<Icons.external size={15} />} style={{ marginTop: 14, justifyContent: "flex-start" }} onClick={() => app.go("onboarding")}>Buka panduan lengkap</Button>
           </Panel>
         </div>
       </div>
@@ -110,7 +110,7 @@ function TelegramCard() {
   const tg = app.settings.telegram;
   return (
     <Panel strong>
-      <SectionTitle sub="Alert kegagalan selalu aktif">Alert Telegram</SectionTitle>
+      <SectionTitle sub="Pemberitahuan gagal selalu aktif">Telegram</SectionTitle>
       {tg.connected ? (
         <div style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--green-100)", borderRadius: 13, padding: "12px 14px" }}>
           <span style={{ width: 36, height: 36, borderRadius: 11, background: "var(--green-grad)", color: "#fff", display: "grid", placeItems: "center", flex: "0 0 auto" }}><Icons.telegram size={19} /></span>
@@ -119,13 +119,12 @@ function TelegramCard() {
             <div style={{ fontFamily: FC, fontSize: 11.5, color: "var(--ink-500)" }}>{tg.handle}</div>
           </div>
           <IconButton icon={<Icons.x size={16} />} tip="Putuskan" onClick={() => app.confirm({ title: "Putuskan Telegram?", danger: true, confirmLabel: "Putuskan",
-            body: "Alert kegagalan tidak bisa dimatikan, tapi tanpa Telegram hanya muncul di in-app center.",
-            consequence: "Kamu tetap menerima alert di dalam aplikasi, tapi tidak lagi via Telegram.",
+            body: "Pemberitahuan tetap muncul di dalam aplikasi, tapi tidak lagi dikirim ke Telegram.",
             onConfirm: () => app.disconnectTelegram() })} />
         </div>
       ) : (
         <div>
-          <p style={{ fontFamily: FC, fontSize: 12.5, color: "var(--ink-500)", lineHeight: 1.5, margin: "0 0 12px" }}>Hubungkan bot Telegram untuk menerima alert kegagalan publish, token, dan run terlewat.</p>
+          <p style={{ fontFamily: FC, fontSize: 12.5, color: "var(--ink-500)", lineHeight: 1.5, margin: "0 0 12px" }}>Hubungkan Telegram untuk dapat pemberitahuan saat posting gagal, koneksi bermasalah, atau jadwal terlewat.</p>
           <Button size="sm" variant="primary" full icon={<Icons.telegram size={16} />} onClick={() => app.connectTelegram()}>Hubungkan Telegram</Button>
         </div>
       )}

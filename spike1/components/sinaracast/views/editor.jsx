@@ -16,8 +16,8 @@ const FE = "var(--font)";
 
 const CADENCE = [
   { value: "daily", label: "Setiap hari" },
-  { value: "everyN", label: "Setiap N hari" },
-  { value: "weekdays", label: "Hari tertentu" },
+  { value: "everyN", label: "Setiap beberapa hari" },
+  { value: "weekdays", label: "Hari tertentu saja" },
 ];
 const WD = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"]; // editor idx 0=Mon..6=Sun
 const toDow = (i) => (i + 1) % 7;   // editor idx -> schema dow (0=Sun..6=Sat)
@@ -88,8 +88,8 @@ export function EditorView() {
   const reqRoles = mode === "schedule" ? ["weekday", "weekend"] : ["single"];
   const emptyRole = reqRoles.find((r) => (images[r] || []).length === 0);
   const errors = {};
-  if (touched && !name.trim()) errors.name = "Beri nama rule.";
-  if (touched && emptyRole) errors.pool = `Pool ${emptyRole === "single" ? "" : emptyRole + " "}masih kosong — minimal 1 gambar valid.`;
+  if (touched && !name.trim()) errors.name = "Beri nama jadwalnya dulu.";
+  if (touched && emptyRole) errors.pool = `Kumpulan ${emptyRole === "weekday" ? "hari kerja " : emptyRole === "weekend" ? "akhir pekan " : ""}masih kosong, minimal 1 gambar.`;
 
   async function onFiles(e) {
     const files = [...(e.target.files || [])]; e.target.value = "";
@@ -134,53 +134,53 @@ export function EditorView() {
       if (isNew) await createRuleWithPools(payload);
       else await updateRuleFields(id, payload);
       await app.reload();
-      app.toast(`Rule “${name}” disimpan`, "success");
+      app.toast(`Jadwal “${name}” disimpan`, "success");
       app.go("rules");
     } catch (err) { app.toast("Gagal menyimpan: " + (err.message || err), "error"); }
     finally { setSaving(false); }
   }
 
   if (!channel) {
-    return <div><Topbar title="Buat rule" /><Panel pad={0}><EmptyState icon={<Icons.connections size={28} />} title="Pilih channel dulu" body="Sambungkan channel untuk membuat rule." action={<Button variant="amber" onClick={() => app.go("connections")}>Connections</Button>} /></Panel></div>;
+    return <div><Topbar title="Buat jadwal" /><Panel pad={0}><EmptyState icon={<Icons.connections size={28} />} title="Pilih akun dulu" body="Sambungkan akun Instagram dulu untuk membuat jadwal." action={<Button variant="amber" onClick={() => app.go("connections")}>Manajemen Akun</Button>} /></Panel></div>;
   }
   if (loading) return <div style={{ display: "grid", placeItems: "center", minHeight: 320 }}><Spinner size={30} /></div>;
 
   return (
     <div>
       <input ref={fileRef} type="file" accept="image/jpeg,image/png" multiple onChange={onFiles} style={{ display: "none" }} />
-      <Topbar title={existing ? "Edit rule" : "Buat rule"}
+      <Topbar title={existing ? "Ubah jadwal" : "Buat jadwal"}
         sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} size={18} /> {b.name} · {channel.handle}</span>}
         right={<div style={{ display: "flex", gap: 10 }}>
           <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("rules")}>Kembali</Button>
-          <Button variant="primary" icon={saving ? <Spinner size={15} /> : <Icons.check size={17} />} disabled={saving} onClick={save}>{saving ? "Menyimpan…" : "Simpan rule"}</Button>
+          <Button variant="primary" icon={saving ? <Spinner size={15} /> : <Icons.check size={17} />} disabled={saving} onClick={save}>{saving ? "Menyimpan…" : "Simpan jadwal"}</Button>
         </div>} />
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel>
-            <SectionTitle sub="Nama, mode, dan channel tujuan">Dasar</SectionTitle>
+            <SectionTitle sub="Nama, cara, dan akun tujuan">Dasar</SectionTitle>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <Field label="Nama rule" error={errors.name}>
+              <Field label="Nama jadwal" error={errors.name}>
                 <Input placeholder="cth. Jam buka" value={name} invalid={!!errors.name} onChange={(e) => setName(e.target.value)} />
               </Field>
-              <Field label="Channel">
+              <Field label="Akun">
                 <div style={{ display: "flex", alignItems: "center", gap: 10, height: 46, padding: "0 14px", background: "var(--line-soft)", borderRadius: 13, border: "1px solid var(--line)" }}>
                   <BrandAvatar brand={b} size={26} /><span style={{ fontFamily: FE, fontWeight: 500, fontSize: 13.5, color: "var(--ink-900)" }}>{b.name}</span>
                 </div>
               </Field>
             </div>
-            <Field label="Mode" hint={mode === "schedule" ? "Pool terpisah untuk weekday & weekend." : "Satu pool yang diacak tanpa ulang."} style={{ marginTop: 14 }}>
-              <Segmented options={[{ value: "schedule", label: "Schedule (weekday/weekend)" }, { value: "pool", label: "Pool (satu pool)" }]} value={mode} onChange={setMode} />
+            <Field label="Cara pilih gambar" hint={mode === "schedule" ? "Gambar beda untuk hari kerja & akhir pekan." : "Satu kumpulan gambar, diacak bergiliran tanpa diulang."} style={{ marginTop: 14 }}>
+              <Segmented options={[{ value: "schedule", label: "Beda hari kerja & akhir pekan" }, { value: "pool", label: "Satu kumpulan (acak)" }]} value={mode} onChange={setMode} />
             </Field>
           </Panel>
 
           <Panel>
-            <SectionTitle sub="Unggah gambar Story. Validasi: rasio 9:16, JPG/PNG, maks 8 MB."
-              right={<Button size="sm" variant="secondary" disabled={uploading} icon={uploading ? <Spinner size={15} /> : <Icons.upload size={16} />} onClick={() => fileRef.current?.click()}>{uploading ? "Mengunggah…" : "Unggah gambar"}</Button>}>Pool media</SectionTitle>
-            {errors.pool && <Banner tone="warn" icon={<Icons.warn size={17} />} title="Pool wajib berisi gambar" body={errors.pool} />}
+            <SectionTitle sub="Unggah gambar Story. Syarat: ukuran 9:16, JPG/PNG, maks 8 MB."
+              right={<Button size="sm" variant="secondary" disabled={uploading} icon={uploading ? <Spinner size={15} /> : <Icons.upload size={16} />} onClick={() => fileRef.current?.click()}>{uploading ? "Mengunggah…" : "Unggah gambar"}</Button>}>Kumpulan gambar</SectionTitle>
+            {errors.pool && <Banner tone="warn" icon={<Icons.warn size={17} />} title="Gambar tidak boleh kosong" body={errors.pool} />}
             {mode === "schedule" && (
               <div style={{ marginBottom: 14 }}>
-                <Segmented options={[{ value: "weekday", label: `Weekday · ${images.weekday.length}` }, { value: "weekend", label: `Weekend · ${images.weekend.length}` }]} value={tab} onChange={setTab} />
+                <Segmented options={[{ value: "weekday", label: `Hari kerja · ${images.weekday.length}` }, { value: "weekend", label: `Akhir pekan · ${images.weekend.length}` }]} value={tab} onChange={setTab} />
               </div>
             )}
             <PoolGrid imgs={curImgs} onAdd={() => fileRef.current?.click()} onRemove={removeImg} />
@@ -192,8 +192,8 @@ export function EditorView() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel strong>
-            <SectionTitle sub="Semua waktu WIB (UTC+7)">Jadwal</SectionTitle>
-            <Field label="Kapan posting (cadence)">
+            <SectionTitle sub="Semua waktu WIB (UTC+7)">Waktu posting</SectionTitle>
+            <Field label="Seberapa sering">
               <Select options={CADENCE} value={cadence} onChange={setCadence} />
             </Field>
             {cadence === "everyN" && <Field label="Setiap berapa hari" style={{ marginTop: 12 }}><Input type="number" min={2} value={everyN} onChange={(e) => setEveryN(+e.target.value)} /></Field>}
@@ -209,20 +209,20 @@ export function EditorView() {
             <div style={{ marginTop: 14 }}>
               {mode === "schedule" ? (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <Field label="Jam weekday"><TimeField value={wdTime} onChange={setWdTime} /></Field>
-                  <Field label="Jam weekend"><TimeField value={weTime} onChange={setWeTime} /></Field>
+                  <Field label="Jam hari kerja"><TimeField value={wdTime} onChange={setWdTime} /></Field>
+                  <Field label="Jam akhir pekan"><TimeField value={weTime} onChange={setWeTime} /></Field>
                 </div>
               ) : (
                 <Field label="Jam posting"><TimeField value={time} onChange={setTime} /></Field>
               )}
             </div>
-            <Field label={`Grace window — ${grace} menit`} hint="Toleransi keterlambatan sebelum run ditandai terlewat." style={{ marginTop: 14 }}>
+            <Field label={`Toleransi telat — ${grace} menit`} hint="Berapa lama masih boleh telat sebelum dianggap terlewat." style={{ marginTop: 14 }}>
               <input type="range" min={10} max={60} step={5} value={grace} onChange={(e) => setGrace(+e.target.value)} style={{ width: "100%", accentColor: "var(--green-500)" }} />
             </Field>
           </Panel>
 
           <Panel>
-            <SectionTitle sub="Rule otomatis dilewati pada tanggal ini">Hari libur</SectionTitle>
+            <SectionTitle sub="Jadwal otomatis dilewati pada tanggal ini">Hari libur</SectionTitle>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
               {holidays.length === 0 && <span style={{ fontFamily: FE, fontSize: 12.5, color: "var(--ink-400)" }}>Belum ada tanggal libur.</span>}
               {holidays.map((h, i) => <Chip key={h + i} tone="lilac" icon={<Icons.calendar size={13} />} onRemove={() => setHolidays((hs) => hs.filter((_, x) => x !== i))}>{h}</Chip>)}
@@ -238,7 +238,7 @@ function PoolGrid({ imgs, onAdd, onRemove }) {
   const [view, setView] = uEd(null); // lightbox index, or null
   if (!imgs.length) return (
     <div style={{ border: "1.5px dashed var(--line)", borderRadius: 16, padding: "30px 20px" }}>
-      <EmptyState compact icon={<Icons.image size={26} />} title="Pool masih kosong" body="Unggah gambar Story (9:16) untuk mulai." action={<Button size="sm" variant="amber" icon={<Icons.upload size={16} />} onClick={onAdd}>Unggah gambar</Button>} />
+      <EmptyState compact icon={<Icons.image size={26} />} title="Belum ada gambar" body="Unggah gambar Story (9:16) untuk mulai." action={<Button size="sm" variant="amber" icon={<Icons.upload size={16} />} onClick={onAdd}>Unggah gambar</Button>} />
     </div>
   );
   // delete from the lightbox, then keep it open on a neighbouring image (or close)

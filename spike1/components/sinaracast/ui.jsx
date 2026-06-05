@@ -112,12 +112,19 @@ const ST = {
   Inactive: ["var(--st-skipped)", "var(--st-skipped-bg)"],
   Draft: ["var(--st-scheduled)", "var(--st-scheduled-bg)"],
 };
+// Indonesian display labels (keys stay English for color/logic lookups).
+export const ST_LABEL = {
+  Published: "Terbit", Publishing: "Diproses", Scheduled: "Terjadwal", Failed: "Gagal",
+  Skipped: "Dilewati", Paused: "Dijeda", Connected: "Tersambung", Expiring: "Segera kedaluwarsa",
+  "Needs reconnect": "Perlu disambungkan", Active: "Aktif", Inactive: "Nonaktif", Draft: "Draf",
+};
+export const statusLabel = (s) => ST_LABEL[s] || s;
 export function Status({ s, pulse }) {
   const [fg, bg] = ST[s] || ST.Skipped;
   return (
     <span className="sc-pill" style={{ color: fg, background: bg }}>
-      <span className="dot" style={{ background: fg, animation: pulse ? "cosPulse 1.4s infinite" : "none" }} />
-      {s}
+      <span className="dot" style={{ background: fg, animation: pulse ? "scPulse 1.4s infinite" : "none" }} />
+      {statusLabel(s)}
     </span>
   );
 }
@@ -412,11 +419,11 @@ export function EmptyState({ icon, title, body, action, compact }) {
 /* ---------------- Loading (skeleton + spinner) ---------------- */
 export function Skeleton({ w = "100%", h = 16, r = 8, style }) {
   return <div style={{ width: w, height: h, borderRadius: r, background: "linear-gradient(90deg,rgba(140,144,158,.1),rgba(140,144,158,.18),rgba(140,144,158,.1))",
-    backgroundSize: "200% 100%", animation: "cosShimmer 1.3s infinite", ...style }} />;
+    backgroundSize: "200% 100%", animation: "scShimmer 1.3s infinite", ...style }} />;
 }
 export function Spinner({ size = 22, color = "var(--green-500)" }) {
   return <div style={{ width: size, height: size, borderRadius: "50%", border: `2.5px solid rgba(140,144,158,.2)`,
-    borderTopColor: color, animation: "cosSpin .7s linear infinite" }} />;
+    borderTopColor: color, animation: "scSpin .7s linear infinite" }} />;
 }
 
 /* ---------------- Modal + Confirm dialog ---------------- */
@@ -472,7 +479,7 @@ export function Toast({ toast }) {
   return (
     <div style={{ position: "fixed", bottom: 26, left: "50%", transform: "translateX(-50%)", zIndex: 300,
       display: "flex", alignItems: "center", gap: 11, background: "#fff", borderRadius: 14, padding: "13px 20px",
-      boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", animation: "cosToast .25s", fontFamily: F2, fontSize: 13.5, fontWeight: 500, color: "var(--ink-900)" }}>
+      boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", animation: "scToast .25s", fontFamily: F2, fontSize: 13.5, fontWeight: 500, color: "var(--ink-900)" }}>
       <span style={{ color: fg }}>{ic}</span>{toast.msg}
     </div>
   );

@@ -10,7 +10,7 @@ import {
 const { useState: uRl } = React;
 const FR = "var(--font)";
 
-function modeLabel(m) { return m === "schedule" ? "Schedule" : "Pool"; }
+function modeLabel(m) { return m === "schedule" ? "Beda akhir pekan" : "Acak"; }
 
 export function RulesView() {
   const app = useApp();
@@ -23,10 +23,10 @@ export function RulesView() {
   if (!ch) {
     return (
       <div>
-        <Topbar title="Rules" />
-        <Panel pad={0}><EmptyState icon={<Icons.connections size={28} />} title="Belum ada channel"
-          body="Sambungkan channel Instagram pertamamu untuk mulai membuat rule."
-          action={<Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("connections")}>Sambungkan channel</Button>} /></Panel>
+        <Topbar title="Jadwal Otomatis" />
+        <Panel pad={0}><EmptyState icon={<Icons.connections size={28} />} title="Belum ada akun"
+          body="Sambungkan akun Instagram pertamamu dulu untuk mulai membuat jadwal otomatis."
+          action={<Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("connections")}>Sambungkan akun</Button>} /></Panel>
       </div>
     );
   }
@@ -41,21 +41,21 @@ export function RulesView() {
 
   const right = (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("editor", { ch: app.channel, mode: "schedule", isNew: true })}>Buat rule</Button>
+      <Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("editor", { ch: app.channel, mode: "schedule", isNew: true })}>Buat jadwal</Button>
     </div>
   );
 
   return (
     <div>
-      <Topbar title="Rules" sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} src={ch.avatarUrl} size={18} /> {b.name} · {ch.handle}</span>} right={right} />
+      <Topbar title="Jadwal Otomatis" sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} src={ch.avatarUrl} size={18} /> {b.name} · {ch.handle}</span>} right={right} />
 
       {/* channel-level banners */}
       {ch.status === "Needs reconnect" && <Banner tone="error" icon={<Icons.alert size={18} />}
-        title="Channel perlu disambungkan ulang" body="Token Meta kedaluwarsa. Posting ditahan sampai channel tersambung kembali."
+        title="Akun perlu disambungkan ulang" body="Koneksi ke Instagram putus. Posting dihentikan sampai akun tersambung kembali."
         action={<Button size="sm" variant="danger" onClick={() => app.go("connections")}>Sambungkan ulang</Button>} />}
       {ch.paused && <Banner tone="paused" icon={<Icons.pause size={18} />}
-        title="Channel ini dijeda" body={`Tidak ada posting sampai dilanjutkan${ch.resumeDate ? ` · otomatis ${ch.resumeDate}` : ""}.`}
-        action={<Button size="sm" variant="secondary" onClick={() => app.go("connections")}>Kelola jeda</Button>} />}
+        title="Akun ini sedang dijeda" body={`Tidak ada postingan sampai dilanjutkan${ch.resumeDate ? ` · otomatis ${ch.resumeDate}` : ""}.`}
+        action={<Button size="sm" variant="secondary" onClick={() => app.go("connections")}>Atur jeda</Button>} />}
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
@@ -65,11 +65,11 @@ export function RulesView() {
               <div style={app.isMobile
                 ? { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }
                 : { display: "flex", alignItems: "center", gap: 26 }}>
-                <Stat label="Aktif minggu ini" value={`${pubWeek} posting`} sub="7 hari terakhir" spark={week} color={b.accent} />
+                <Stat label="Terbit minggu ini" value={`${pubWeek} postingan`} sub="7 hari terakhir" spark={week} color={b.accent} />
                 {!app.isMobile && <Div />}
-                <Stat label="Rules aktif" value={`${rules.filter(r => r.active).length} / ${rules.length}`} sub="di channel ini" />
+                <Stat label="Jadwal aktif" value={`${rules.filter(r => r.active).length} / ${rules.length}`} sub="di akun ini" />
                 {!app.isMobile && <Div />}
-                <Stat label="Perlu perhatian" value={failCt > 0 ? `${failCt} gagal` : "Aman"} sub={failCt > 0 ? "lihat Activity" : "tidak ada error"} danger={failCt > 0} />
+                <Stat label="Perlu perhatian" value={failCt > 0 ? `${failCt} gagal` : "Aman"} sub={failCt > 0 ? "lihat Riwayat" : "semua lancar"} danger={failCt > 0} />
               </div>
             </Panel>
           )}
@@ -78,9 +78,9 @@ export function RulesView() {
           {phase === "loading" && <LoadingRules />}
           {phase === "error" && <ErrorState onRetry={() => app.toast("Memuat ulang…", "info")} />}
           {phase === "ready" && rules.length === 0 && (
-            <Panel pad={0}><EmptyState icon={<Icons.rules size={28} />} title="Belum ada rule di channel ini"
-              body={`Buat Recurring Story Rule pertama untuk ${b.name}. Atur pool gambar, jadwal, dan biarkan terbit otomatis.`}
-              action={<Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("editor", { ch: app.channel, mode: "schedule", isNew: true })}>Buat rule</Button>} /></Panel>
+            <Panel pad={0}><EmptyState icon={<Icons.rules size={28} />} title="Belum ada jadwal di akun ini"
+              body={`Buat jadwal otomatis pertama untuk ${b.name}. Masukkan kumpulan gambar, atur waktunya, lalu biarkan terbit sendiri.`}
+              action={<Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("editor", { ch: app.channel, mode: "schedule", isNew: true })}>Buat jadwal</Button>} /></Panel>
           )}
           {phase === "ready" && rules.map(r => (
             <RuleCard key={r.id} r={r} b={b} selected={selRule && selRule.id === r.id} onSelect={() => setSel(r.id)} disabled={ch.status === "Needs reconnect"} />
@@ -130,7 +130,7 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
         {/* shuffle cycle progress (hidden on mobile — also shown in the inspector) */}
         {!app.isMobile && (
         <div style={{ textAlign: "right", marginRight: 4 }}>
-          <div style={{ fontFamily: FR, fontSize: 10.5, color: "var(--ink-400)", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}><Icons.shuffle size={13} />{r.cycle.used}/{r.cycle.total} siklus</div>
+          <div style={{ fontFamily: FR, fontSize: 10.5, color: "var(--ink-400)", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}><Icons.shuffle size={13} />{r.cycle.used}/{r.cycle.total} sudah tampil</div>
           <div style={{ display: "flex", gap: 3, justifyContent: "flex-end" }}>
             {Array.from({ length: r.cycle.total }).map((_, i) => (
               <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: i < r.cycle.used ? b.accent : "var(--line)" }} />
@@ -145,14 +145,14 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
             <>
               <div onClick={() => setMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
               <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 50, background: "#fff", borderRadius: 13, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 5, width: 168, animation: "scPop .14s" }}>
-                <Menu icon={<Icons.edit size={16} />} onClick={() => { setMenu(false); app.go("editor", { ch: r.ch, id: r.id }); }}>Edit rule</Menu>
-                <Menu icon={<Icons.play size={16} />} onClick={() => { setMenu(false); app.postNow(r); }}>Post now / test</Menu>
+                <Menu icon={<Icons.edit size={16} />} onClick={() => { setMenu(false); app.go("editor", { ch: r.ch, id: r.id }); }}>Ubah jadwal</Menu>
+                <Menu icon={<Icons.play size={16} />} onClick={() => { setMenu(false); app.postNow(r); }}>Terbitkan sekarang</Menu>
                 <div style={{ height: 1, background: "var(--line)", margin: "4px 0" }} />
                 <Menu icon={<Icons.trash size={16} />} danger onClick={() => { setMenu(false); app.confirm({
-                  title: `Hapus rule “${r.name}”?`, danger: true, confirmLabel: "Hapus rule",
+                  title: `Hapus jadwal “${r.name}”?`, danger: true, confirmLabel: "Hapus jadwal",
                   body: "Tindakan ini tidak bisa dibatalkan.",
-                  consequence: "Jadwal dihapus dan rule berhenti memposting. Gambar di pool tetap tersimpan dan tidak ikut terhapus.",
-                  onConfirm: () => { app.deleteRule(r.id); app.toast(`Rule “${r.name}” dihapus`, "success"); } }); }}>Hapus rule</Menu>
+                  consequence: "Jadwal ini dihapus dan berhenti memposting. Gambar-gambarnya tetap tersimpan, tidak ikut terhapus.",
+                  onConfirm: () => { app.deleteRule(r.id); app.toast(`Jadwal “${r.name}” dihapus`, "success"); } }); }}>Hapus jadwal</Menu>
               </div>
             </>
           )}
@@ -162,10 +162,10 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderTop: "1px solid var(--line)", background: "rgba(246,245,251,.5)", borderRadius: "0 0 var(--r-md) var(--r-md)", flexWrap: "wrap", rowGap: 10 }}>
         {r.todayStatus === "Failed"
           ? <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: FR, fontSize: 12, color: "var(--danger)" }}><Status s="Failed" /> {r.failReason}</span>
-          : <span style={{ fontFamily: FR, fontSize: 12, color: "var(--ink-500)" }}>Berikutnya: <b style={{ color: "var(--ink-900)", fontWeight: 600 }}>{r.nextRun}</b></span>}
+          : <span style={{ fontFamily: FR, fontSize: 12, color: "var(--ink-500)" }}>Terbit berikutnya: <b style={{ color: "var(--ink-900)", fontWeight: 600 }}>{r.nextRun}</b></span>}
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }} onClick={e => e.stopPropagation()}>
           {r.todayStatus === "Failed" && <Button size="sm" variant="secondary" icon={<Icons.retry size={15} />} onClick={() => app.postNow(r, true)}>Coba lagi</Button>}
-          <Button size="sm" variant="primary" icon={<Icons.play size={15} />} disabled={disabled || !r.active} onClick={() => app.postNow(r)}>Post now</Button>
+          <Button size="sm" variant="primary" icon={<Icons.play size={15} />} disabled={disabled || !r.active} onClick={() => app.postNow(r)}>Terbitkan sekarang</Button>
         </div>
       </div>
     </Card>
@@ -190,29 +190,29 @@ function NextInspector({ r, b, ch }) {
   const paused = ch.paused || ch.status === "Needs reconnect";
   return (
     <Panel strong style={{ position: "sticky", top: 8 }}>
-      <SectionTitle sub={r.name}>Berikutnya</SectionTitle>
+      <SectionTitle sub={r.name}>Terbit berikutnya</SectionTitle>
       <div style={{ display: "flex", gap: 14 }}>
         <MediaThumb seed={r.lastImg} src={r.thumbUrl} w={92} label="9:16" />
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: FR, fontSize: 11, color: "var(--ink-400)" }}>Jadwal berikutnya</div>
+          <div style={{ fontFamily: FR, fontSize: 11, color: "var(--ink-400)" }}>Dijadwalkan</div>
           <div style={{ fontFamily: FR, fontWeight: 600, fontSize: 15, color: "var(--ink-900)", margin: "2px 0 10px" }}>{r.nextRun}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 7, fontFamily: FR, fontSize: 12, color: "var(--ink-600)" }}>
-            <Meta icon={<Icons.shuffle size={14} />} t={`Acak tanpa ulang · ${r.cycle.used}/${r.cycle.total} terpakai`} />
-            <Meta icon={<Icons.layers size={14} />} t={r.mode === "schedule" ? `Pool weekday (${r.pools.weekday})` : `Pool (${r.pools.pool})`} />
-            <Meta icon={<Icons.clock size={14} />} t={`Grace window ${r.grace} menit`} />
+            <Meta icon={<Icons.shuffle size={14} />} t={`Diacak, tiap gambar dapat giliran · ${r.cycle.used}/${r.cycle.total} sudah tampil`} />
+            <Meta icon={<Icons.layers size={14} />} t={r.mode === "schedule" ? `${r.pools.weekday} gambar hari kerja` : `${r.pools.pool} gambar`} />
+            <Meta icon={<Icons.clock size={14} />} t={`Toleransi telat ${r.grace} menit`} />
           </div>
         </div>
       </div>
       <div style={{ height: 1, background: "var(--line)", margin: "16px 0" }} />
-      <div style={{ fontFamily: FR, fontSize: 11.5, fontWeight: 600, color: "var(--ink-500)", marginBottom: 10 }}>Atur hari ini</div>
+      <div style={{ fontFamily: FR, fontSize: 11.5, fontWeight: 600, color: "var(--ink-500)", marginBottom: 10 }}>Khusus hari ini</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
-        <Button variant="secondary" size="sm" icon={<Icons.skip size={15} />} disabled={paused} onClick={() => { app.updateRule(r.id, { todayStatus: "Skipped", nextRun: "Dilewati hari ini" }); app.toast(`“${r.name}” dilewati hari ini`, "info"); }}>Skip hari ini</Button>
-        <Button variant="secondary" size="sm" icon={<Icons.swap size={15} />} disabled={paused} onClick={() => setSwap(true)}>Swap gambar</Button>
+        <Button variant="secondary" size="sm" icon={<Icons.skip size={15} />} disabled={paused} onClick={() => { app.updateRule(r.id, { todayStatus: "Skipped", nextRun: "Dilewati hari ini" }); app.toast(`“${r.name}” dilewati hari ini`, "info"); }}>Lewati hari ini</Button>
+        <Button variant="secondary" size="sm" icon={<Icons.swap size={15} />} disabled={paused} onClick={() => setSwap(true)}>Ganti gambar</Button>
       </div>
       <div style={{ marginTop: 9 }}>
-        <Button variant="primary" size="sm" full icon={<Icons.play size={15} />} disabled={paused || !r.active} onClick={() => app.postNow(r)}>Post now / test</Button>
+        <Button variant="primary" size="sm" full icon={<Icons.play size={15} />} disabled={paused || !r.active} onClick={() => app.postNow(r)}>Terbitkan sekarang</Button>
       </div>
-      <button onClick={() => app.go("editor", { ch: r.ch, id: r.id })} style={{ width: "100%", marginTop: 14, background: "transparent", border: "none", cursor: "pointer", fontFamily: FR, fontSize: 12.5, fontWeight: 600, color: b.accent, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>Edit rule lengkap <Icons.chevRight size={15} /></button>
+      <button onClick={() => app.go("editor", { ch: r.ch, id: r.id })} style={{ width: "100%", marginTop: 14, background: "transparent", border: "none", cursor: "pointer", fontFamily: FR, fontSize: 12.5, fontWeight: 600, color: b.accent, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>Ubah jadwal lengkap <Icons.chevRight size={15} /></button>
 
       <SwapModal open={swap} onClose={() => setSwap(false)} r={r} />
     </Panel>
@@ -228,9 +228,9 @@ function SwapModal({ open, onClose, r }) {
   return (
     <Modal open={open} onClose={onClose} width={520}>
       <div style={{ padding: 24 }}>
-        <SectionTitle sub={`Pilih satu gambar dari pool untuk post hari ini saja — “${r.name}”`}>Swap gambar hari ini</SectionTitle>
+        <SectionTitle sub={`Pilih satu gambar untuk postingan hari ini saja — “${r.name}”`}>Ganti gambar hari ini</SectionTitle>
         {imgs.length === 0
-          ? <div style={{ padding: "28px 0", textAlign: "center", fontFamily: FR, fontSize: 13, color: "var(--ink-400)" }}>Belum ada gambar di pool ini.</div>
+          ? <div style={{ padding: "28px 0", textAlign: "center", fontFamily: FR, fontSize: 13, color: "var(--ink-400)" }}>Belum ada gambar untuk jadwal ini.</div>
           : <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10, maxHeight: 360, overflow: "auto" }} className="sc-scroll">
               {imgs.map((im, i) => (
                 <MediaThumb key={i} src={im.url} w={"100%"} ratio={16 / 9} selected={pick === i} onClick={() => setPick(i)} />
@@ -250,5 +250,5 @@ function LoadingRules() {
   return <>{[0, 1, 2].map(i => <Panel key={i} pad={16} style={{ marginBottom: 0 }}><div style={{ display: "flex", gap: 14, alignItems: "center" }}><Skeleton w={46} h={62} r={10} /><div style={{ flex: 1 }}><Skeleton w="40%" h={16} /><div style={{ height: 9 }} /><Skeleton w="65%" h={12} /></div><Spinner /></div></Panel>)}</>;
 }
 function ErrorState({ onRetry }) {
-  return <Panel pad={0}><EmptyState icon={<Icons.warn size={28} />} title="Gagal memuat rules" body="Terjadi kendala saat mengambil data. Periksa koneksi lalu coba lagi." action={<Button variant="secondary" icon={<Icons.retry size={16} />} onClick={onRetry}>Coba lagi</Button>} /></Panel>;
+  return <Panel pad={0}><EmptyState icon={<Icons.warn size={28} />} title="Gagal memuat jadwal" body="Ada kendala saat mengambil data. Periksa koneksi internet lalu coba lagi." action={<Button variant="secondary" icon={<Icons.retry size={16} />} onClick={onRetry}>Coba lagi</Button>} /></Panel>;
 }
