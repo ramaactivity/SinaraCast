@@ -2,7 +2,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { Icons } from "./icons";
-import { Button } from "./ui";
 const { useEffect, useRef } = React;
 const F = "var(--font)";
 
@@ -13,7 +12,7 @@ const isVideoItem = (im) => !!(im && (im.isVideo || ["mp4", "mov"].includes(im.f
 // filmstrip, keyboard (←/→/Esc) + swipe, and a delete action. `index` opens it;
 // null = closed. `ratio` = height/width for the frame; pass null for natural
 // aspect (e.g. mixed-ratio Feed images).
-export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, ratio = 16 / 9 }) {
+export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, onReplace, ratio = 16 / 9 }) {
   const stripRef = useRef(null);
   const touch = useRef(null);
   const open = index != null && imgs.length > 0;
@@ -44,8 +43,14 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, ratio =
   const thumbAspect = String(1 / (ratio || 1));
   const mediaStyle = { maxHeight: "100%", maxWidth: "100%", aspectRatio: aspect, objectFit: "contain", borderRadius: "var(--r-lg)", boxShadow: "var(--shadow-lg)", animation: "scPop .2s" };
 
+  const kind = isVideoItem(cur) ? "video" : "gambar";
   const circleBtn = { width: 46, height: 46, borderRadius: "50%", border: "1px solid var(--line)", background: "#fff",
     color: "var(--ink-700)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-md)", transition: "box-shadow .15s, transform .12s" };
+  const pill = (danger) => ({ height: 42, padding: "0 16px", borderRadius: 999, border: "1px solid var(--line)", background: "#fff",
+    color: danger ? "var(--danger, #e5484d)" : "var(--ink-600)", display: "inline-flex", alignItems: "center", gap: 7,
+    fontFamily: F, fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "var(--shadow-sm)", whiteSpace: "nowrap", transition: "box-shadow .15s, transform .12s" });
+  const lift = (e) => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.transform = "translateY(-1px)"; };
+  const drop = (e) => { e.currentTarget.style.boxShadow = "var(--shadow-sm)"; e.currentTarget.style.transform = "none"; };
   const arrow = (dir) => (
     <button onClick={(e) => { e.stopPropagation(); go(dir); }} aria-label={dir < 0 ? "Sebelumnya" : "Berikutnya"} disabled={single}
       style={{ ...circleBtn, cursor: single ? "default" : "pointer", opacity: single ? 0.4 : 1 }}
@@ -59,10 +64,22 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, ratio =
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 400, display: "flex", flexDirection: "column",
       background: "rgba(62,67,81,.34)", backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)", animation: "scFade .18s" }}>
 
-      {/* top bar */}
-      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", flex: "0 0 auto" }}>
+      {/* top bar: counter • actions (Ganti / Hapus) • close */}
+      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "16px 18px", flex: "0 0 auto" }}>
         <span style={{ fontFamily: F, fontSize: 12.5, fontWeight: 600, color: "var(--ink-500)", background: "#fff", padding: "7px 13px", borderRadius: 999, boxShadow: "var(--shadow-sm)", border: "1px solid var(--line)" }}>{i + 1} / {imgs.length}</span>
-        <button onClick={onClose} aria-label="Tutup" style={{ width: 42, height: 42, borderRadius: "50%", border: "1px solid var(--line)", cursor: "pointer", background: "#fff", color: "var(--ink-500)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)" }}><Icons.x size={20} /></button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          {onReplace && (
+            <button onClick={() => onReplace(i)} style={pill(false)} onMouseEnter={lift} onMouseLeave={drop} title={`Ganti ${kind}`}>
+              <Icons.swap size={16} /><span style={{ display: "inline" }}>Ganti</span>
+            </button>
+          )}
+          {onDelete && (
+            <button onClick={() => onDelete(i)} style={pill(true)} onMouseEnter={lift} onMouseLeave={drop} title={`Hapus ${kind}`}>
+              <Icons.trash size={16} /><span style={{ display: "inline" }}>Hapus</span>
+            </button>
+          )}
+          <button onClick={onClose} aria-label="Tutup" style={{ width: 42, height: 42, borderRadius: "50%", border: "1px solid var(--line)", cursor: "pointer", background: "#fff", color: "var(--ink-500)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)", flex: "0 0 auto" }}><Icons.x size={20} /></button>
+        </div>
       </div>
 
       {/* stage: arrows flank the media */}
@@ -79,15 +96,10 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, ratio =
         {arrow(1)}
       </div>
 
-      {/* actions */}
-      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", justifyContent: "center", padding: "14px 18px 4px", flex: "0 0 auto" }}>
-        <Button variant="danger" icon={<Icons.trash size={16} />} onClick={() => onDelete(i)}>Hapus {isVideoItem(cur) ? "video" : "gambar"}</Button>
-      </div>
-
       {/* filmstrip */}
       {!single && (
       <div onClick={(e) => e.stopPropagation()} ref={stripRef} className="sc-scroll"
-        style={{ display: "flex", gap: 10, padding: "12px 18px 20px", overflowX: "auto", flex: "0 0 auto", justifyContent: imgs.length > 6 ? "flex-start" : "center" }}>
+        style={{ display: "flex", gap: 10, padding: "16px 18px 22px", overflowX: "auto", flex: "0 0 auto", justifyContent: imgs.length > 6 ? "flex-start" : "center" }}>
         {imgs.map((im, k) => {
           const active = k === i;
           const thumbStyle = { width: 48, aspectRatio: thumbAspect, objectFit: "cover", borderRadius: 10, display: "block",

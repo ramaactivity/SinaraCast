@@ -72,6 +72,8 @@ export function EditorView() {
   const [uploading, setUploading] = uEd(false);
   const [saving, setSaving] = uEd(false);
   const fileRef = useRef(null);
+  const replaceIdxRef = useRef(null); // when set, the next upload replaces this pool index
+  function startReplace(idx) { replaceIdxRef.current = idx; fileRef.current?.click(); }
 
   useEffect(() => {
     if (!existing) return;
@@ -106,8 +108,23 @@ export function EditorView() {
   if (touched && !name.trim()) errors.name = "Beri nama jadwalnya dulu.";
   if (touched && emptyRole) errors.pool = `Kumpulan ${emptyRole === "weekday" ? "hari kerja " : emptyRole === "weekend" ? "akhir pekan " : ""}masih kosong, minimal 1 gambar.`;
 
+  // Add the uploaded row to the current role pool — or, when `rep` is an index,
+  // replace that slot in place (and clean up the old DB row + stored file).
+  async function commitRow(row, rep) {
+    if (rep != null) {
+      const old = (images[role] || [])[rep];
+      if (!isNew && poolIdByRole[role]) { row.id = await addPoolImageRow(poolIdByRole[role], row, rep); row.poolId = poolIdByRole[role]; }
+      setImages((im) => ({ ...im, [role]: (im[role] || []).map((x, k) => (k === rep ? row : x)) }));
+      if (old) { try { await removePoolImageRow(old.id, old.storage_path); } catch {} }
+    } else {
+      if (!isNew && poolIdByRole[role]) { row.id = await addPoolImageRow(poolIdByRole[role], row, (images[role] || []).length); row.poolId = poolIdByRole[role]; }
+      setImages((im) => ({ ...im, [role]: [...(im[role] || []), row] }));
+    }
+  }
+
   async function onFiles(e) {
     const files = [...(e.target.files || [])]; e.target.value = "";
+    let rep = replaceIdxRef.current; replaceIdxRef.current = null; // applies to the first valid file only
     for (const file of files) {
       // Story pools can also hold a 9:16 video (≤60s).
       if (["video/mp4", "video/quicktime"].includes(file.type)) {
@@ -118,8 +135,7 @@ export function EditorView() {
         setUploading(true);
         try {
           const row = await uploadReelVideo(file, chId, meta);
-          if (!isNew && poolIdByRole[role]) { row.id = await addPoolImageRow(poolIdByRole[role], row, (images[role] || []).length); row.poolId = poolIdByRole[role]; }
-          setImages((im) => ({ ...im, [role]: [...(im[role] || []), row] }));
+          await commitRow(row, rep); rep = null;
           app.toast("Video diunggah ✓", "success");
         } catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
         finally { setUploading(false); }
@@ -132,11 +148,7 @@ export function EditorView() {
       setUploading(true);
       try {
         const row = await uploadPoolImage(file, chId, dim);
-        if (!isNew && poolIdByRole[role]) {
-          row.id = await addPoolImageRow(poolIdByRole[role], row, (images[role] || []).length);
-          row.poolId = poolIdByRole[role];
-        }
-        setImages((im) => ({ ...im, [role]: [...(im[role] || []), row] }));
+        await commitRow(row, rep); rep = null;
         app.toast("Gambar diunggah & divalidasi (9:16) ✓", "success");
       } catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
       finally { setUploading(false); }
@@ -214,7 +226,7 @@ export function EditorView() {
                 <Segmented options={[{ value: "weekday", label: `Hari kerja · ${images.weekday.length}` }, { value: "weekend", label: `Akhir pekan · ${images.weekend.length}` }]} value={tab} onChange={setTab} />
               </div>
             )}
-            <PoolGrid imgs={curImgs} onAdd={() => fileRef.current?.click()} onRemove={removeImg} />
+            <PoolGrid imgs={curImgs} onAdd={() => fileRef.current?.click()} onRemove={removeImg} onReplace={startReplace} />
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontFamily: FE, fontSize: 12, color: "var(--ink-500)" }}>
               <Icons.shuffle size={15} style={{ color: b.accent }} /> Acak tanpa ulang: tiap gambar terpakai sekali per siklus sebelum diacak ulang.
             </div>
@@ -269,7 +281,7 @@ export function EditorView() {
   );
 }
 
-function PoolGrid({ imgs, onAdd, onRemove }) {
+function PoolGrid({ imgs, onAdd, onRemove, onReplace }) {
   const [view, setView] = uEd(null); // lightbox index, or null
   if (!imgs.length) return (
     <div style={{ border: "1.5px dashed var(--line)", borderRadius: 16, padding: "30px 20px" }}>
@@ -286,21 +298,24 @@ function PoolGrid({ imgs, onAdd, onRemove }) {
     <>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12 }}>
       {imgs.map((im, i) => (
-        <div key={im.storage_path || i} style={{ position: "relative" }}>
+        <div key={im.storage_path || i} onClick={() => setView(i)} title="Klik untuk pratinjau" style={{ position: "relative", cursor: "zoom-in" }}
+          onMouseEnter={(e) => (e.currentTarget.firstChild.style.boxShadow = "var(--shadow-md)")} onMouseLeave={(e) => (e.currentTarget.firstChild.style.boxShadow = "none")}>
           {(im.isVideo || isVideoUrl(im.url) || isVideoUrl(im.storage_path))
-            ? <video src={im.url} muted playsInline controls
-                style={{ width: "100%", aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block", background: "#000" }} />
-            : <img src={im.url} alt="" onClick={() => setView(i)} title="Klik untuk pratinjau"
-                style={{ width: "100%", aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block", cursor: "zoom-in" }}
-                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "var(--shadow-md)")} onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")} />}
-          <button onClick={() => onRemove(i)} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
+            ? <video src={im.url} muted playsInline preload="metadata"
+                style={{ width: "100%", aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block", background: "#000", transition: "box-shadow .15s" }} />
+            : <img src={im.url} alt=""
+                style={{ width: "100%", aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block", transition: "box-shadow .15s" }} />}
+          {(im.isVideo || isVideoUrl(im.url) || isVideoUrl(im.storage_path)) &&
+            <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.55)", pointerEvents: "none" }}><Icons.play size={22} /></span>}
+          <button onClick={(e) => { e.stopPropagation(); onRemove(i); }} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
         </div>
       ))}
       <button onClick={onAdd} style={{ aspectRatio: "9/16", borderRadius: 12, border: "1.5px dashed var(--line)", background: "rgba(255,255,255,.4)", cursor: "pointer", display: "grid", placeItems: "center", color: "var(--ink-400)" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><Icons.plus size={20} /><span style={{ fontFamily: FE, fontSize: 10 }}>Tambah</span></div>
       </button>
     </div>
-    <Lightbox imgs={imgs} index={view} onClose={() => setView(null)} onIndex={setView} onDelete={deleteAt} />
+    <Lightbox imgs={imgs} index={view} onClose={() => setView(null)} onIndex={setView} onDelete={deleteAt}
+      onReplace={onReplace ? (idx) => { setView(null); onReplace(idx); } : undefined} />
     </>
   );
 }

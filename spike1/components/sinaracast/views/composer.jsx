@@ -58,6 +58,8 @@ export function ComposerView() {
   const [origStatus, setOrigStatus] = uCo(null); // existing status when editing
   const [view, setView] = uCo(null); // lightbox index, or null
   const fileRef = useRef(null);
+  const replaceIdxRef = useRef(null); // when set, the next upload replaces this media index
+  function startReplace(idx) { replaceIdxRef.current = idx; fileRef.current?.click(); }
 
   // Load existing one-off when editing.
   useEffect(() => {
@@ -97,6 +99,7 @@ export function ComposerView() {
 
   async function onFiles(e) {
     const files = [...(e.target.files || [])]; e.target.value = "";
+    let rep = replaceIdxRef.current; replaceIdxRef.current = null; // replace this slot (Feed); single types replace inherently
     for (const file of files) {
       if (isReels) {
         if (!["video/mp4", "video/quicktime"].includes(file.type)) { app.toast("Reels harus video MP4/MOV", "error"); continue; }
@@ -123,7 +126,7 @@ export function ComposerView() {
         finally { setUploading(false); }
         continue;
       }
-      if (isFeed && media.length >= 10) { app.toast("Carousel maksimal 10 gambar", "info"); break; }
+      if (isFeed && rep == null && media.length >= 10) { app.toast("Carousel maksimal 10 gambar", "info"); break; }
       if (!["image/jpeg", "image/png"].includes(file.type)) { app.toast("Hanya JPG / PNG", "error"); continue; }
       if (file.size > 8 * 1024 * 1024) { app.toast("Maksimal 8 MB", "error"); continue; }
       let dim; try { dim = await readDims(file); } catch { app.toast("Gagal membaca gambar", "error"); continue; }
@@ -135,7 +138,8 @@ export function ComposerView() {
       setUploading(true);
       try {
         const row = await uploadPoolImage(file, channel.id, dim);
-        setMedia(m => isFeed ? [...m, row] : [row]);
+        setMedia(m => rep != null ? m.map((x, k) => (k === rep ? row : x)) : (isFeed ? [...m, row] : [row]));
+        rep = null;
         app.toast("Gambar diunggah ✓", "success");
       } catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
       finally { setUploading(false); }
@@ -308,6 +312,7 @@ export function ComposerView() {
 
       <Lightbox imgs={media} index={view} onClose={() => setView(null)} onIndex={setView}
         ratio={isFeed ? null : 16 / 9}
+        onReplace={(idx) => { setView(null); startReplace(idx); }}
         onDelete={(idx) => { const remaining = media.length - 1; setMedia(ms => ms.filter((_, x) => x !== idx)); setView(remaining <= 0 ? null : Math.min(idx, remaining - 1)); }} />
     </div>
   );

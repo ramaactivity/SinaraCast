@@ -506,7 +506,7 @@ export async function loadRuleDetail(ruleId) {
   const ids = (pools || []).map((p) => p.id);
   let imgs = [];
   if (ids.length) {
-    const res = await supabase.from("pool_image").select("id, pool_id, storage_path, position").in("pool_id", ids).order("position");
+    const res = await supabase.from("pool_image").select("id, pool_id, storage_path, position, format, width, height").in("pool_id", ids).order("position");
     imgs = res.data || [];
   }
   const roleByPool = Object.fromEntries((pools || []).map((p) => [p.id, p.role]));
@@ -515,7 +515,8 @@ export async function loadRuleDetail(ruleId) {
   for (const im of imgs) {
     const role = roleByPool[im.pool_id];
     const url = supabase.storage.from(BUCKET).getPublicUrl(im.storage_path).data.publicUrl;
-    images[role]?.push({ id: im.id, poolId: im.pool_id, storage_path: im.storage_path, url });
+    const isVideo = ["mp4", "mov"].includes(im.format) || /\.(mp4|mov)(\?|$)/i.test(im.storage_path || "");
+    images[role]?.push({ id: im.id, poolId: im.pool_id, storage_path: im.storage_path, url, format: im.format, width: im.width, height: im.height, isVideo });
   }
   return { rule, images, poolIdByRole };
 }
