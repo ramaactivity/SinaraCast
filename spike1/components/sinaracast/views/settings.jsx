@@ -86,8 +86,8 @@ export function SettingsView() {
           <Panel>
             <SectionTitle sub="Ekspor & hapus">Data</SectionTitle>
             <div style={{ marginTop: -4 }}>
-              <Row title="Ekspor data" body="Unduh semua rule, run, dan pengaturan (JSON).">
-                <Button size="sm" variant="secondary" icon={<Icons.upload size={15} style={{ transform: "rotate(180deg)" }} />} onClick={() => app.toast("Menyiapkan ekspor…", "info")}>Ekspor</Button>
+              <Row title="Ekspor data" body="Unduh semua channel, rule, run, dan pengaturan (JSON).">
+                <Button size="sm" variant="secondary" icon={<Icons.upload size={15} style={{ transform: "rotate(180deg)" }} />} onClick={() => app.exportData()}>Ekspor</Button>
               </Row>
               <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 0" }}>
                 <div style={{ flex: 1 }}>
@@ -97,7 +97,7 @@ export function SettingsView() {
                 <Button size="sm" variant="danger" icon={<Icons.trash size={15} />} onClick={() => app.confirm({ title: "Hapus SEMUA data?", confirmLabel: "Hapus semua",
                   body: "Tindakan ini permanen dan tidak bisa dibatalkan.",
                   consequence: "Semua channel, rule, pool media, dan riwayat run akan dihapus selamanya. Kamu harus menyiapkan ulang dari awal.",
-                  onConfirm: () => app.toast("Semua data dihapus", "success") })}>Hapus semua</Button>
+                  onConfirm: () => app.deleteEverything() })}>Hapus semua</Button>
               </div>
             </div>
           </Panel>

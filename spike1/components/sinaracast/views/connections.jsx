@@ -68,10 +68,10 @@ export function ConnectionsView() {
                       : <Button size="sm" variant="secondary" icon={c.paused ? <Icons.play size={15} /> : <Icons.pause size={15} />} onClick={() => togglePause(c)}>{c.paused ? "Lanjutkan" : "Jeda"}</Button>}
                     <IconButton icon={<Icons.edit size={17} />} tip="Ubah identitas" onClick={() => setEditBrand(c)} />
                     <IconButton icon={<Icons.trash size={17} />} tone="danger" tip="Hapus channel" onClick={() => app.confirm({
-                      title: `Hapus ${b.name}?`, confirmLabel: "Hapus channel",
+                      title: `Hapus ${b.name}?`, danger: true, confirmLabel: "Hapus channel",
                       body: "Channel diputus dari SinaraCast.",
-                      consequence: `Semua rule milik ${b.name} akan dinonaktifkan (tidak dihapus) dan berhenti memposting. Media tetap tersimpan.`,
-                      onConfirm: () => { app.toast(`${b.name} dihapus — rule-nya dinonaktifkan`, "success"); } })} />
+                      consequence: `Rule milik ${b.name} berhenti memposting. Channel & media disembunyikan (diarsipkan), bukan dihapus permanen.`,
+                      onConfirm: () => app.archiveChannel(c) })} />
                   </div>
                 </div>
                 {c.status === "Needs reconnect" && <div style={{ marginTop: 13, background: "var(--danger-bg)", borderRadius: 11, padding: "10px 13px", fontFamily: FC, fontSize: 12, color: "var(--danger)", display: "flex", gap: 8 }}><Icons.alert size={16} style={{ flex: "0 0 auto" }} />Token Meta kedaluwarsa. Posting ditahan; tidak ada percobaan publish sampai tersambung kembali.</div>}
@@ -136,19 +136,20 @@ function TelegramCard() {
 function BrandEditModal({ c, onClose }) {
   const app = useApp();
   const [name, setName] = uCn("");
-  React.useEffect(() => { if (c) setName(BRANDS[c.brand].name); }, [c]);
+  React.useEffect(() => { if (c) setName(c.name || BRANDS[c.brand]?.name || ""); }, [c]);
   if (!c) return null;
-  const b = BRANDS[c.brand];
+  const b = BRANDS[c.brand] || { name: c.name || c.handle, short: (c.name || "?").slice(0, 2).toUpperCase(), accent: "var(--ink-500)", soft: "var(--line)", grad: "linear-gradient(135deg,#9aa0ab,#7a8090)" };
+  const save = () => { app.renameChannel(c, name); onClose(); };
   return (
     <Modal open={!!c} onClose={onClose} width={440}>
       <div style={{ padding: 24 }}>
-        <SectionTitle sub="Ubah nama tampilan & avatar brand">Identitas brand</SectionTitle>
+        <SectionTitle sub="Ubah nama tampilan brand">Identitas brand</SectionTitle>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}><BrandAvatar brand={b} src={c.avatarUrl} size={64} ring /></div>
-        <Field label="Nama brand"><Input value={name} onChange={e => setName(e.target.value)} /></Field>
+        <Field label="Nama brand"><Input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") save(); }} /></Field>
         <Field label="Handle Instagram" style={{ marginTop: 14 }}><Input value={c.handle} icon={<Icons.connections size={17} />} readOnly /></Field>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
           <Button variant="secondary" onClick={onClose}>Batal</Button>
-          <Button variant="primary" icon={<Icons.check size={17} />} onClick={() => { app.toast("Identitas brand diperbarui", "success"); onClose(); }}>Simpan</Button>
+          <Button variant="primary" icon={<Icons.check size={17} />} disabled={!name.trim()} onClick={save}>Simpan</Button>
         </div>
       </div>
     </Modal>

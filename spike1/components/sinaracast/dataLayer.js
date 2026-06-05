@@ -241,6 +241,29 @@ export async function uploadLibraryMedia(file, channelSlug, channelDbId, meta) {
   return a.id;
 }
 
+// Rename a channel's display name.
+export async function renameChannel(id, name) {
+  const { error } = await supabase.from("channel").update({ name }).eq("id", id);
+  if (error) throw error;
+}
+
+// Archive a channel: hides it from the app and stops the cron firing its rules
+// (loadAll + the engine both filter archived_at IS NULL). Non-destructive.
+export async function archiveChannel(id) {
+  const { error } = await supabase.from("channel").update({ archived_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw error;
+}
+
+// Delete ALL of the user's content — every channel (cascades rules, pools,
+// images, runs, media_assets, scheduled_posts) + notifications. RLS scopes the
+// deletes to the signed-in owner. Account + app_settings preferences are kept.
+export async function deleteAllData() {
+  let { error } = await supabase.from("channel").delete().not("id", "is", null);
+  if (error) throw error;
+  ({ error } = await supabase.from("notification").delete().not("id", "is", null));
+  if (error) throw error;
+}
+
 // Mark one / all notifications read (RLS scopes these to the signed-in owner).
 export async function markNotifRead(id) {
   const { error } = await supabase.from("notification").update({ read: true }).eq("id", id);

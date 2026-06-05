@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { Icons } from "./icons";
-import { loadAll, setRuleActive, setChannelPaused, setPauseAll, saveSettingsFields, markNotifRead, markAllNotifsRead } from "./dataLayer";
+import { loadAll, setRuleActive, setChannelPaused, setPauseAll, saveSettingsFields, markNotifRead, markAllNotifsRead, renameChannel, archiveChannel, deleteAllData } from "./dataLayer";
 import { AppCtx } from "./store";
 import { Sidebar } from "./shell";
 import { Panel, EmptyState, Toast, ConfirmDialog, Spinner } from "./ui";
@@ -230,6 +230,43 @@ export default function SinaraCast() {
   };
   const disconnectTelegram = () => saveSettings({ telegram: { connected: false, handle: "" } });
 
+  // Rename a channel's display name (optimistic + persist).
+  const renameChannelFn = async (c, name) => {
+    const trimmed = (name || "").trim();
+    if (!trimmed) return showToast("Nama tidak boleh kosong", "error");
+    setChannels(cs => cs.map(x => x.id === c.id ? { ...x, name: trimmed } : x));
+    try { await renameChannel(c._id, trimmed); showToast("Nama channel diperbarui", "success"); }
+    catch (e) { showToast(`Gagal: ${e.message || e}`, "error"); await reload(); }
+  };
+  // Archive (remove) a channel — disappears from the app, its rules stop firing.
+  const archiveChannelFn = async (c) => {
+    setChannels(cs => cs.filter(x => x.id !== c.id));
+    try { await archiveChannel(c._id); showToast(`${c.name} dihapus — rule-nya berhenti memposting`, "success"); }
+    catch (e) { showToast(`Gagal menghapus: ${e.message || e}`, "error"); await reload(); }
+  };
+  // Export the user's data as a downloadable JSON file (client-side).
+  const exportData = () => {
+    try {
+      const payload = { app: "SinaraCast", exportedAt: new Date().toISOString(), profile, channels, rules, runs, oneoffs, settings };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `sinaracast-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      showToast("Data diekspor — JSON terunduh", "success");
+    } catch (e) { showToast(`Gagal ekspor: ${e.message || e}`, "error"); }
+  };
+  // Wipe all of the user's content (channels cascade + notifications).
+  const deleteEverything = async () => {
+    try {
+      await deleteAllData();
+      await reload();
+      setView("connections");
+      showToast("Semua data dihapus", "success");
+    } catch (e) { showToast(`Gagal menghapus: ${e.message || e}`, "error"); }
+  };
+
   // Persist Settings-view preference fields (telegram, daily ping, grace).
   // Optimistic: apply the patch, write it, revert to the prior snapshot on error.
   const saveSettings = async (patch, { toast: t = false } = {}) => {
@@ -248,7 +285,7 @@ export default function SinaraCast() {
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
     toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, saveSettings,
-    connectTelegram, disconnectTelegram,
+    connectTelegram, disconnectTelegram, renameChannel: renameChannelFn, archiveChannel: archiveChannelFn, exportData, deleteEverything,
     isMobile, openMenu: () => setDrawerOpen(true) };
 
   // Auth gate
