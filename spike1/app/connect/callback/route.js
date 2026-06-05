@@ -23,18 +23,48 @@ function ownerFromState(state) {
   return obj.oid;
 }
 
+// Renders a tiny page that hands the result back to the SinaraCast tab that
+// opened this popup (postMessage) and closes itself. If there is no opener
+// (e.g. the flow ran in the same tab), it falls back to redirecting to "/".
+function closePage(origin, payload) {
+  const qs = payload.status === "error"
+    ? `connect_error=${encodeURIComponent(payload.error || "")}`
+    : `${payload.status}=${encodeURIComponent(payload.name || "")}`;
+  const ok = payload.status !== "error";
+  const body = `<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#f6f5fb;color:#3e4351">
+<div style="text-align:center">
+  <div style="font-size:15px;font-weight:600">${ok ? "Berhasil tersambung ✓" : "Gagal menyambungkan"}</div>
+  <div style="font-size:13px;color:#8c909e;margin-top:6px">Menutup jendela…</div>
+</div>
+<script>
+(function(){
+  var data = Object.assign({ type: "sinara-oauth" }, ${JSON.stringify(payload)});
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage(data, ${JSON.stringify(origin)});
+      window.close();
+      return;
+    }
+  } catch (e) {}
+  location.replace("/?" + ${JSON.stringify(qs)});
+})();
+</script>
+</body>`;
+  return new NextResponse(body, { headers: { "content-type": "text/html; charset=utf-8" } });
+}
+
 // OAuth redirect target. Exchanges code -> short-lived -> long-lived token,
 // resolves the IG profile, and PERSISTS the channel to Supabase for the user
-// who started the flow (upsert by ig_user_id = reconnect). Then bounces back
-// into the app with a status query param the SPA turns into a toast.
+// who started the flow (upsert by ig_user_id = reconnect). Then hands the
+// result back to the opener tab and closes the popup.
 export async function GET(request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const oauthErr = searchParams.get("error");
 
-  const home = (qs) => NextResponse.redirect(`${origin}/?${qs}`);
-  const fail = (msg) => home(`connect_error=${encodeURIComponent(msg)}`);
+  const home = (payload) => closePage(origin, payload);
+  const fail = (msg) => home({ status: "error", error: msg });
 
   if (oauthErr) return fail(searchParams.get("error_description") || oauthErr);
   if (!code) return fail("Tidak ada code dari Instagram");
@@ -96,7 +126,7 @@ export async function GET(request) {
     if (existing) {
       const { error } = await svc.from("channel").update(fields).eq("id", existing.id);
       if (error) throw new Error(error.message);
-      return home(`reconnected=${encodeURIComponent(username)}`);
+      return home({ status: "reconnected", name: username });
     }
 
     // New channel: pick a slug unique within this owner.
@@ -112,7 +142,7 @@ export async function GET(request) {
       owner_id: ownerId, slug, color_token, paused: false, ...fields,
     });
     if (insErr) throw new Error(insErr.message);
-    return home(`connected=${encodeURIComponent(username)}`);
+    return home({ status: "connected", name: username });
   } catch (e) {
     return fail(String(e?.message || e));
   }

@@ -16,7 +16,7 @@ const TRIGGER = { scheduled: "Terjadwal", manual: "Manual", retry: "Coba lagi", 
 
 export function ActivityView() {
   const app = useApp();
-  const phase = useFetchState();
+  const phase = app.dataLoading ? "loading" : "ready";
   const [filter, setFilter] = uAc("all");
   const [open, setOpen] = uAc(null);
 

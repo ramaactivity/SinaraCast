@@ -35,7 +35,7 @@ function cadenceHits(rule, dow) {
 
 export function CalendarView() {
   const app = useApp();
-  const phase = useFetchState();
+  const phase = app.dataLoading ? "loading" : "ready";
   const [filter, setFilter] = uCa("all");
   const [mode, setMode] = uCa("month");
   const [sel, setSel] = uCa(null); // {day}

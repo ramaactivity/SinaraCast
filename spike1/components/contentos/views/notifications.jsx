@@ -15,7 +15,7 @@ const NTYPE = {
 
 export function NotificationsView() {
   const app = useApp();
-  const phase = useFetchState();
+  const phase = app.dataLoading ? "loading" : "ready";
   const [tab, setTab] = uNo("all");
   const notifs = app.notifs.filter(n => tab === "all" || (tab === "unread" && !n.read));
   const unread = app.notifs.filter(n => !n.read).length;

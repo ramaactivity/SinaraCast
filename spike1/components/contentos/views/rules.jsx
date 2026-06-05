@@ -14,7 +14,7 @@ function modeLabel(m) { return m === "schedule" ? "Schedule" : "Pool"; }
 
 export function RulesView() {
   const app = useApp();
-  const phase = useFetchState();
+  const phase = app.dataLoading ? "loading" : "ready";
   const ch = app.channels.find(c => c.id === app.channel) || app.channels[0];
   const b = BRANDS[ch?.brand] || { name: ch?.name || "—", accent: "var(--ink-500)", soft: "var(--line)" };
   const rules = app.rules.filter(r => r.ch === (ch?.id || app.channel));
@@ -214,27 +214,31 @@ function NextInspector({ r, b, ch }) {
       </div>
       <button onClick={() => app.go("editor", { ch: r.ch, id: r.id })} style={{ width: "100%", marginTop: 14, background: "transparent", border: "none", cursor: "pointer", fontFamily: FR, fontSize: 12.5, fontWeight: 600, color: b.accent, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>Edit rule lengkap <Icons.chevRight size={15} /></button>
 
-      <SwapModal open={swap} onClose={() => setSwap(false)} count={total} r={r} />
+      <SwapModal open={swap} onClose={() => setSwap(false)} r={r} />
     </Panel>
   );
 }
 function Meta({ icon, t }) { return <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ color: "var(--ink-400)" }}>{icon}</span>{t}</span>; }
 
-function SwapModal({ open, onClose, count, r }) {
+function SwapModal({ open, onClose, r }) {
   const app = useApp();
   const [pick, setPick] = uRl(null);
+  const role = r.mode === "schedule" ? "weekday" : "single";
+  const imgs = (r.poolImages || []).filter(im => im.role === role);
   return (
     <Modal open={open} onClose={onClose} width={520}>
       <div style={{ padding: 24 }}>
         <SectionTitle sub={`Pilih satu gambar dari pool untuk post hari ini saja — “${r.name}”`}>Swap gambar hari ini</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10, maxHeight: 320, overflow: "auto" }} className="cos-scroll">
-          {Array.from({ length: count }).map((_, i) => (
-            <MediaThumb key={i} seed={i} w={84} selected={pick === i} onClick={() => setPick(i)} />
-          ))}
-        </div>
+        {imgs.length === 0
+          ? <div style={{ padding: "28px 0", textAlign: "center", fontFamily: FR, fontSize: 13, color: "var(--ink-400)" }}>Belum ada gambar di pool ini.</div>
+          : <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10, maxHeight: 360, overflow: "auto" }} className="cos-scroll">
+              {imgs.map((im, i) => (
+                <MediaThumb key={i} src={im.url} w={"100%"} ratio={16 / 9} selected={pick === i} onClick={() => setPick(i)} />
+              ))}
+            </div>}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
           <Button variant="secondary" onClick={onClose}>Batal</Button>
-          <Button variant="primary" disabled={pick === null} icon={<Icons.check size={17} />} onClick={() => { onClose(); app.updateRule(r.id, { lastImg: pick, nextRun: `${r.nextRun.split(",")[0]} · gambar diganti` }); app.toast("Gambar untuk hari ini diganti", "success"); }}>Pakai gambar ini</Button>
+          <Button variant="primary" disabled={pick === null} icon={<Icons.check size={17} />} onClick={() => { const url = imgs[pick]?.url; onClose(); app.updateRule(r.id, { thumbUrl: url, nextRun: `${r.nextRun.split(",")[0]} · gambar diganti` }); app.toast("Gambar untuk hari ini diganti", "success"); }}>Pakai gambar ini</Button>
         </div>
       </div>
     </Modal>

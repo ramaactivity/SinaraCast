@@ -80,7 +80,24 @@ export default function ContentOS() {
     setChannel((cur) => cur || d.channels[0]?.id || "");
   }, []);
 
-  // After returning from the Instagram OAuth callback, surface the result.
+  // Handle the OAuth result coming back from the popup (postMessage) — the
+  // common path: SinaraCast tab stays open, popup closes itself.
+  React.useEffect(() => {
+    const onMsg = (ev) => {
+      if (ev.origin !== window.location.origin) return;
+      const d = ev.data;
+      if (!d || d.type !== "sinara-oauth") return;
+      if (d.status === "error") { setToast({ msg: `Gagal menyambungkan: ${d.error}`, type: "error", k: Date.now() }); return; }
+      setToast({ msg: d.status === "reconnected" ? `@${d.name} tersambung kembali ✓` : `Channel @${d.name} tersambung ✓`, type: "success", k: Date.now() });
+      setView("connections");
+      reload().catch((e) => console.error("reload after connect failed", e));
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, [reload]);
+
+  // Same-tab fallback: if the popup was blocked and the callback redirected the
+  // whole tab to "/?connected=…", surface that on load too.
   React.useEffect(() => {
     if (!session) return;
     const sp = new URLSearchParams(window.location.search);
@@ -91,10 +108,7 @@ export default function ContentOS() {
     const name = connected || reconnected;
     setToast({ msg: connected ? `Channel @${name} tersambung ✓` : `@${name} tersambung kembali ✓`, type: "success", k: Date.now() });
     setView("connections");
-    loadAll().then((d) => {
-      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setNotifs(d.notifs);
-      setSettings(d.settings); setProfile(d.profile);
-    }).catch((e) => console.error("reload after connect failed", e));
+    reload().catch((e) => console.error("reload after connect failed", e));
   }, [session]);
   const signOut = useCallback(async () => { await supabase.auth.signOut(); }, []);
 
@@ -107,17 +121,24 @@ export default function ContentOS() {
   const markRead = (id) => setNotifs(ns => ns.map(n => n.id === id ? { ...n, read: true } : n));
   const markAllRead = () => setNotifs(ns => ns.map(n => ({ ...n, read: true })));
 
-  // Start Instagram Business Login for the signed-in user. The server returns a
-  // signed authorize URL; we hand the browser over to Instagram. On return,
-  // /connect/callback persists the channel and bounces back to "/" with a status.
+  // Start Instagram Business Login in a popup so the SinaraCast tab stays open.
+  // The popup is opened synchronously (inside the click) to dodge popup blockers,
+  // then pointed at the authorize URL once /connect/start returns it. The popup
+  // closes itself and posts the result back (handled by the listener below).
   const connectChannel = async () => {
+    const w = 600, h = 760;
+    const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+    const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+    const popup = window.open("about:blank", "sinara_oauth", `width=${w},height=${h},left=${left},top=${top}`);
+    if (!popup) { showToast("Popup diblokir browser — izinkan popup untuk situs ini lalu coba lagi.", "error"); return; }
     try {
-      showToast("Membuka otorisasi Instagram…", "info");
+      popup.document.write('<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#f6f5fb;color:#8c909e">Menyiapkan otorisasi Instagram…</body>');
       const res = await fetch("/connect/start", { method: "POST", headers: { Authorization: `Bearer ${session?.access_token}` } });
       const j = await res.json().catch(() => ({}));
       if (!j.ok || !j.url) throw new Error(j.error || "Gagal memulai OAuth");
-      window.location.href = j.url;
+      popup.location.href = j.url;
     } catch (e) {
+      try { popup.close(); } catch {}
       showToast(`Gagal: ${e.message || e}`, "error");
     }
   };

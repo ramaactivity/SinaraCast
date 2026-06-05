@@ -195,7 +195,8 @@ input, textarea, select { font-family: var(--font); }
    The two-column dashboard layouts collapse to a single column.
    ============================================================ */
 @media (max-width: 860px) {
-  #cos-stage { padding: 0; }
+  /* full-bleed, but respect the notch / home indicator when installed (standalone) */
+  #cos-stage { padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }
   .app-shell { border-radius: 0; border: none; }
   :root { --content-pad: 16px; }
   /* every top-level "content + side panel" grid uses minmax(0,1fr) — stack them */
@@ -203,4 +204,24 @@ input, textarea, select { font-family: var(--font); }
   /* dense thumbnail grids: editor pool (6) → 3 cols, media library (8) → 4 cols */
   #content [style*="repeat(6"] { grid-template-columns: repeat(3, 1fr) !important; }
   #content [style*="repeat(8"] { grid-template-columns: repeat(4, 1fr) !important; }
+}
+
+/* ============================================================
+   Micro-interactions & polish
+   ============================================================ */
+button, a { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid var(--primary-400); outline-offset: 2px; }
+
+/* gentle view-enter transition (each view remounts on navigation via React key) */
+@keyframes cosViewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+#content > div { animation: cosViewIn .24s ease both; }
+
+/* touch press feedback (no hover on touch devices) */
+@media (hover: none) and (pointer: coarse) {
+  .app-shell button:active { filter: brightness(0.96); }
+}
+
+/* respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }

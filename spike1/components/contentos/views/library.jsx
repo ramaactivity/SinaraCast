@@ -17,7 +17,7 @@ function buildLib(ch) {
 
 export function MediaLibraryView() {
   const app = useApp();
-  const phase = useFetchState();
+  const phase = app.dataLoading ? "loading" : "ready";
   const chId = app.params.ch || app.channel;
   const b = BRANDS[chId];
   const [q, setQ] = uLi("");

@@ -62,11 +62,14 @@ export async function loadAll() {
   const { data: imgs = [] } = await supabase.from("pool_image").select("pool_id, used_in_cycle, storage_path, position").order("position");
   const imgByPool = {};
   const firstPathByPool = {};
+  const pathsByPool = {};
   for (const im of imgs || []) {
     const p = (imgByPool[im.pool_id] ||= { total: 0, used: 0 });
     p.total++; if (im.used_in_cycle) p.used++;
     if (!(im.pool_id in firstPathByPool)) firstPathByPool[im.pool_id] = im.storage_path;
+    (pathsByPool[im.pool_id] ||= []).push(im.storage_path);
   }
+  const pubUrl = (sp) => supabase.storage.from(BUCKET).getPublicUrl(sp).data.publicUrl;
   const poolsByRule = {};
   for (const p of pools || []) (poolsByRule[p.rule_id] ||= []).push({ ...p, ...(imgByPool[p.id] || { total: 0, used: 0 }) });
 
@@ -81,7 +84,9 @@ export async function loadAll() {
     base.cycle = { used, total };
     // first available image (prefer weekday/single, then any pool) → public thumbnail URL
     const firstPath = rp.map((p) => firstPathByPool[p.id]).find(Boolean);
-    base.thumbUrl = firstPath ? supabase.storage.from(BUCKET).getPublicUrl(firstPath).data.publicUrl : null;
+    base.thumbUrl = firstPath ? pubUrl(firstPath) : null;
+    // all pool images tagged by role — used by the swap-image picker
+    base.poolImages = rp.flatMap((p) => (pathsByPool[p.id] || []).map((sp) => ({ role: p.role, url: pubUrl(sp) })));
     return base;
   });
 

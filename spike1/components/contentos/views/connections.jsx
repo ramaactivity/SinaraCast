@@ -19,7 +19,7 @@ const META_STEPS = [
 
 export function ConnectionsView() {
   const app = useApp();
-  const phase = useFetchState();
+  const phase = app.dataLoading ? "loading" : "ready";
   const [editBrand, setEditBrand] = uCn(null);
   const channels = app.channels;
   const atCap = channels.length >= 4;
