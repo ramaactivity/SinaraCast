@@ -152,15 +152,17 @@ export default function SinaraCast() {
   // The popup is opened synchronously (inside the click) to dodge popup blockers,
   // then pointed at the authorize URL once /connect/start returns it. The popup
   // closes itself and posts the result back (handled by the listener below).
-  const connectChannel = async () => {
+  // Shared OAuth-popup launcher. `provider` picks the start endpoint + label;
+  // both Instagram and TikTok callbacks post the result back the same way.
+  const startConnect = async (startUrl, label) => {
     const w = 600, h = 760;
     const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
     const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
     const popup = window.open("about:blank", "sinara_oauth", `width=${w},height=${h},left=${left},top=${top}`);
     if (!popup) { showToast("Popup diblokir browser — izinkan popup untuk situs ini lalu coba lagi.", "error"); return; }
     try {
-      popup.document.write('<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#f6f5fb;color:#8c909e">Menyiapkan otorisasi Instagram…</body>');
-      const res = await fetch("/connect/start", { method: "POST", headers: { Authorization: `Bearer ${session?.access_token}` } });
+      popup.document.write(`<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#f6f5fb;color:#8c909e">Menyiapkan otorisasi ${label}…</body>`);
+      const res = await fetch(startUrl, { method: "POST", headers: { Authorization: `Bearer ${session?.access_token}` } });
       const j = await res.json().catch(() => ({}));
       if (!j.ok || !j.url) throw new Error(j.error || "Gagal memulai OAuth");
       popup.location.href = j.url;
@@ -169,6 +171,8 @@ export default function SinaraCast() {
       showToast(`Gagal: ${e.message || e}`, "error");
     }
   };
+  const connectChannel = () => startConnect("/connect/start", "Instagram");
+  const connectTikTokChannel = () => startConnect("/connect/tiktok/start", "TikTok");
 
   const postNow = async (r) => {
     showToast(`Menerbitkan “${r.name}” ke Instagram…`, "info");
@@ -327,7 +331,7 @@ export default function SinaraCast() {
   const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, oneoffs, library, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
-    toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, saveSettings,
+    toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, connectTikTokChannel, saveSettings,
     connectTelegram, disconnectTelegram, testTelegram, renameChannel: renameChannelFn, archiveChannel: archiveChannelFn, exportData, deleteEverything,
     skipToday, unskipToday, swapToday,
     isMobile, openMenu: () => setDrawerOpen(true) };

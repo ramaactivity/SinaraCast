@@ -26,17 +26,22 @@ export function ConnectionsView() {
   ];
 
   const nameOf = (c) => BRANDS[c.brand]?.name || c.name || c.handle;
-  // Reconnect runs the same OAuth flow; the callback matches by ig_user_id and
-  // refreshes this channel's token in place. User must pick the same IG account.
-  const reconnect = () => app.connectChannel();
+  // Reconnect runs the same OAuth flow; the callback matches by ig_user_id /
+  // tiktok_open_id and refreshes this channel's token in place. User must pick
+  // the same account on the matching platform.
+  const reconnect = (c) => (c?.platform === "tiktok" ? app.connectTikTokChannel() : app.connectChannel());
 
   const togglePause = (c) => app.toggleChannelPause(c, nameOf(c));
 
   return (
     <div>
-      <Topbar title="Manajemen Akun" sub="Kelola akun Instagram, koneksi, dan Telegram"
-        right={<Button variant="amber" icon={<Icons.plus size={18} sw={2} />}
-          onClick={() => app.connectChannel()}>Tambah akun</Button>} />
+      <Topbar title="Manajemen Akun" sub="Kelola akun Instagram & TikTok, koneksi, dan Telegram"
+        right={<div style={{ display: "flex", gap: 8 }}>
+          <Button variant="secondary" icon={<Icons.plus size={18} sw={2} />}
+            onClick={() => app.connectTikTokChannel()}>Sambungkan TikTok</Button>
+          <Button variant="amber" icon={<Icons.plus size={18} sw={2} />}
+            onClick={() => app.connectChannel()}>Tambah Instagram</Button>
+        </div>} />
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -67,6 +72,7 @@ export function ConnectionsView() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                       <span style={{ fontFamily: FC, fontWeight: 600, fontSize: 16, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{b.name}</span>
+                      <span style={{ flex: "0 0 auto", fontFamily: FC, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", padding: "2px 7px", borderRadius: 6, color: c.platform === "tiktok" ? "#fff" : "var(--primary-600, #b8338a)", background: c.platform === "tiktok" ? "#111" : "var(--primary-100, #fbe6f3)" }}>{c.platform === "tiktok" ? "TikTok" : "Instagram"}</span>
                       <span style={{ flex: "0 0 auto" }}><Status s={c.paused ? "Paused" : c.status} pulse={c.status === "Needs reconnect"} /></span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6, fontFamily: FC, fontSize: 12, color: "var(--ink-500)", flexWrap: "wrap", rowGap: 3 }}>
@@ -86,7 +92,7 @@ export function ConnectionsView() {
                       onConfirm: () => app.archiveChannel(c) })} />
                   </div>
                 </div>
-                {c.status === "Needs reconnect" && <div style={{ marginTop: 13, background: "var(--danger-bg)", borderRadius: 11, padding: "10px 13px", fontFamily: FC, fontSize: 12, color: "var(--danger)", display: "flex", gap: 8 }}><Icons.alert size={16} style={{ flex: "0 0 auto" }} />Koneksi ke Instagram putus. Posting dihentikan sampai akun ini disambungkan kembali.</div>}
+                {c.status === "Needs reconnect" && <div style={{ marginTop: 13, background: "var(--danger-bg)", borderRadius: 11, padding: "10px 13px", fontFamily: FC, fontSize: 12, color: "var(--danger)", display: "flex", gap: 8 }}><Icons.alert size={16} style={{ flex: "0 0 auto" }} />Koneksi ke {c.platform === "tiktok" ? "TikTok" : "Instagram"} putus. Posting dihentikan sampai akun ini disambungkan kembali.</div>}
               </Panel>
             );
           })}

@@ -74,6 +74,7 @@ const cadenceLabel = (r) => {
 function mapChannel(c) {
   return {
     id: c.slug, brand: c.slug, name: c.name, handle: c.handle,
+    platform: c.platform || "instagram",
     status: STATUS[c.token_status] || "Needs reconnect",
     tokenExpires: c.token_status === "needs_reconnect" ? "Kedaluwarsa" : fmtDate(c.token_expires_at),
     lastRefresh: c.last_refresh_at ? fmtDate(c.last_refresh_at) : "—",
@@ -103,7 +104,7 @@ export async function loadAll() {
   // Fire every independent read in parallel. allSettled (not all) so a single
   // failed query can NEVER blank the whole app — each just falls back to empty.
   const results = await Promise.allSettled([
-    supabase.from("channel").select("id, slug, name, handle, token_status, token_expires_at, last_refresh_at, paused, resume_date, followers, color_token, avatar_url").is("archived_at", null).order("created_at", { ascending: true }),
+    supabase.from("channel").select("id, slug, name, handle, platform, token_status, token_expires_at, last_refresh_at, paused, resume_date, followers, color_token, avatar_url").is("archived_at", null).order("created_at", { ascending: true }),
     supabase.from("recurring_rule").select("*").is("archived_at", null),
     supabase.from("pool").select("id, rule_id, role"),
     supabase.from("pool_image").select("id, pool_id, used_in_cycle, storage_path, position, bytes").order("position"),
@@ -216,7 +217,7 @@ export async function loadAll() {
   const ruleNameById = Object.fromEntries((rulesRaw || []).map((r) => [r.id, r.name]));
   // One-off posts have no rule — label a run by its caption (or type) instead of "(jadwal dihapus)".
   const schedById = Object.fromEntries((schedRaw || []).map((s) => [s.id, s]));
-  const oneoffTypeLabel = (s) => s.post_type === "feed" ? "Feed (sekali)" : s.post_type === "reels" ? "Reels (sekali)" : "Story (sekali)";
+  const oneoffTypeLabel = (s) => s.post_type === "feed" ? "Feed (sekali)" : s.post_type === "reels" ? "Reels (sekali)" : s.post_type === "tiktok_video" ? "Video TikTok (sekali)" : "Story (sekali)";
   const oneoffLabel = (s) => (s.caption && s.caption.trim()) ? s.caption.trim().slice(0, 40) : oneoffTypeLabel(s);
   const POOL_LABEL = { weekday: "Weekday", weekend: "Weekend", single: "Pool" };
   const RUN_STATUS = { published: "Published", failed: "Failed", publishing: "Publishing", pending: "Publishing", skipped: "Skipped" };
@@ -256,8 +257,8 @@ export async function loadAll() {
     return {
       id: s.id, ch: slugById[s.channel_id] || "", day: d.getUTCDate(),
       ym: `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}`,
-      type: s.post_type === "feed" ? "Feed" : s.post_type === "reels" ? "Reels" : "Story",
-      title: s.caption ? s.caption.slice(0, 40) : (s.post_type === "feed" ? "Feed post" : "Story"),
+      type: s.post_type === "feed" ? "Feed" : s.post_type === "reels" ? "Reels" : s.post_type === "tiktok_video" ? "TikTok" : "Story",
+      title: s.caption ? s.caption.slice(0, 40) : (s.post_type === "feed" ? "Feed post" : s.post_type === "tiktok_video" ? "Video TikTok" : "Story"),
       time: `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`,
       status: SCHED_STATUS[s.status] || "Scheduled",
     };
@@ -433,6 +434,7 @@ export async function createScheduledPost(p) {
   const { data: post, error: ep } = await supabase.from("scheduled_post").insert({
     channel_id: p.channelDbId, post_type: p.postType, caption: p.caption || null,
     first_comment: p.firstComment || null, scheduled_at: p.scheduledAtISO || null, status: p.status,
+    ...(p.tiktokOptions ? { tiktok_options: p.tiktokOptions } : {}),
   }).select("id").single();
   if (ep) throw ep;
   for (let i = 0; i < assetIds.length; i++) {
@@ -476,6 +478,7 @@ export async function updateScheduledPost(id, p) {
   const { error: eu } = await supabase.from("scheduled_post").update({
     post_type: p.postType, caption: p.caption || null, first_comment: p.firstComment || null,
     scheduled_at: p.scheduledAtISO || null, status: p.status,
+    ...(p.tiktokOptions ? { tiktok_options: p.tiktokOptions } : {}),
   }).eq("id", id);
   if (eu) throw eu;
   await supabase.from("scheduled_post_media").delete().eq("post_id", id);

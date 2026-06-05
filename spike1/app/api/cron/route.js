@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, resumeOneoffContainer, refreshTokensDue } from "../../../lib/publishCore";
+import { publishTikTokVideoScheduled, resumeTikTokVideo } from "../../../lib/tiktokCore";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -64,12 +65,19 @@ export async function POST(request) {
     .select("id, owner_id, slug, ig_user_id, access_token, token_status, paused, archived_at")
     .eq("platform", "instagram") // recurring IG engine ignores TikTok channels
     .eq("token_status", "connected").eq("paused", false).is("archived_at", null);
-  if (!channels.length) return NextResponse.json({ ok: true, refreshed, fired: [], note: "no eligible channels" });
 
-  const owners = [...new Set(channels.map((c) => c.owner_id))];
+  // TikTok channels are eligible for one-off VIDEO publishing only (no recurring yet).
+  const { data: ttChannels = [] } = await svc.from("channel")
+    .select("id, owner_id, slug, handle, access_token, refresh_token, token_status, token_expires_at, paused, archived_at")
+    .eq("platform", "tiktok").eq("token_status", "connected").eq("paused", false).is("archived_at", null);
+
+  if (!channels.length && !ttChannels.length) return NextResponse.json({ ok: true, refreshed, fired: [], note: "no eligible channels" });
+
+  const owners = [...new Set([...channels, ...ttChannels].map((c) => c.owner_id))];
   const { data: settings = [] } = await svc.from("app_settings").select("owner_id, pause_all").in("owner_id", owners);
   const pausedOwners = new Set((settings || []).filter((s) => s.pause_all).map((s) => s.owner_id));
   const chById = Object.fromEntries(channels.filter((c) => !pausedOwners.has(c.owner_id)).map((c) => [c.id, c]));
+  const ttById = Object.fromEntries(ttChannels.filter((c) => !pausedOwners.has(c.owner_id)).map((c) => [c.id, c]));
 
   const { data: rules = [] } = await svc.from("recurring_rule")
     .select("id, channel_id, name, mode, active, cadence_type, interval_days, weekdays, post_time, weekday_time, weekend_time, grace_minutes, created_at")
@@ -144,11 +152,15 @@ export async function POST(request) {
       .gte("created_at", staleIso);
     for (const run of pending || []) {
       if (overBudget()) break;
-      const { data: ch } = await svc.from("channel").select("id, owner_id, slug, handle, ig_user_id, access_token").eq("id", run.channel_id).maybeSingle();
+      const { data: ch } = await svc.from("channel").select("id, owner_id, slug, handle, platform, ig_user_id, access_token, refresh_token, token_expires_at").eq("id", run.channel_id).maybeSingle();
       const { data: post } = await svc.from("scheduled_post").select("id, post_type, first_comment").eq("id", run.scheduled_post_id).maybeSingle();
       if (!ch || !post) continue;
-      try { const res = await resumeOneoffContainer(svc, { channel: ch, post, run }); resumed.push({ oneoff: post.id, type: post.post_type, ok: res.ok, processing: res.processing, error: res.error }); }
-      catch (e) { resumed.push({ oneoff: run.scheduled_post_id, ok: false, error: String(e?.message || e) }); }
+      try {
+        const res = ch.platform === "tiktok"
+          ? await resumeTikTokVideo(svc, { channel: ch, post, run })
+          : await resumeOneoffContainer(svc, { channel: ch, post, run });
+        resumed.push({ oneoff: post.id, type: post.post_type, ok: res.ok, processing: res.processing, error: res.error });
+      } catch (e) { resumed.push({ oneoff: run.scheduled_post_id, ok: false, error: String(e?.message || e) }); }
     }
   } catch (_) { /* resume is best-effort; stale-sweep is the backstop */ }
 
@@ -177,7 +189,30 @@ export async function POST(request) {
     }
   }
 
-  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, resumed, oneoffs });
+  // ---- TikTok one-off VIDEO posts due now, on eligible TikTok channels ----
+  const tiktoks = [];
+  const ttIds = Object.keys(ttById);
+  if (ttIds.length) {
+    const { data: posts = [] } = await svc.from("scheduled_post")
+      .select("id, channel_id, post_type, caption, scheduled_at, status, tiktok_options")
+      .eq("status", "scheduled").eq("post_type", "tiktok_video")
+      .lte("scheduled_at", new Date().toISOString())
+      .in("channel_id", ttIds);
+    for (const post of posts) {
+      if (overBudget()) break; // leftover ones stay 'scheduled' → next tick picks them up
+      const channel = ttById[post.channel_id];
+      if (!channel) continue;
+      try {
+        const res = await publishTikTokVideoScheduled(svc, { channel, post });
+        if (res.skipped) continue;
+        tiktoks.push({ oneoff: post.id, channel: channel.slug, ok: res.ok, processing: res.processing, error: res.error });
+      } catch (e) {
+        tiktoks.push({ oneoff: post.id, channel: channel.slug, ok: false, error: String(e?.message || e) });
+      }
+    }
+  }
+
+  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, resumed, oneoffs, tiktoks });
 }
 
 // allow GET for a quick manual ping/health (still secret-gated)
