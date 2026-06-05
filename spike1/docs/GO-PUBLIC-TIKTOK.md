@@ -50,6 +50,41 @@ Record in **Sandbox**, showing the complete end-to-end flow, screen + interactio
 - [ ] Verify composer now offers Public/Friends and a public post publishes.
 - [ ] (Optional) raise rate limits / request additional scopes if needed.
 
+## Submission copy (paste-ready)
+
+### "Explain how each product and scope works within your app"
+> SinaraCast is a scheduling tool that lets a creator connect their **own** TikTok
+> account and schedule videos to auto-publish at a chosen time.
+>
+> **Login Kit (user.info.basic):** After the user clicks "Sambungkan TikTok" on our
+> Connections page, we open TikTok OAuth. We use `user.info.basic` only to display the
+> connected account's name and avatar so the user can confirm which account they linked.
+>
+> **Content Posting API (video.publish):** In our Composer the user picks their connected
+> TikTok account, uploads a 9:16 video, and sets the posting options on-screen: privacy
+> ("Who can view"), allow Comment/Duet/Stitch, an optional commercial-content disclosure
+> (Your brand / Branded content) with the required label, and confirms TikTok's Music Usage
+> Confirmation. We query `creator_info` to populate the available privacy levels and to
+> disable interactions the account has turned off. At the scheduled time our server uploads
+> the video via FILE_UPLOAD and calls video publish to post it **directly to the user's own
+> profile**.
+>
+> All posting is to the authenticated user's own account; we never post to third-party
+> accounts.
+
+### Demo video storyboard (record in Sandbox, screen capture with narration)
+1. Open `sinara-cast.vercel.app`, sign in. (1–2s on the app so the domain is visible.)
+2. **Connections** → click **Sambungkan TikTok** → TikTok consent screen → approve →
+   show the connected TikTok account card with its badge.
+3. **Buat Postingan** → select the TikTok account → upload a 9:16 video.
+4. Show the **Pengaturan TikTok** panel: set "Who can view", toggle Comment/Duet/Stitch,
+   (optionally) tick commercial disclosure + pick Your brand / Branded content, tick Music
+   Usage Confirmation. Narrate each control.
+5. Set a time → **Jadwalkan**.
+6. Cut to the TikTok app on that account showing the video now posted (open the post so the
+   privacy + the chosen settings are visible).
+- Keep each scope/product clearly demonstrated; mp4/mov, ≤50 MB, ≤5 clips.
+
 ## Out of scope (later)
 - Photo/carousel (needs TikTok **domain verification** for `PULL_FROM_URL` — verify
   `sinara-cast.vercel.app` or a custom domain, then serve images from it).
