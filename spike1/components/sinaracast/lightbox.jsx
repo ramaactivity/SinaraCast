@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { createPortal } from "react-dom";
 import { Icons } from "./icons";
 import { Button } from "./ui";
 const { useEffect, useRef } = React;
@@ -51,9 +52,10 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, ratio =
     </button>
   );
 
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 400, display: "flex", flexDirection: "column",
-      background: "rgba(62,67,81,.32)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", animation: "scFade .16s" }}>
+      background: "rgba(62,67,81,.34)", backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)", animation: "scFade .18s" }}>
 
       {/* top bar */}
       <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", flex: "0 0 auto" }}>
@@ -94,6 +96,7 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, ratio =
           </button>
         ))}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
