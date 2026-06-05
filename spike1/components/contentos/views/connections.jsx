@@ -25,8 +25,9 @@ export function ConnectionsView() {
   const atCap = channels.length >= 4;
 
   const nameOf = (c) => BRANDS[c.brand]?.name || c.name || c.handle;
-  const reconnect = (c) => { app.toast(`Menyambungkan ulang ${nameOf(c)}…`, "info");
-    setTimeout(() => { app.setChannels(cs => cs.map(x => x.id === c.id ? { ...x, status: "Connected", tokenExpires: "20 Agu 2026", lastRefresh: "Baru saja" } : x)); app.toast(`${nameOf(c)} tersambung kembali`, "success"); }, 1500); };
+  // Reconnect runs the same OAuth flow; the callback matches by ig_user_id and
+  // refreshes this channel's token in place. User must pick the same IG account.
+  const reconnect = () => app.connectChannel();
 
   const togglePause = (c) => app.toggleChannelPause(c, nameOf(c));
 
@@ -34,7 +35,7 @@ export function ConnectionsView() {
     <div>
       <Topbar title="Connections" sub="Kelola channel, koneksi Meta, dan alert Telegram"
         right={<Button variant="amber" icon={<Icons.plus size={18} sw={2} />} disabled={atCap}
-          onClick={() => atCap ? app.toast("Maksimal 4 channel. Hapus salah satu untuk menambah.", "error") : app.toast("Membuka otorisasi Meta…", "info")}>Tambah channel</Button>} />
+          onClick={() => atCap ? app.toast("Maksimal 4 channel. Hapus salah satu untuk menambah.", "error") : app.connectChannel()}>Tambah channel</Button>} />
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

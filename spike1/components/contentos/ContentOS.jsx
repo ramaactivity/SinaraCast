@@ -79,6 +79,23 @@ export default function ContentOS() {
     setSettings(d.settings); setProfile(d.profile);
     setChannel((cur) => cur || d.channels[0]?.id || "");
   }, []);
+
+  // After returning from the Instagram OAuth callback, surface the result.
+  React.useEffect(() => {
+    if (!session) return;
+    const sp = new URLSearchParams(window.location.search);
+    const connected = sp.get("connected"), reconnected = sp.get("reconnected"), err = sp.get("connect_error");
+    if (!connected && !reconnected && !err) return;
+    window.history.replaceState({}, "", window.location.pathname); // clean the URL
+    if (err) { setToast({ msg: `Gagal menyambungkan: ${err}`, type: "error", k: Date.now() }); return; }
+    const name = connected || reconnected;
+    setToast({ msg: connected ? `Channel @${name} tersambung ✓` : `@${name} tersambung kembali ✓`, type: "success", k: Date.now() });
+    setView("connections");
+    loadAll().then((d) => {
+      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setNotifs(d.notifs);
+      setSettings(d.settings); setProfile(d.profile);
+    }).catch((e) => console.error("reload after connect failed", e));
+  }, [session]);
   const signOut = useCallback(async () => { await supabase.auth.signOut(); }, []);
 
   const go = useCallback((v, p = {}) => { setView(v); setParams(p); setDrawerOpen(false); window.scrollTo(0, 0); document.querySelector("#content")?.scrollTo(0, 0); }, []);
@@ -89,6 +106,21 @@ export default function ContentOS() {
   const deleteRule = (id) => setRules(rs => rs.filter(r => r.id !== id));
   const markRead = (id) => setNotifs(ns => ns.map(n => n.id === id ? { ...n, read: true } : n));
   const markAllRead = () => setNotifs(ns => ns.map(n => ({ ...n, read: true })));
+
+  // Start Instagram Business Login for the signed-in user. The server returns a
+  // signed authorize URL; we hand the browser over to Instagram. On return,
+  // /connect/callback persists the channel and bounces back to "/" with a status.
+  const connectChannel = async () => {
+    try {
+      showToast("Membuka otorisasi Instagram…", "info");
+      const res = await fetch("/connect/start", { method: "POST", headers: { Authorization: `Bearer ${session?.access_token}` } });
+      const j = await res.json().catch(() => ({}));
+      if (!j.ok || !j.url) throw new Error(j.error || "Gagal memulai OAuth");
+      window.location.href = j.url;
+    } catch (e) {
+      showToast(`Gagal: ${e.message || e}`, "error");
+    }
+  };
 
   const postNow = async (r) => {
     showToast(`Menerbitkan “${r.name}” ke Instagram…`, "info");
@@ -146,7 +178,7 @@ export default function ContentOS() {
   const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
-    toggleRuleActive, toggleChannelPause, togglePauseAll,
+    toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel,
     isMobile, openMenu: () => setDrawerOpen(true) };
 
   // Auth gate

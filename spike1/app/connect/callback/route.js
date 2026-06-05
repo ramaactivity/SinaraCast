@@ -1,107 +1,119 @@
 import { NextResponse } from "next/server";
+import crypto from "node:crypto";
+import { svcClient } from "../../../lib/publishCore";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const V = process.env.META_GRAPH_VERSION || "v25.0";
+const SIGN = process.env.CRON_SECRET; // same HMAC key used by /connect/start
+
+// Verify the signed state from /connect/start and return its owner_id, or null.
+function ownerFromState(state) {
+  if (!state || !SIGN) return null;
+  const [payload, sig] = state.split(".");
+  if (!payload || !sig) return null;
+  const expect = crypto.createHmac("sha256", SIGN).update(payload).digest("base64url");
+  const a = Buffer.from(sig), b = Buffer.from(expect);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  let obj;
+  try { obj = JSON.parse(Buffer.from(payload, "base64url").toString()); } catch { return null; }
+  if (!obj?.oid || !obj?.iat) return null;
+  if (Date.now() - obj.iat > 15 * 60 * 1000) return null; // state valid 15 min
+  return obj.oid;
+}
 
 // OAuth redirect target. Exchanges code -> short-lived -> long-lived token,
-// resolves the IG user id, and renders everything so we can copy it for the
-// local publish test. SPIKE ONLY: a real build never renders a token.
+// resolves the IG profile, and PERSISTS the channel to Supabase for the user
+// who started the flow (upsert by ig_user_id = reconnect). Then bounces back
+// into the app with a status query param the SPA turns into a toast.
 export async function GET(request) {
-  const { searchParams } = new URL(request.url);
+  const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
+  const state = searchParams.get("state");
   const oauthErr = searchParams.get("error");
 
-  if (oauthErr) {
-    return html(
-      `<h2>OAuth error</h2><pre>${esc(
-        JSON.stringify(Object.fromEntries(searchParams), null, 2)
-      )}</pre>`
-    );
-  }
-  if (!code) return html("<h2>No <code>code</code> in callback URL.</h2>");
+  const home = (qs) => NextResponse.redirect(`${origin}/?${qs}`);
+  const fail = (msg) => home(`connect_error=${encodeURIComponent(msg)}`);
+
+  if (oauthErr) return fail(searchParams.get("error_description") || oauthErr);
+  if (!code) return fail("Tidak ada code dari Instagram");
+
+  const ownerId = ownerFromState(state);
+  if (!ownerId) return fail("State tidak valid atau kedaluwarsa — coba sambungkan lagi");
 
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
   const redirectUri = process.env.META_REDIRECT_URI;
 
-  // 1) code -> short-lived token (host: api.instagram.com) [verify in Spike 1]
-  const form = new URLSearchParams();
-  form.set("client_id", appId);
-  form.set("client_secret", appSecret);
-  form.set("grant_type", "authorization_code");
-  form.set("redirect_uri", redirectUri);
-  form.set("code", code);
+  try {
+    // 1) code -> short-lived token (host: api.instagram.com)
+    const form = new URLSearchParams();
+    form.set("client_id", appId);
+    form.set("client_secret", appSecret);
+    form.set("grant_type", "authorization_code");
+    form.set("redirect_uri", redirectUri);
+    form.set("code", code);
+    const shortRes = await fetch("https://api.instagram.com/oauth/access_token", { method: "POST", body: form });
+    const shortJson = await shortRes.json().catch(() => ({}));
+    if (!shortRes.ok || !shortJson.access_token) throw new Error(shortJson?.error_message || "Tukar token gagal (langkah 1)");
 
-  const shortRes = await fetch("https://api.instagram.com/oauth/access_token", {
-    method: "POST",
-    body: form,
-  });
-  const shortJson = await shortRes.json().catch(() => ({}));
-  if (!shortRes.ok || !shortJson.access_token) {
-    return html(
-      `<h2>Step 1 failed — short-lived token exchange</h2><pre>${esc(
-        JSON.stringify(shortJson, null, 2)
-      )}</pre>`
-    );
+    // 2) short-lived -> long-lived (~60d) token (host: graph.instagram.com)
+    const llUrl = new URL("https://graph.instagram.com/access_token");
+    llUrl.searchParams.set("grant_type", "ig_exchange_token");
+    llUrl.searchParams.set("client_secret", appSecret);
+    llUrl.searchParams.set("access_token", shortJson.access_token);
+    const llRes = await fetch(llUrl);
+    const llJson = await llRes.json().catch(() => ({}));
+    if (!llRes.ok || !llJson.access_token) throw new Error(llJson?.error?.message || "Tukar token panjang gagal (langkah 2)");
+    const longToken = llJson.access_token;
+    const expiresIn = Number(llJson.expires_in) || 0;
+
+    // 3) resolve IG profile
+    const meUrl = new URL(`https://graph.instagram.com/${V}/me`);
+    meUrl.searchParams.set("fields", "user_id,username,name,followers_count,account_type");
+    meUrl.searchParams.set("access_token", longToken);
+    const meJson = await (await fetch(meUrl)).json().catch(() => ({}));
+    const igUserId = String(meJson.user_id || shortJson.user_id || "");
+    if (!igUserId) throw new Error("Tidak bisa membaca ig_user_id dari Instagram");
+    const username = meJson.username || `ig-${igUserId.slice(-6)}`;
+    const displayName = meJson.name || username;
+    const followers = Number.isFinite(meJson.followers_count) ? meJson.followers_count : null;
+
+    const svc = svcClient();
+    const nowIso = new Date().toISOString();
+    const fields = {
+      handle: `@${username}`, name: displayName, ig_user_id: igUserId, access_token: longToken,
+      token_status: "connected",
+      token_expires_at: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
+      last_refresh_at: nowIso,
+      ...(followers != null ? { followers } : {}),
+    };
+
+    // Already connected this IG account? -> update token in place (reconnect).
+    const { data: existing } = await svc.from("channel")
+      .select("id").eq("owner_id", ownerId).eq("ig_user_id", igUserId).is("archived_at", null).maybeSingle();
+    if (existing) {
+      const { error } = await svc.from("channel").update(fields).eq("id", existing.id);
+      if (error) throw new Error(error.message);
+      return home(`reconnected=${encodeURIComponent(username)}`);
+    }
+
+    // New channel: pick a slug unique within this owner.
+    const base = (username || "channel").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32) || "channel";
+    const { data: owned = [] } = await svc.from("channel").select("slug").eq("owner_id", ownerId);
+    const taken = new Set((owned || []).map((c) => c.slug));
+    let slug = base, n = 2;
+    while (taken.has(slug)) slug = `${base}-${n++}`;
+    const palette = ["violet", "green", "amber", "blue", "rose", "cyan"];
+    const color_token = palette[taken.size % palette.length];
+
+    const { error: insErr } = await svc.from("channel").insert({
+      owner_id: ownerId, slug, color_token, paused: false, ...fields,
+    });
+    if (insErr) throw new Error(insErr.message);
+    return home(`connected=${encodeURIComponent(username)}`);
+  } catch (e) {
+    return fail(String(e?.message || e));
   }
-  const shortToken = shortJson.access_token;
-  const userIdFromShort = shortJson.user_id;
-
-  // 2) short-lived -> long-lived (~60d) token (host: graph.instagram.com)
-  const llUrl = new URL("https://graph.instagram.com/access_token");
-  llUrl.searchParams.set("grant_type", "ig_exchange_token");
-  llUrl.searchParams.set("client_secret", appSecret);
-  llUrl.searchParams.set("access_token", shortToken);
-
-  const llRes = await fetch(llUrl);
-  const llJson = await llRes.json().catch(() => ({}));
-  if (!llRes.ok || !llJson.access_token) {
-    return html(
-      `<h2>Step 2 failed — long-lived exchange</h2><pre>${esc(
-        JSON.stringify(llJson, null, 2)
-      )}</pre>`
-    );
-  }
-  const longToken = llJson.access_token;
-  const expiresIn = llJson.expires_in;
-
-  // 3) resolve ig user id + username
-  const meUrl = new URL(`https://graph.instagram.com/${V}/me`);
-  meUrl.searchParams.set("fields", "user_id,username");
-  meUrl.searchParams.set("access_token", longToken);
-  const meRes = await fetch(meUrl);
-  const meJson = await meRes.json().catch(() => ({}));
-
-  const igUserId = meJson.user_id || userIdFromShort || "";
-
-  return html(`
-    <h2>✅ Connected via Instagram Login</h2>
-    <p><b>username:</b> ${esc(meJson.username || "(see raw below)")}</p>
-    <p><b>ig_user_id:</b> <code>${esc(String(igUserId))}</code></p>
-    <p><b>expires_in:</b> ${esc(String(expiresIn))}s (~${Math.round(
-    (Number(expiresIn) || 0) / 86400
-  )} days)</p>
-    <h3>Long-lived access token — copy this (spike only):</h3>
-    <textarea style="width:100%;height:140px" onclick="this.select()">${esc(
-      longToken
-    )}</textarea>
-    <h3>raw /me</h3><pre>${esc(JSON.stringify(meJson, null, 2))}</pre>
-    <hr/>
-    <p>Next: put <code>IG_USER_ID</code> + <code>IG_ACCESS_TOKEN</code> in
-    <code>spike1/.env.local</code> and run <code>npm run publish-test</code>.</p>
-  `);
-}
-
-function esc(s) {
-  return String(s).replace(
-    /[&<>]/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])
-  );
-}
-function html(body) {
-  return new NextResponse(
-    `<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;max-width:760px;margin:40px auto;padding:0 16px">${body}</body>`,
-    { headers: { "content-type": "text/html; charset=utf-8" } }
-  );
 }
