@@ -45,6 +45,21 @@ export function ConnectionsView() {
 
           {phase === "loading" && [0, 1, 2, 3].map(i => <Panel key={i}><div style={{ display: "flex", gap: 14, alignItems: "center" }}><Skeleton w={48} h={48} r={13} /><div style={{ flex: 1 }}><Skeleton w="35%" h={16} /><div style={{ height: 8 }} /><Skeleton w="55%" h={12} /></div></div></Panel>)}
 
+          {phase === "ready" && channels.length === 0 && (
+            <Panel pad={28}>
+              <div style={{ textAlign: "center", maxWidth: 420, margin: "0 auto" }}>
+                <div style={{ width: 52, height: 52, borderRadius: 16, background: "var(--primary-100)", color: "var(--primary-500)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icons.connections size={26} /></div>
+                <div style={{ fontFamily: FC, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>Belum ada akun di sini</div>
+                <div style={{ fontFamily: FC, fontSize: 13, color: "var(--ink-500)", marginTop: 6, lineHeight: 1.5 }}>
+                  Kamu masuk sebagai <b style={{ color: "var(--ink-900)" }}>{app.profile.email || "—"}</b>. Kalau akun Instagram-mu seharusnya sudah ada, mungkin kamu masuk dengan email yang berbeda.
+                </div>
+                <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 18 }}>
+                  <Button variant="secondary" icon={<Icons.logout size={16} />} onClick={() => app.confirm({ title: "Keluar & ganti akun?", confirmLabel: "Keluar", body: "Masuk lagi dengan email yang benar untuk melihat akun Instagram-mu.", onConfirm: () => app.signOut() })}>Keluar / ganti email</Button>
+                  <Button variant="amber" icon={<Icons.plus size={16} sw={2} />} onClick={() => app.connectChannel()}>Tambah akun</Button>
+                </div>
+              </div>
+            </Panel>
+          )}
           {phase === "ready" && channels.map(c => {
             const b = BRANDS[c.brand] || { name: c.name || c.handle, short: (c.name || "?").slice(0, 2).toUpperCase(), accent: "var(--ink-500)", soft: "var(--line)", grad: "linear-gradient(135deg,#9aa0ab,#7a8090)" };
             return (

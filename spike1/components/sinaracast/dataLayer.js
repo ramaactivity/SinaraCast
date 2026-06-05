@@ -271,9 +271,13 @@ export async function loadAll() {
     storage,
   };
 
+  // The email you're actually signed in with (source of truth = the auth session),
+  // so a wrong-account login is obvious instead of showing empty data silently.
+  const { data: sess } = await supabase.auth.getSession();
+  const authEmail = sess?.session?.user?.email || "";
   const profile = {
-    name: profileRaw?.name || "Rama",
-    email: profileRaw?.email || "",
+    name: profileRaw?.name || (authEmail ? authEmail.split("@")[0] : "Kamu"),
+    email: profileRaw?.email || authEmail,
     method: "Kode lewat email",
     joined: profileRaw?.joined_at ? fmtDate(profileRaw.joined_at) : "—",
   };
