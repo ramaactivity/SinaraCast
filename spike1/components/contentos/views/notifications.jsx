@@ -12,6 +12,11 @@ const NTYPE = {
   warn: ["var(--st-publishing)", "var(--st-publishing-bg)", (p) => <Icons.warn {...p} />],
   success: ["var(--green-500)", "var(--green-100)", (p) => <Icons.checkCircle {...p} />],
 };
+// Brand styling for a channel slug, with a neutral fallback for OAuth channels.
+const brandFor = (slug, channels) => slug ? (BRANDS[slug] || {
+  name: channels.find(c => c.id === slug)?.name || slug,
+  accent: "var(--ink-500)", soft: "var(--line)", grad: "linear-gradient(135deg,#9aa0ab,#7a8090)",
+}) : null;
 
 export function NotificationsView() {
   const app = useApp();
@@ -35,8 +40,8 @@ export function NotificationsView() {
           {phase === "ready" && notifs.length === 0 && <EmptyState icon={<Icons.bell size={28} />} title={tab === "unread" ? "Semua sudah dibaca" : "Belum ada notifikasi"} body={tab === "unread" ? "Tidak ada notifikasi yang belum dibaca." : "Alert kegagalan, token, dan run terlewat akan muncul di sini."} />}
 
           {phase === "ready" && notifs.map((n, i) => {
-            const [fg, bg, Ic] = NTYPE[n.type];
-            const b = n.ch ? BRANDS[n.ch] : null;
+            const [fg, bg, Ic] = NTYPE[n.type] || NTYPE.warn;
+            const b = brandFor(n.ch, app.channels);
             return (
               <div key={n.id} onClick={() => { app.markRead(n.id); if (n.runId) app.go("activity"); }} style={{ display: "flex", gap: 13, padding: "16px 18px", borderBottom: i < notifs.length - 1 ? "1px solid var(--line)" : "none", cursor: "pointer", background: n.read ? "transparent" : "rgba(252,192,76,.06)", transition: "background .12s" }}
                 onMouseEnter={e => e.currentTarget.style.background = "rgba(140,144,158,.06)"} onMouseLeave={e => e.currentTarget.style.background = n.read ? "transparent" : "rgba(252,192,76,.06)"}>

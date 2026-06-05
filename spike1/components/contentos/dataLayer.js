@@ -13,6 +13,15 @@ const toWib = (iso) => new Date(new Date(iso).getTime() + 7 * 3600 * 1000); // s
 const fmtDateTimeWib = (iso) => { if (!iso) return "—"; const d = toWib(iso); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}, ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`; };
 const fmtTimeWib = (iso) => { if (!iso) return ""; const d = toWib(iso); return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`; };
 const dateKeyWib = (iso) => { if (!iso) return ""; const d = toWib(iso); return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`; };
+const fmtNotifTime = (iso) => {
+  if (!iso) return "";
+  const d = toWib(iso), now = toWib(new Date().toISOString());
+  const hm = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+  const dayDiff = Math.round((Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())) / 86400000);
+  if (dayDiff === 0) return `Hari ini, ${hm}`;
+  if (dayDiff === 1) return `Kemarin, ${hm}`;
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}, ${hm}`;
+};
 const cadenceLabel = (r) => {
   if (r.cadence_type === "daily") return "Setiap hari";
   if (r.cadence_type === "every_n_days") return `Setiap ${r.interval_days || 2} hari`;
@@ -170,6 +179,17 @@ export async function loadAll() {
     };
   });
 
+  // ---- in-app notifications (alerts mirror) ----
+  const { data: notifsRaw = [] } = await supabase
+    .from("notification")
+    .select("id, channel_id, type, title, body, run_id, read, created_at")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  const notifs = (notifsRaw || []).map((n) => ({
+    id: n.id, type: n.type, ch: n.channel_id ? slugById[n.channel_id] || null : null,
+    title: n.title, body: n.body, runId: n.run_id, read: n.read, time: fmtNotifTime(n.created_at),
+  }));
+
   const { data: settingsRaw } = await supabase.from("app_settings").select("*").maybeSingle();
   const settings = {
     pauseAll: settingsRaw?.pause_all ?? false,
@@ -190,7 +210,17 @@ export async function loadAll() {
     joined: profileRaw?.joined_at ? fmtDate(profileRaw.joined_at) : "—",
   };
 
-  return { channels, rules, runs, oneoffs, notifs: [], settings, profile };
+  return { channels, rules, runs, oneoffs, notifs, settings, profile };
+}
+
+// Mark one / all notifications read (RLS scopes these to the signed-in owner).
+export async function markNotifRead(id) {
+  const { error } = await supabase.from("notification").update({ read: true }).eq("id", id);
+  if (error) throw error;
+}
+export async function markAllNotifsRead() {
+  const { error } = await supabase.from("notification").update({ read: true }).eq("read", false);
+  if (error) throw error;
 }
 
 // ---- writes ----

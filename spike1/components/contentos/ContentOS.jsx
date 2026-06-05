@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { Icons } from "./icons";
-import { loadAll, setRuleActive, setChannelPaused, setPauseAll, saveSettingsFields } from "./dataLayer";
+import { loadAll, setRuleActive, setChannelPaused, setPauseAll, saveSettingsFields, markNotifRead, markAllNotifsRead } from "./dataLayer";
 import { AppCtx } from "./store";
 import { Sidebar } from "./shell";
 import { Panel, EmptyState, Toast, ConfirmDialog, Spinner } from "./ui";
@@ -126,8 +126,8 @@ export default function ContentOS() {
 
   const updateRule = (id, patch) => setRules(rs => rs.map(r => r.id === id ? { ...r, ...patch } : r));
   const deleteRule = (id) => setRules(rs => rs.filter(r => r.id !== id));
-  const markRead = (id) => setNotifs(ns => ns.map(n => n.id === id ? { ...n, read: true } : n));
-  const markAllRead = () => setNotifs(ns => ns.map(n => ({ ...n, read: true })));
+  const markRead = (id) => { setNotifs(ns => ns.map(n => n.id === id ? { ...n, read: true } : n)); markNotifRead(id).catch((e) => console.error("markNotifRead failed", e)); };
+  const markAllRead = () => { setNotifs(ns => ns.map(n => ({ ...n, read: true }))); markAllNotifsRead().catch((e) => console.error("markAllNotifsRead failed", e)); };
 
   // Start Instagram Business Login in a popup so the SinaraCast tab stays open.
   // The popup is opened synchronously (inside the click) to dodge popup blockers,
