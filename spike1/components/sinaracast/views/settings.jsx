@@ -53,7 +53,7 @@ export function SettingsView() {
             <div style={{ marginTop: -4 }}>
               <Row title="Telegram" body={s.telegram.connected ? `Terhubung sebagai ${s.telegram.handle}` : "Belum terhubung"}>
                 {s.telegram.connected
-                  ? <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span className="sc-pill" style={{ color: "var(--green-500)", background: "var(--green-100)" }}><span className="dot" style={{ background: "var(--green-500)" }} />Terhubung</span><Button size="sm" variant="ghost" onClick={() => app.confirm({ title: "Putuskan Telegram?", confirmLabel: "Putuskan", body: "Pemberitahuan tidak lagi dikirim ke Telegram (tetap muncul di dalam aplikasi).", onConfirm: () => app.disconnectTelegram() })}>Putuskan</Button></div>
+                  ? <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span className="sc-pill" style={{ color: "var(--green-500)", background: "var(--green-100)" }}><span className="dot" style={{ background: "var(--green-500)" }} />Terhubung</span><Button size="sm" variant="secondary" onClick={() => app.testTelegram()}>Kirim tes</Button><Button size="sm" variant="ghost" onClick={() => app.confirm({ title: "Putuskan Telegram?", confirmLabel: "Putuskan", body: "Pemberitahuan tidak lagi dikirim ke Telegram (tetap muncul di dalam aplikasi).", onConfirm: () => app.disconnectTelegram() })}>Putuskan</Button></div>
                   : <Button size="sm" variant="primary" onClick={() => app.connectTelegram()}>Hubungkan</Button>}
               </Row>
               <Row title="Pemberitahuan kalau gagal" body="Saat ada postingan gagal terbit, token bermasalah, atau jadwal terlewat. Selalu aktif.">

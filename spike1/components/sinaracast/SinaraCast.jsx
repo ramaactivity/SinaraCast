@@ -229,6 +229,14 @@ export default function SinaraCast() {
     } catch (e) { showToast(`Gagal: ${e.message || e}`, "error"); }
   };
   const disconnectTelegram = () => saveSettings({ telegram: { connected: false, handle: "" } });
+  const testTelegram = async () => {
+    try {
+      const res = await fetch("/api/telegram/test", { method: "POST", headers: { Authorization: `Bearer ${session?.access_token}` } });
+      const j = await res.json().catch(() => ({}));
+      if (!j.ok) throw new Error(j.error || "Gagal");
+      showToast("Pesan tes dikirim ke Telegram ✓", "success");
+    } catch (e) { showToast(`Gagal: ${e.message || e}`, "error"); }
+  };
 
   // Per-day overrides for a rule (persisted so the engine actually honors them).
   const skipToday = async (r) => {
@@ -302,7 +310,7 @@ export default function SinaraCast() {
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
     toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, saveSettings,
-    connectTelegram, disconnectTelegram, renameChannel: renameChannelFn, archiveChannel: archiveChannelFn, exportData, deleteEverything,
+    connectTelegram, disconnectTelegram, testTelegram, renameChannel: renameChannelFn, archiveChannel: archiveChannelFn, exportData, deleteEverything,
     skipToday, unskipToday, swapToday,
     isMobile, openMenu: () => setDrawerOpen(true) };
 

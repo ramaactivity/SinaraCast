@@ -117,6 +117,7 @@ function TelegramCard() {
             <div style={{ fontFamily: FC, fontWeight: 600, fontSize: 13, color: "var(--ink-900)" }}>Terhubung</div>
             <div style={{ fontFamily: FC, fontSize: 11.5, color: "var(--ink-500)" }}>{tg.handle}</div>
           </div>
+          <Button size="sm" variant="secondary" onClick={() => app.testTelegram()}>Kirim tes</Button>
           <IconButton icon={<Icons.x size={16} />} tip="Putuskan" onClick={() => app.confirm({ title: "Putuskan Telegram?", danger: true, confirmLabel: "Putuskan",
             body: "Pemberitahuan tetap muncul di dalam aplikasi, tapi tidak lagi dikirim ke Telegram.",
             onConfirm: () => app.disconnectTelegram() })} />
