@@ -34,7 +34,7 @@ export const publicImageUrl = (storagePath) =>
 
 // Write an in-app notification row (best-effort; never throws into the publish path).
 // Also fans out to Telegram if the owner has it connected.
-async function notify(svc, { ownerId, channelId, type, title, body, runId }) {
+export async function notify(svc, { ownerId, channelId, type, title, body, runId }) {
   if (!ownerId) return;
   try {
     await svc.from("notification").insert({

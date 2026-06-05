@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { svcClient, publishForRule, roleForNow } from "../../../lib/publishCore";
+import { svcClient, publishForRule, roleForNow, notify } from "../../../lib/publishCore";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -60,7 +60,25 @@ export async function POST(request) {
     const schedMin = hhmmToMin(rule.mode === "schedule" ? (isWeekend ? rule.weekend_time : rule.weekday_time) : rule.post_time);
     if (schedMin == null) continue;
     const grace = rule.grace_minutes ?? 30;
-    if (!(nowMin >= schedMin && nowMin <= schedMin + grace)) continue;
+    if (!(nowMin >= schedMin && nowMin <= schedMin + grace)) {
+      // Past the grace window with no run today → flag a missed run (once/day).
+      // Reuses the daily claim_key: if a publish already happened the key is
+      // taken and this insert conflicts (23505), so no false "missed" alert.
+      if (nowMin > schedMin + grace) {
+        const { data: skip } = await svc.from("post_run").insert({
+          channel_id: channel.id, rule_id: rule.id, status: "skipped", trigger: "scheduled",
+          scheduled_at: nowWib.toISOString(), claim_key: `auto:${rule.id}:${today}`, attempt_count: 0,
+          fail_reason: "Run terlewat — di luar grace window",
+        }).select("id").maybeSingle();
+        if (skip) {
+          await svc.from("post_attempt").insert({ run_id: skip.id, outcome: "Run terlewat — di luar grace window", is_fail: true });
+          await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "warn",
+            title: `Run terlewat — ${channel.slug}`, body: `“${rule.name}” tidak berjalan dalam grace window hari ini.`, runId: skip.id });
+          fired.push({ rule: rule.name, channel: channel.slug, missed: true });
+        }
+      }
+      continue;
+    }
 
     const role = roleForNow(rule.mode, dow);
     const claimKey = `auto:${rule.id}:${today}`;
