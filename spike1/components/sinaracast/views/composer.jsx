@@ -97,7 +97,6 @@ export function ComposerView() {
     const files = [...(e.target.files || [])]; e.target.value = "";
     for (const file of files) {
       if (isReels) {
-        if (media.length >= 1) { app.toast("Reels hanya 1 video", "info"); break; }
         if (!["video/mp4", "video/quicktime"].includes(file.type)) { app.toast("Reels harus video MP4/MOV", "error"); continue; }
         if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(`Video maksimal ${MAX_VIDEO_MB} MB`, "error"); continue; }
         let meta; try { meta = await readVideoMeta(file); } catch { app.toast("Gagal membaca video", "error"); continue; }
@@ -112,7 +111,6 @@ export function ComposerView() {
       }
       // Story can be an image OR a video.
       if (type === "story" && ["video/mp4", "video/quicktime"].includes(file.type)) {
-        if (media.length >= 1) { app.toast("Story hanya 1 media", "info"); break; }
         if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(`Video maksimal ${MAX_VIDEO_MB} MB`, "error"); continue; }
         let meta; try { meta = await readVideoMeta(file); } catch { app.toast("Gagal membaca video", "error"); continue; }
         if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) { app.toast(`Story video sebaiknya 9:16 — video ini ${meta.width}×${meta.height}`, "error"); continue; }
@@ -123,7 +121,6 @@ export function ComposerView() {
         finally { setUploading(false); }
         continue;
       }
-      if (!isFeed && media.length >= 1) { app.toast("Story hanya 1 media", "info"); break; }
       if (isFeed && media.length >= 10) { app.toast("Carousel maksimal 10 gambar", "info"); break; }
       if (!["image/jpeg", "image/png"].includes(file.type)) { app.toast("Hanya JPG / PNG", "error"); continue; }
       if (file.size > 8 * 1024 * 1024) { app.toast("Maksimal 8 MB", "error"); continue; }
@@ -136,7 +133,7 @@ export function ComposerView() {
       setUploading(true);
       try {
         const row = await uploadPoolImage(file, channel.id, dim);
-        setMedia(m => [...m, row]);
+        setMedia(m => isFeed ? [...m, row] : [row]);
         app.toast("Gambar diunggah ✓", "success");
       } catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
       finally { setUploading(false); }
@@ -216,7 +213,7 @@ export function ComposerView() {
             </div>}
           </Panel>
           <Panel>
-            <SectionTitle sub={isReels ? "Satu video tegak 9:16" : isFeed ? "Sampai 10 gambar (carousel)" : "Satu gambar atau video tegak 9:16"} right={<Button size="sm" variant="secondary" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={uploading || ((isReels || (type === "story")) && media.length >= 1)} onClick={() => fileRef.current?.click()}>Unggah</Button>}>{isReels ? "Video" : isFeed ? "Gambar" : "Media"}</SectionTitle>
+            <SectionTitle sub={isReels ? "Satu video tegak 9:16" : isFeed ? "Sampai 10 gambar (carousel)" : "Satu gambar atau video tegak 9:16"} right={<Button size="sm" variant="secondary" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={uploading} onClick={() => fileRef.current?.click()}>{(media.length >= 1 && (isReels || type === "story")) ? "Ganti" : "Unggah"}</Button>}>{isReels ? "Video" : isFeed ? "Gambar" : "Media"}</SectionTitle>
             <input ref={fileRef} type="file" accept={isReels ? "video/mp4,video/quicktime" : isFeed ? "image/jpeg,image/png" : "image/jpeg,image/png,video/mp4,video/quicktime"} multiple={isFeed} onChange={onFiles} style={{ display: "none" }} />
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {media.map((m, i) => (
