@@ -168,7 +168,8 @@ export async function loadAll() {
   const todayKey = dateKeyWib(new Date().toISOString());
   const ruleIds = (rulesRaw || []).map((r) => r.id);
   if (ruleIds.length) {
-    const { data: ovs = [] } = await supabase.from("day_override").select("rule_id, type, swap_image_id").eq("on_date", todayKey).in("rule_id", ruleIds);
+    let ovs = [];
+    try { ovs = (await supabase.from("day_override").select("rule_id, type, swap_image_id").eq("on_date", todayKey).in("rule_id", ruleIds)).data || []; } catch (_) { /* non-fatal */ }
     const ovByRule = Object.fromEntries((ovs || []).map((o) => [o.rule_id, o]));
     for (const r of rules) {
       const ov = ovByRule[r.id];
@@ -218,7 +219,8 @@ export async function loadAll() {
   const runIds = (runsRaw || []).map((r) => r.id);
   let attemptsRaw = [];
   if (runIds.length) {
-    const res = await supabase.from("post_attempt").select("run_id, at, outcome, is_fail").in("run_id", runIds).order("at", { ascending: true });
+    let res = { data: [] };
+    try { res = await supabase.from("post_attempt").select("run_id, at, outcome, is_fail").in("run_id", runIds).order("at", { ascending: true }); } catch (_) { /* non-fatal */ }
     attemptsRaw = res.data || [];
   }
   const attemptsByRun = {};
