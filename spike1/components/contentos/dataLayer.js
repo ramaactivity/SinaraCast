@@ -57,13 +57,15 @@ export async function loadAll() {
     .select("*")
     .is("archived_at", null);
 
-  // pools + image counts per rule (for "X gambar" + cycle)
+  // pools + image counts per rule (for "X gambar" + cycle) + first thumbnail
   const { data: pools = [] } = await supabase.from("pool").select("id, rule_id, role");
-  const { data: imgs = [] } = await supabase.from("pool_image").select("pool_id, used_in_cycle");
+  const { data: imgs = [] } = await supabase.from("pool_image").select("pool_id, used_in_cycle, storage_path, position").order("position");
   const imgByPool = {};
+  const firstPathByPool = {};
   for (const im of imgs || []) {
     const p = (imgByPool[im.pool_id] ||= { total: 0, used: 0 });
     p.total++; if (im.used_in_cycle) p.used++;
+    if (!(im.pool_id in firstPathByPool)) firstPathByPool[im.pool_id] = im.storage_path;
   }
   const poolsByRule = {};
   for (const p of pools || []) (poolsByRule[p.rule_id] ||= []).push({ ...p, ...(imgByPool[p.id] || { total: 0, used: 0 }) });
@@ -77,6 +79,9 @@ export async function loadAll() {
     const used = rp.reduce((a, p) => a + p.used, 0);
     const total = rp.reduce((a, p) => a + p.total, 0);
     base.cycle = { used, total };
+    // first available image (prefer weekday/single, then any pool) → public thumbnail URL
+    const firstPath = rp.map((p) => firstPathByPool[p.id]).find(Boolean);
+    base.thumbUrl = firstPath ? supabase.storage.from(BUCKET).getPublicUrl(firstPath).data.publicUrl : null;
     return base;
   });
 

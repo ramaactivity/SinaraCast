@@ -365,8 +365,8 @@ export function Chip({ children, tone = "muted", onRemove, icon }) {
 }
 
 /* ---------------- Media thumbnail (9:16 story) ---------------- */
-export function MediaThumb({ seed = 0, w = 84, label, invalid, selected, used, onClick, ratio = 16 / 9 }) {
-  // deterministic pastel gradient placeholder (no real images)
+export function MediaThumb({ seed = 0, w = 84, label, invalid, selected, used, onClick, ratio = 16 / 9, src }) {
+  // deterministic pastel gradient placeholder; if `src` is given, show the real image
   const hues = [42, 150, 270, 175, 20, 320];
   const hue = hues[seed % hues.length];
   const numeric = typeof w === "number";
@@ -376,7 +376,9 @@ export function MediaThumb({ seed = 0, w = 84, label, invalid, selected, used, o
       background: `linear-gradient(150deg, hsl(${hue} 70% 88%), hsl(${(hue + 30) % 360} 65% 80%))`,
       border: selected ? "2.5px solid var(--green-500)" : invalid ? "2px solid var(--danger)" : "1px solid var(--line)",
       boxShadow: "var(--shadow-sm)", overflow: "hidden", flex: "0 0 auto" }}>
-      <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(135deg, rgba(255,255,255,.18) 0 7px, transparent 7px 14px)" }} />
+      {src
+        ? <img src={src} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        : <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(135deg, rgba(255,255,255,.18) 0 7px, transparent 7px 14px)" }} />}
       {label && <div style={{ position: "absolute", left: 6, bottom: 6, fontFamily: "ui-monospace,monospace", fontSize: 9, color: "rgba(62,67,81,.6)" }}>{label}</div>}
       {invalid && <div style={{ position: "absolute", top: 6, left: 6, width: 20, height: 20, borderRadius: "50%", background: "var(--danger)", color: "#fff", display: "grid", placeItems: "center" }}><Icons.x size={12} sw={2.4} /></div>}
       {used && <div style={{ position: "absolute", top: 6, right: 6, width: 18, height: 18, borderRadius: "50%", background: "rgba(255,255,255,.85)", color: "var(--ink-400)", display: "grid", placeItems: "center" }}><Icons.check size={11} sw={2.4} /></div>}

@@ -114,7 +114,7 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
     <Card pad={0} onClick={onSelect} style={{ borderColor: selected ? b.accent : "var(--line)", borderWidth: selected ? 1.5 : 1,
       boxShadow: selected ? "var(--shadow-md)" : "var(--shadow-sm)", overflow: "visible" }} hover>
       <div style={{ display: "flex", alignItems: "center", gap: app.isMobile ? 11 : 14, padding: "16px 18px", flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
-        <MediaThumb seed={r.lastImg} w={46} label="" />
+        <MediaThumb seed={r.lastImg} src={r.thumbUrl} w={46} label="" />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
             <span style={{ fontFamily: FR, fontWeight: 600, fontSize: 15, color: "var(--ink-900)" }}>{r.name}</span>
@@ -192,7 +192,7 @@ function NextInspector({ r, b, ch }) {
     <Panel strong style={{ position: "sticky", top: 8 }}>
       <SectionTitle sub={r.name}>Berikutnya</SectionTitle>
       <div style={{ display: "flex", gap: 14 }}>
-        <MediaThumb seed={r.lastImg} w={92} label="9:16" />
+        <MediaThumb seed={r.lastImg} src={r.thumbUrl} w={92} label="9:16" />
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: FR, fontSize: 11, color: "var(--ink-400)" }}>Jadwal berikutnya</div>
           <div style={{ fontFamily: FR, fontWeight: 600, fontSize: 15, color: "var(--ink-900)", margin: "2px 0 10px" }}>{r.nextRun}</div>
