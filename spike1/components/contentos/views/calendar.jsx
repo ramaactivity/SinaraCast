@@ -134,7 +134,7 @@ export function CalendarView() {
                       {items.map((it, i) => {
                         const b = brandFor(it.ch, app.channels);
                         return (
-                          <button key={i} onClick={() => { it.kind === "oneoff" ? app.go("composer", { ch: it.ch, edit: true }) : app.go("rules"); }}
+                          <button key={i} onClick={() => { it.kind === "oneoff" ? app.go("composer", { ch: it.ch, postId: it.id }) : app.go("rules"); }}
                             style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", border: "1px solid var(--line)", borderLeft: it.kind === "oneoff" ? `3px solid ${b.accent}` : "1px solid var(--line)", borderRadius: 13, background: "#fff", cursor: "pointer", textAlign: "left", width: "100%" }}>
                             <BrandAvatar brand={b} size={30} />
                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -204,7 +204,7 @@ function DayModal({ sel, onClose, monthLabel }) {
           {sel.items.map((it, i) => {
             const b = brandFor(it.ch, app.channels);
             return (
-              <div key={i} onClick={() => { onClose(); it.kind === "oneoff" ? app.go("composer", { ch: it.ch, edit: true }) : app.go("rules"); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, cursor: "pointer", background: "#fff" }}>
+              <div key={i} onClick={() => { onClose(); it.kind === "oneoff" ? app.go("composer", { ch: it.ch, postId: it.id }) : app.go("rules"); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, cursor: "pointer", background: "#fff" }}>
                 <BrandAvatar brand={b} size={32} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

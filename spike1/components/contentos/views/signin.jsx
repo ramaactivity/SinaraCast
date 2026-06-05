@@ -68,8 +68,8 @@ export function SignInView() {
   const busy = stage === "sending" || stage === "verifying";
 
   return (
-    <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", padding: 24 }}>
-      <div style={{ width: 440, maxWidth: "100%" }}>
+    <div style={{ width: "100%", minHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, overflowY: "auto", boxSizing: "border-box" }}>
+      <div style={{ width: "100%", maxWidth: 440 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "center", marginBottom: 26 }}>
           <div style={{ width: 42, height: 42, borderRadius: 13, background: "var(--primary-grad)", boxShadow: "var(--shadow-primary)", display: "grid", placeItems: "center", color: "#fff" }}><Icons.grid size={22} sw={2} /></div>
           <span style={{ fontFamily: FSi, fontWeight: 600, fontSize: 22, color: "var(--ink-900)" }}>SinaraCast</span>

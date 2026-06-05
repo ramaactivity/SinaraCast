@@ -3,9 +3,9 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { uploadPoolImage, createScheduledPost } from "../dataLayer";
+import { uploadPoolImage, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost } from "../dataLayer";
 import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, Segmented, MediaThumb, SectionTitle, Spinner, Chip, Input } from "../ui";
-const { useState: uCo, useRef } = React;
+const { useState: uCo, useRef, useEffect } = React;
 const FCo = "var(--font)";
 
 const brandFor = (slug, channels) => BRANDS[slug] || {
@@ -22,28 +22,52 @@ function readDims(file) {
     img.src = url;
   });
 }
-const todayWib = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`; };
+const pad = (n) => String(n).padStart(2, "0");
+const todayWib = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
+const isoToWibParts = (iso) => { const d = new Date(new Date(iso).getTime() + 7 * 3600 * 1000); return { date: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`, time: `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}` }; };
 
 export function ComposerView() {
   const app = useApp();
+  const postId = app.params.postId || null; // present → edit mode
   const chId = app.params.ch || app.channel;
   const channel = app.channels.find(c => c.id === chId);
   const b = brandFor(chId, app.channels);
 
   const [type, setType] = uCo("story");
-  const [media, setMedia] = uCo([]); // [{ storage_path, url, width, height, format, bytes, aspect_ok }]
+  const [media, setMedia] = uCo([]); // [{ storage_path, url, width, height, format, bytes, aspect_ok, assetId? }]
   const [caption, setCaption] = uCo("");
   const [firstComment, setFirstComment] = uCo("");
   const [date, setDate] = uCo(todayWib());
   const [time, setTime] = uCo("09:00");
   const [uploading, setUploading] = uCo(false);
   const [saving, setSaving] = uCo(false);
+  const [loading, setLoading] = uCo(!!postId);
+  const [origStatus, setOrigStatus] = uCo(null); // existing status when editing
   const fileRef = useRef(null);
+
+  // Load existing one-off when editing.
+  useEffect(() => {
+    if (!postId) return;
+    let active = true;
+    loadScheduledPost(postId).then(({ post, media: m }) => {
+      if (!active || !post) { if (active) setLoading(false); return; }
+      setType(post.post_type === "feed" ? "feed" : "story");
+      setCaption(post.caption || "");
+      setFirstComment(post.first_comment || "");
+      setOrigStatus(post.status);
+      if (post.scheduled_at) { const p = isoToWibParts(post.scheduled_at); setDate(p.date); setTime(p.time); }
+      setMedia(m || []);
+      setLoading(false);
+    }).catch(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [postId]);
 
   const isFeed = type === "feed";
   const capLimit = 2200;
   const overCap = caption.length > capLimit;
   const valid = media.length > 0 && (!isFeed || (caption.trim() && !overCap));
+  // Already-processed posts can't be re-scheduled (would double-post) — view/delete only.
+  const locked = !!postId && ["published", "publishing"].includes(origStatus);
 
   if (!channel) {
     return (
@@ -80,29 +104,51 @@ export function ComposerView() {
   async function save(status) {
     if (!valid) { app.toast("Lengkapi media" + (isFeed ? " & caption" : "") + " dulu", "error"); return; }
     setSaving(true);
+    const payload = {
+      channelDbId: channel._id, postType: type, caption: isFeed ? caption.trim() : null,
+      firstComment: isFeed ? firstComment.trim() : null, scheduledAtISO: scheduledISO(), status, images: media,
+    };
     try {
-      await createScheduledPost({
-        channelDbId: channel._id, postType: type, caption: isFeed ? caption.trim() : null,
-        firstComment: isFeed ? firstComment.trim() : null,
-        scheduledAtISO: status === "draft" && !date ? null : scheduledISO(), status,
-        images: media,
-      });
+      if (postId) await updateScheduledPost(postId, payload);
+      else await createScheduledPost(payload);
       await app.reload();
-      app.toast(status === "scheduled" ? `Post dijadwalkan ${date} ${time} WIB` : "Disimpan sebagai draft", "success");
+      app.toast(postId ? "Perubahan disimpan" : (status === "scheduled" ? `Post dijadwalkan ${date} ${time} WIB` : "Disimpan sebagai draft"), "success");
       app.go("calendar");
     } catch (e) {
       app.toast("Gagal menyimpan: " + (e.message || e), "error");
     } finally { setSaving(false); }
   }
 
+  function remove() {
+    app.confirm({
+      title: "Hapus one-off ini?", danger: true, confirmLabel: "Hapus",
+      body: "Post terjadwal ini akan dibatalkan dan dihapus.",
+      consequence: "Tidak akan terbit. Tindakan ini tidak bisa dibatalkan.",
+      onConfirm: async () => {
+        try { await deleteScheduledPost(postId); await app.reload(); app.toast("One-off dihapus", "success"); app.go("calendar"); }
+        catch (e) { app.toast("Gagal menghapus: " + (e.message || e), "error"); }
+      },
+    });
+  }
+
+  if (loading) {
+    return <div><Topbar title="One-off post" /><Panel style={{ height: 280, display: "grid", placeItems: "center" }}><Spinner size={28} /></Panel></div>;
+  }
+
   return (
     <div>
-      <Topbar title="One-off post" sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} size={18} /> {b.name} · {channel.handle}</span>}
+      <Topbar title={postId ? "Edit one-off" : "One-off post"} sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} size={18} /> {b.name} · {channel.handle}</span>}
         right={<div style={{ display: "flex", gap: 10 }}>
           <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("calendar")}>Kembali</Button>
-          <Button variant="secondary" icon={saving ? <Spinner size={15} /> : <Icons.layers size={16} />} disabled={saving || !media.length} onClick={() => save("draft")}>Simpan draft</Button>
-          <Button variant="primary" icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.calendar size={16} />} disabled={!valid || saving || isFeed} onClick={() => save("scheduled")}>Jadwalkan</Button>
+          {postId && <Button variant="danger" icon={<Icons.trash size={15} />} disabled={saving} onClick={remove}>Hapus</Button>}
+          <Button variant="secondary" icon={saving ? <Spinner size={15} /> : <Icons.layers size={16} />} disabled={saving || !media.length || locked} onClick={() => save("draft")}>Simpan draft</Button>
+          <Button variant="primary" icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.calendar size={16} />} disabled={!valid || saving || isFeed || locked} onClick={() => save("scheduled")}>{postId ? "Simpan & jadwalkan" : "Jadwalkan"}</Button>
         </div>} />
+
+      {locked && <div style={{ display: "flex", gap: 9, marginBottom: 16, background: "var(--green-100)", borderRadius: 12, padding: "11px 14px" }}>
+        <Icons.checkCircle size={16} style={{ color: "var(--green-500)", flex: "0 0 auto", marginTop: 1 }} />
+        <span style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Post ini sudah diproses, jadi tidak bisa dijadwalkan ulang. Kamu masih bisa menghapus catatannya.</span>
+      </div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

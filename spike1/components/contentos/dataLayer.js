@@ -301,6 +301,56 @@ export async function createScheduledPost(p) {
   return post.id;
 }
 
+// Load a one-off scheduled_post + its media (for editing in the composer).
+export async function loadScheduledPost(id) {
+  const { data: post } = await supabase.from("scheduled_post").select("*").eq("id", id).single();
+  const { data: links = [] } = await supabase.from("scheduled_post_media").select("asset_id, position").eq("post_id", id).order("position");
+  const assetIds = (links || []).map((l) => l.asset_id);
+  let assets = [];
+  if (assetIds.length) {
+    const res = await supabase.from("media_asset").select("id, storage_path, width, height, format, bytes").in("id", assetIds);
+    assets = res.data || [];
+  }
+  const byId = Object.fromEntries(assets.map((a) => [a.id, a]));
+  const media = (links || []).map((l) => {
+    const a = byId[l.asset_id];
+    return a ? { assetId: a.id, storage_path: a.storage_path, url: supabase.storage.from(BUCKET).getPublicUrl(a.storage_path).data.publicUrl, width: a.width, height: a.height, format: a.format, bytes: a.bytes } : null;
+  }).filter(Boolean);
+  return { post, media };
+}
+
+// Update a one-off scheduled_post incl. media (full replace of media links).
+// images entries already in DB carry `assetId`; freshly uploaded ones don't.
+export async function updateScheduledPost(id, p) {
+  const finalAssetIds = [];
+  for (const im of (p.images || [])) {
+    if (im.assetId) { finalAssetIds.push(im.assetId); continue; }
+    const { data: a, error } = await supabase.from("media_asset").insert({
+      channel_id: p.channelDbId, storage_path: im.storage_path, tag: p.postType,
+      width: im.width, height: im.height, aspect_ok: im.aspect_ok ?? true, format: im.format, bytes: im.bytes,
+    }).select("id").single();
+    if (error) throw error;
+    finalAssetIds.push(a.id);
+  }
+  const { error: eu } = await supabase.from("scheduled_post").update({
+    post_type: p.postType, caption: p.caption || null, first_comment: p.firstComment || null,
+    scheduled_at: p.scheduledAtISO || null, status: p.status,
+  }).eq("id", id);
+  if (eu) throw eu;
+  await supabase.from("scheduled_post_media").delete().eq("post_id", id);
+  for (let i = 0; i < finalAssetIds.length; i++) {
+    const { error } = await supabase.from("scheduled_post_media").insert({ post_id: id, asset_id: finalAssetIds[i], position: i });
+    if (error) throw error;
+  }
+  return id;
+}
+
+// Delete (cancel) a one-off scheduled_post. scheduled_post_media cascades.
+export async function deleteScheduledPost(id) {
+  const { error } = await supabase.from("scheduled_post").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // Update a rule's scalar fields (no pool/image changes).
 export async function updateRuleFields(id, f) {
   const { error } = await supabase.from("recurring_rule").update({
