@@ -40,21 +40,37 @@ function ruleTime(rule, Y, M, day) {
   return (weekend ? rule.weekendTime : rule.weekdayTime) || "—";
 }
 
+// Status → { dot, bg } for the in-cell event pills (soft tints, solid markers).
+const ST_C = {
+  Failed: { dot: "var(--st-failed)", bg: "var(--st-failed-bg)" },
+  Published: { dot: "var(--st-success)", bg: "var(--st-success-bg)" },
+  Draft: { dot: "var(--st-skipped)", bg: "var(--st-skipped-bg)" },
+  Skipped: { dot: "var(--st-skipped)", bg: "var(--st-skipped-bg)" },
+};
+const stColor = (s) => ST_C[s] || { dot: "var(--st-scheduled)", bg: "var(--st-scheduled-bg)" };
+
 export function CalendarView() {
   const app = useApp();
   const phase = app.dataLoading ? "loading" : "ready";
   const [filter, setFilter] = uCa("all");
   const [mode, setMode] = uCa("month");
   const [sel, setSel] = uCa(null); // {day, items}
+  const [monthOffset, setMonthOffset] = uCa(0); // 0 = current month
 
-  // current month in WIB
+  // target month in WIB (shiftable via the prev/next nav)
   const nowWib = new Date(Date.now() + 7 * 3600 * 1000);
-  const Y = nowWib.getUTCFullYear(), M = nowWib.getUTCMonth(), TODAY = nowWib.getUTCDate();
+  const base = new Date(Date.UTC(nowWib.getUTCFullYear(), nowWib.getUTCMonth() + monthOffset, 1));
+  const Y = base.getUTCFullYear(), M = base.getUTCMonth();
+  const isCurrentMonth = monthOffset === 0;
+  const TODAY = isCurrentMonth ? nowWib.getUTCDate() : -1; // -1 → no "today" highlight off-month
   const DAYS = new Date(Date.UTC(Y, M + 1, 0)).getUTCDate();
+  const prevMonthDays = new Date(Date.UTC(Y, M, 0)).getUTCDate();
   const ym = `${Y}-${pad2(M + 1)}`;
   const MONTH = `${MONTH_NAMES[M]} ${Y}`;
   const leadingBlanks = (new Date(Date.UTC(Y, M, 1)).getUTCDay() + 6) % 7; // Mon-first offset
-  const weekStart = Math.max(1, TODAY - ((new Date(Date.UTC(Y, M, TODAY)).getUTCDay() + 6) % 7)); // Monday of current week
+  const weekStart = isCurrentMonth ? Math.max(1, TODAY - ((new Date(Date.UTC(Y, M, TODAY)).getUTCDay() + 6) % 7)) : 1; // Monday of current week
+  // projection window: future month → all days; current → today onward; past → none
+  const projectFrom = monthOffset > 0 ? 1 : monthOffset < 0 ? Infinity : TODAY;
 
   const rules = app.rules.filter(r => filter === "all" || r.ch === filter);
   const oneoffs = app.oneoffs.filter(o => o.ym === ym && (filter === "all" || o.ch === filter));
@@ -76,8 +92,8 @@ export function CalendarView() {
       if (parseInt(key.split("|")[1], 10) !== day) return;
       items.push({ kind: "rule", ch: v.ch, title: v.rule, time: v.time || "—", status: v.status, ruleId: v.ruleId });
     });
-    // projected future schedule (today onward) for active rules that haven't already run that day
-    if (day >= TODAY) {
+    // projected schedule for active rules that haven't already run that day
+    if (day >= projectFrom) {
       rules.forEach(r => {
         if (!r.active) return;
         if (!ruleFires(r, Y, M, day)) return;
@@ -93,6 +109,23 @@ export function CalendarView() {
   const filters = [{ value: "all", label: "Semua" }, ...app.channels.map(c => ({ value: c.id, label: brandFor(c.id, app.channels).name.split(" ")[0] }))];
   const totalItems = Array.from({ length: DAYS }, (_, i) => itemsFor(i + 1)).flat().length;
 
+  // Build the grid cells: month = full weeks (with faded prev/next-month days);
+  // week = the seven days of the current week.
+  const cells = [];
+  if (mode === "week") {
+    for (let k = 0; k < 7; k++) { const d = weekStart + k; cells.push(d > DAYS ? { type: "empty" } : { type: "day", day: d }); }
+  } else {
+    const total = Math.ceil((leadingBlanks + DAYS) / 7) * 7;
+    for (let idx = 0; idx < total; idx++) {
+      const n = idx - leadingBlanks + 1;
+      if (n < 1) cells.push({ type: "faded", label: prevMonthDays + n });
+      else if (n > DAYS) cells.push({ type: "faded", label: n - DAYS });
+      else cells.push({ type: "day", day: n });
+    }
+  }
+  const minH = mode === "week" ? 320 : 108;
+  const cap = mode === "week" ? 8 : 4;
+
   return (
     <div>
       <Topbar title="Kalender" sub="Jadwal & postingan yang akan terbit · waktu WIB"
@@ -104,18 +137,27 @@ export function CalendarView() {
 
       {phase === "loading" && <Panel style={{ height: 520 }}><Skeleton h={28} w="30%" /><div style={{ height: 16 }} /><div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 8 }}>{Array.from({ length: 35 }).map((_, i) => <Skeleton key={i} h={80} r={12} />)}</div></Panel>}
 
-      {phase === "ready" && totalItems === 0 && <Panel pad={0}><EmptyState icon={<Icons.calendar size={28} />} title="Belum ada yang dijadwalkan" body="Bulan ini belum ada jadwal otomatis maupun postingan sekali untuk pilihan ini." action={<Button variant="amber" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("composer", { ch: app.channel })}>Buat postingan</Button>} /></Panel>}
-
-      {phase === "ready" && totalItems > 0 && (
-        <Panel pad={app.isMobile ? 14 : 18}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontFamily: FCa, fontWeight: 600, fontSize: 17, color: "var(--ink-900)" }}>{MONTH}</span>
+      {phase === "ready" && (
+        <Panel pad={app.isMobile ? 14 : 20}>
+          {/* header: month nav · today reset · legend */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <IconButton size={34} icon={<Icons.chevLeft size={18} />} tip="Bulan sebelumnya" onClick={() => setMonthOffset(o => o - 1)} />
+              <span style={{ fontFamily: FCa, fontWeight: 700, fontSize: 18, color: "var(--ink-900)", minWidth: 132, textAlign: "center", letterSpacing: "-.01em" }}>{MONTH}</span>
+              <IconButton size={34} icon={<Icons.chevRight size={18} />} tip="Bulan berikutnya" onClick={() => setMonthOffset(o => o + 1)} />
+              {!isCurrentMonth && <Button size="sm" variant="ghost" onClick={() => setMonthOffset(0)} style={{ marginLeft: 4 }}>Hari ini</Button>}
             </div>
-            {!app.isMobile && <div style={{ display: "flex", gap: 14, fontFamily: FCa, fontSize: 11, color: "var(--ink-400)" }}>
+            {!app.isMobile && <div style={{ display: "flex", gap: 15, fontFamily: FCa, fontSize: 11, fontWeight: 500, color: "var(--ink-400)" }}>
               <Legend c="var(--st-scheduled)" t="Terjadwal" /><Legend c="var(--st-success)" t="Terbit" /><Legend c="var(--st-failed)" t="Gagal" /><Legend c="var(--st-scheduled)" t="Sekali" sq />
             </div>}
           </div>
+
+          {totalItems === 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "11px 14px", borderRadius: 12, background: "rgba(140,144,158,.07)", marginBottom: 14, fontFamily: FCa, fontSize: 12.5, color: "var(--ink-500)" }}>
+              <Icons.calendar size={15} style={{ color: "var(--ink-400)", flex: "0 0 auto" }} />
+              {isCurrentMonth ? "Belum ada jadwal otomatis maupun postingan sekali bulan ini." : `Tidak ada yang dijadwalkan di ${MONTH}.`}
+            </div>
+          )}
 
           {/* Mobile: agenda list (native-feeling) instead of a cramped 7-col grid */}
           {app.isMobile ? (
@@ -152,30 +194,44 @@ export function CalendarView() {
             </div>
           ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 8 }}>
-            {DOW.map(d => <div key={d} style={{ textAlign: "center", fontFamily: FCa, fontSize: 10.5, fontWeight: 600, letterSpacing: ".04em", color: "var(--ink-400)", paddingBottom: 4 }}>{d}</div>)}
-            {mode === "month" && Array.from({ length: leadingBlanks }).map((_, i) => <div key={"b" + i} />)}
-            {Array.from({ length: mode === "week" ? 7 : DAYS }).map((_, idx) => {
-              const day = mode === "week" ? weekStart + idx : idx + 1;
-              if (day > DAYS) return <div key={"o" + idx} />;
+            {DOW.map((d, di) => <div key={d} style={{ textAlign: "center", fontFamily: FCa, fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: di >= 5 ? "var(--ink-300)" : "var(--ink-400)", paddingBottom: 9 }}>{d}</div>)}
+            {cells.map((c, idx) => {
+              if (c.type === "empty") return <div key={"e" + idx} />;
+              if (c.type === "faded") return (
+                <div key={"f" + idx} style={{ borderRadius: 14, minHeight: minH, padding: "9px 10px", fontFamily: FCa, fontSize: 12.5, fontWeight: 500, color: "var(--ink-300)", opacity: 0.5 }}>{pad2(c.label)}</div>
+              );
+              const day = c.day;
               const items = itemsFor(day);
               const isToday = day === TODAY;
+              const weekend = ((new Date(Date.UTC(Y, M, day)).getUTCDay() + 6) % 7) >= 5;
               return (
-                <button key={day} onClick={() => setSel({ day, items })} style={{ textAlign: "left", border: isToday ? "1.5px solid var(--primary-400)" : "1px solid var(--line)", cursor: "pointer",
-                  background: isToday ? "var(--primary-100)" : "#fff", borderRadius: 12, padding: 9, minHeight: mode === "week" ? 320 : 86, display: "flex", flexDirection: "column", gap: 4, transition: "box-shadow .12s" }}
-                  onMouseEnter={e => e.currentTarget.style.boxShadow = "var(--shadow-md)"} onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}>
-                  <span style={{ fontFamily: FCa, fontSize: 12, fontWeight: isToday ? 700 : 500, color: isToday ? "var(--primary-500)" : "var(--ink-500)" }}>{pad2(day)}</span>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 3, overflow: "hidden" }}>
-                    {items.slice(0, mode === "week" ? 8 : 3).map((it, i) => {
+                <button key={day} onClick={() => setSel({ day, items })}
+                  style={{ textAlign: "left", border: isToday ? "1.5px solid var(--primary-300)" : "1px solid var(--line-soft)", cursor: "pointer",
+                    background: isToday ? "var(--primary-100)" : weekend ? "rgba(140,144,158,.045)" : "rgba(255,255,255,.6)",
+                    borderRadius: 14, padding: "9px 10px 10px", minHeight: minH, display: "flex", flexDirection: "column", gap: 7, transition: "box-shadow .14s, border-color .14s, transform .14s", position: "relative" }}
+                  onMouseEnter={e => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.transform = "translateY(-1px)"; if (!isToday) e.currentTarget.style.borderColor = "var(--primary-200)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; if (!isToday) e.currentTarget.style.borderColor = "var(--line-soft)"; }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    {isToday
+                      ? <span style={{ minWidth: 23, height: 23, padding: "0 6px", borderRadius: 8, background: "var(--primary-grad)", color: "#fff", display: "inline-grid", placeItems: "center", fontFamily: FCa, fontWeight: 700, fontSize: 12, boxShadow: "var(--shadow-primary)" }}>{pad2(day)}</span>
+                      : <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 600, color: weekend ? "var(--ink-300)" : "var(--ink-500)" }}>{pad2(day)}</span>}
+                    {items.length > 0 && <span style={{ fontFamily: FCa, fontSize: 10, fontWeight: 600, color: "var(--ink-300)" }}>{items.length}</span>}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, overflow: "hidden" }}>
+                    {items.slice(0, cap).map((it, i) => {
                       const b = brandFor(it.ch, app.channels);
-                      const sc = it.status === "Failed" ? "var(--st-failed)" : it.status === "Published" ? "var(--st-success)" : it.status === "Draft" ? "var(--st-skipped)" : "var(--st-scheduled)";
+                      const sc = stColor(it.status);
+                      const oneoff = it.kind === "oneoff";
                       return (
-                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, background: b.soft, borderRadius: 6, padding: "2px 5px", borderLeft: it.kind === "oneoff" ? `2px solid ${b.accent}` : "none" }}>
-                          <span style={{ width: 5, height: 5, borderRadius: it.kind === "oneoff" ? 1 : "50%", background: sc, flex: "0 0 auto" }} />
-                          <span style={{ fontFamily: FCa, fontSize: 9.5, fontWeight: 500, color: "var(--ink-700)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.time} {it.title}</span>
+                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, background: sc.bg, borderRadius: 7, padding: "3px 7px 3px 6px", borderLeft: oneoff ? `2.5px solid ${b.accent}` : "none", overflow: "hidden" }}>
+                          <span style={{ width: 6, height: 6, borderRadius: oneoff ? 1.5 : "50%", background: sc.dot, flex: "0 0 auto" }} />
+                          <span style={{ fontFamily: FCa, fontSize: 10.5, color: "var(--ink-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
+                            <b style={{ fontWeight: 700, color: "var(--ink-700)" }}>{it.time}</b> {it.title}
+                          </span>
                         </div>
                       );
                     })}
-                    {items.length > (mode === "week" ? 8 : 3) && <span style={{ fontFamily: FCa, fontSize: 9.5, color: "var(--ink-400)", paddingLeft: 5 }}>+{items.length - (mode === "week" ? 8 : 3)} lagi</span>}
+                    {items.length > cap && <span style={{ fontFamily: FCa, fontSize: 10, fontWeight: 600, color: "var(--ink-400)", paddingLeft: 6, marginTop: 1 }}>+{items.length - cap} lagi</span>}
                   </div>
                 </button>
               );
@@ -190,7 +246,7 @@ export function CalendarView() {
   );
 }
 
-function Legend({ c, t, sq }) { return <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: sq ? 1 : "50%", background: c }} />{t}</span>; }
+function Legend({ c, t, sq }) { return <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: sq ? 2 : "50%", background: c, boxShadow: `0 0 0 3px color-mix(in srgb, ${c} 16%, transparent)` }} />{t}</span>; }
 
 function DayModal({ sel, onClose, monthLabel }) {
   const app = useApp();

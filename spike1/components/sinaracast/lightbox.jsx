@@ -62,7 +62,7 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, onRepla
   const drop = (e) => { e.currentTarget.style.boxShadow = gShadow; e.currentTarget.style.transform = "none"; };
 
   const pill = (danger) => ({ ...glass, height: 42, padding: "0 16px", borderRadius: 999,
-    color: danger ? "var(--danger, #e5484d)" : "var(--ink-600)", display: "inline-flex", alignItems: "center", gap: 7,
+    color: danger ? "var(--danger, #e5484d)" : "var(--ink-700)", display: "inline-flex", alignItems: "center", gap: 7,
     fontFamily: F, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "box-shadow .16s, transform .14s" });
 
   const arrow = (dir) => single ? null : (
@@ -81,7 +81,7 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, onRepla
 
       {/* top bar: counter • actions (Ganti / Hapus) • close */}
       <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "16px 18px", flex: "0 0 auto" }}>
-        <span style={{ ...glass, display: "inline-flex", alignItems: "center", gap: 7, fontFamily: F, fontSize: 12.5, fontWeight: 700, color: "var(--ink-600)", padding: "8px 14px", borderRadius: 999 }}>
+        <span style={{ ...glass, display: "inline-flex", alignItems: "center", gap: 7, fontFamily: F, fontSize: 12.5, fontWeight: 700, color: "var(--ink-700)", padding: "8px 14px", borderRadius: 999 }}>
           {vid ? <Icons.film size={14} /> : <Icons.image size={14} />}
           {i + 1}<span style={{ opacity: 0.4, fontWeight: 600 }}>/</span>{imgs.length}
         </span>
