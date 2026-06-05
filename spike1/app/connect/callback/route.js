@@ -31,6 +31,8 @@ function closePage(origin, payload) {
     ? `connect_error=${encodeURIComponent(payload.error || "")}`
     : `${payload.status}=${encodeURIComponent(payload.name || "")}`;
   const ok = payload.status !== "error";
+  // Escape "<" so a value can never break out of the <script> block (XSS-safe).
+  const safe = (o) => JSON.stringify(o).replace(/</g, "\\u003c");
   const body = `<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#f6f5fb;color:#3e4351">
 <div style="text-align:center">
   <div style="font-size:15px;font-weight:600">${ok ? "Berhasil tersambung ✓" : "Gagal menyambungkan"}</div>
@@ -38,7 +40,7 @@ function closePage(origin, payload) {
 </div>
 <script>
 (function(){
-  var data = Object.assign({ type: "sinara-oauth" }, ${JSON.stringify(payload)});
+  var data = Object.assign({ type: "sinara-oauth" }, ${safe(payload)});
   try {
     if (window.opener && !window.opener.closed) {
       window.opener.postMessage(data, ${JSON.stringify(origin)});

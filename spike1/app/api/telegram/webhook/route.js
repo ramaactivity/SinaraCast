@@ -18,8 +18,9 @@ async function tgSend(chatId, text) {
 // Telegram calls this on every bot update. We register it with secret_token =
 // CRON_SECRET, so we drop anything without the matching header.
 export async function POST(request) {
-  if (SECRET && request.headers.get("x-telegram-bot-api-secret-token") !== SECRET) {
-    return NextResponse.json({ ok: true }); // silently ignore spoofed calls
+  // Fail closed: if no secret is configured, or the header doesn't match, ignore.
+  if (!SECRET || request.headers.get("x-telegram-bot-api-secret-token") !== SECRET) {
+    return NextResponse.json({ ok: true }); // silently ignore spoofed/unverified calls
   }
   const update = await request.json().catch(() => ({}));
   const msg = update.message || update.edited_message;
