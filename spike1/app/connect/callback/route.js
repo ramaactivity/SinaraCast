@@ -41,14 +41,17 @@ function closePage(origin, payload) {
 <script>
 (function(){
   var data = Object.assign({ type: "sinara-oauth" }, ${safe(payload)});
+  var hadOpener = false;
   try {
     if (window.opener && !window.opener.closed) {
+      hadOpener = true;
       window.opener.postMessage(data, ${JSON.stringify(origin)});
-      window.close();
-      return;
     }
   } catch (e) {}
-  location.replace("/?" + ${JSON.stringify(qs)});
+  try { window.close(); } catch (e) {}
+  // Some browsers refuse window.close() for tabs they didn't script-open. If this
+  // window is still here a moment later, send it to the app instead of a dead page.
+  setTimeout(function(){ location.replace(hadOpener ? "/" : ("/?" + ${JSON.stringify(qs)})); }, 700);
 })();
 </script>
 </body>`;

@@ -123,11 +123,11 @@ export function CalendarView() {
       else cells.push({ type: "day", day: n });
     }
   }
-  const minH = mode === "week" ? 320 : 88;
   const cap = mode === "week" ? 8 : 3;
+  const rows = cells.length / 7; // grid week-rows (DOW header is a separate 'auto' row)
 
   return (
-    <div>
+    <div style={app.isMobile ? undefined : { height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
       <Topbar title="Kalender" sub="Jadwal & postingan yang akan terbit · waktu WIB"
         right={<div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <Segmented options={filters} value={filter} onChange={setFilter} />
@@ -138,9 +138,9 @@ export function CalendarView() {
       {phase === "loading" && <Panel style={{ height: 520 }}><Skeleton h={28} w="30%" /><div style={{ height: 16 }} /><div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 8 }}>{Array.from({ length: 35 }).map((_, i) => <Skeleton key={i} h={80} r={12} />)}</div></Panel>}
 
       {phase === "ready" && (
-        <Panel pad={app.isMobile ? 14 : 20}>
+        <Panel pad={app.isMobile ? 14 : 18} style={app.isMobile ? undefined : { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           {/* header: month nav · today reset · legend */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap", flex: "0 0 auto" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <IconButton size={34} icon={<Icons.chevLeft size={18} />} tip="Bulan sebelumnya" onClick={() => setMonthOffset(o => o - 1)} />
               <span style={{ fontFamily: FCa, fontWeight: 700, fontSize: 18, color: "var(--ink-900)", minWidth: 132, textAlign: "center", letterSpacing: "-.01em" }}>{MONTH}</span>
@@ -193,12 +193,12 @@ export function CalendarView() {
               })}
             </div>
           ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0,1fr))", gap: 8 }}>
-            {DOW.map((d, di) => <div key={d} style={{ textAlign: "center", fontFamily: FCa, fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: di >= 5 ? "var(--ink-300)" : "var(--ink-400)", paddingBottom: 8 }}>{d}</div>)}
+          <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(7, minmax(0,1fr))", gridTemplateRows: `auto repeat(${rows}, minmax(0,1fr))`, gap: 8 }}>
+            {DOW.map((d, di) => <div key={d} style={{ textAlign: "center", fontFamily: FCa, fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: di >= 5 ? "var(--ink-300)" : "var(--ink-400)", paddingBottom: 6 }}>{d}</div>)}
             {cells.map((c, idx) => {
               if (c.type === "empty") return <div key={"e" + idx} />;
               if (c.type === "faded") return (
-                <div key={"f" + idx} style={{ minWidth: 0, borderRadius: 14, minHeight: minH, padding: "9px 10px", fontFamily: FCa, fontSize: 12.5, fontWeight: 500, color: "var(--ink-300)", opacity: 0.5 }}>{pad2(c.label)}</div>
+                <div key={"f" + idx} style={{ minWidth: 0, borderRadius: 14, padding: "8px 10px", fontFamily: FCa, fontSize: 12.5, fontWeight: 500, color: "var(--ink-300)", opacity: 0.5 }}>{pad2(c.label)}</div>
               );
               const day = c.day;
               const items = itemsFor(day);
@@ -208,7 +208,7 @@ export function CalendarView() {
                 <button key={day} onClick={() => setSel({ day, items })}
                   style={{ textAlign: "left", border: isToday ? "1.5px solid var(--primary-300)" : "1px solid var(--line-soft)", cursor: "pointer",
                     background: isToday ? "var(--primary-100)" : weekend ? "rgba(140,144,158,.045)" : "rgba(255,255,255,.6)",
-                    borderRadius: 14, padding: "9px 10px 10px", minHeight: minH, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", gap: 7, transition: "box-shadow .14s, border-color .14s, transform .14s", position: "relative" }}
+                    borderRadius: 14, padding: "8px 10px 9px", minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", gap: 6, transition: "box-shadow .14s, border-color .14s, transform .14s", position: "relative" }}
                   onMouseEnter={e => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.transform = "translateY(-1px)"; if (!isToday) e.currentTarget.style.borderColor = "var(--primary-200)"; }}
                   onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; if (!isToday) e.currentTarget.style.borderColor = "var(--line-soft)"; }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
