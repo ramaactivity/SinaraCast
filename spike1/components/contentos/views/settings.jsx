@@ -1,7 +1,6 @@
 "use client";
 import React from "react";
 import { Icons } from "../icons";
-import { MOCK } from "../mockdata";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { Panel, Button, Toggle, Field, Input, Progress, SectionTitle, Avatar } from "../ui";
@@ -60,7 +59,7 @@ export function SettingsView() {
                 <span style={{ fontFamily: FSe, fontSize: 12, fontWeight: 600, color: "var(--ink-400)" }}>Selalu aktif</span>
               </Row>
               <Row title="Ringkasan harian “posted ✓”" body="Notifikasi Telegram harian saat semua posting berhasil.">
-                <Toggle on={s.dailyPing} onChange={v => set({ dailyPing: v })} />
+                <Toggle on={s.dailyPing} onChange={v => app.saveSettings({ dailyPing: v })} />
               </Row>
             </div>
           </Panel>
@@ -73,7 +72,11 @@ export function SettingsView() {
                 <span style={{ fontFamily: FSe, fontSize: 12.5, fontWeight: 500, color: "var(--ink-700)" }}>WIB (UTC+7)</span>
               </Row>
               <Row title={`Grace window default — ${s.defaultGrace} menit`} body="Toleransi keterlambatan sebelum run ditandai terlewat.">
-                <input type="range" min={10} max={60} step={5} value={s.defaultGrace} onChange={e => set({ defaultGrace: +e.target.value })} style={{ width: 160, accentColor: "var(--green-500)" }} />
+                <input type="range" min={10} max={60} step={5} value={s.defaultGrace}
+                  onChange={e => set({ defaultGrace: +e.target.value })}
+                  onMouseUp={e => app.saveSettings({ defaultGrace: +e.target.value })}
+                  onTouchEnd={e => app.saveSettings({ defaultGrace: +e.target.value })}
+                  style={{ width: 160, accentColor: "var(--green-500)" }} />
               </Row>
             </div>
           </Panel>
@@ -119,7 +122,7 @@ export function SettingsView() {
 
 function ProfileCard() {
   const app = useApp();
-  const p = MOCK.PROFILE;
+  const p = app.profile;
   return (
     <Panel>
       <SectionTitle sub="Akun">Profil</SectionTitle>
@@ -142,7 +145,7 @@ function ProfileCard() {
 
 export function ProfileView() {
   const app = useApp();
-  const p = MOCK.PROFILE;
+  const p = app.profile;
   return (
     <div>
       <Topbar title="Profil" sub="Identitas & sesi" />

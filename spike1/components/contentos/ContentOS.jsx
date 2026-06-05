@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { Icons } from "./icons";
-import { loadAll, setRuleActive, setChannelPaused, setPauseAll } from "./dataLayer";
+import { loadAll, setRuleActive, setChannelPaused, setPauseAll, saveSettingsFields } from "./dataLayer";
 import { AppCtx } from "./store";
 import { Sidebar } from "./shell";
 import { Panel, EmptyState, Toast, ConfirmDialog, Spinner } from "./ui";
@@ -31,6 +31,7 @@ export default function ContentOS() {
   const [channel, setChannel] = uA("");
   const [rules, setRules] = uA([]);
   const [runs, setRuns] = uA([]);
+  const [oneoffs, setOneoffs] = uA([]);
   const [notifs, setNotifs] = uA([]);
   const [channels, setChannels] = uA([]);
   const [settings, setSettings] = uA(DEFAULT_SETTINGS);
@@ -72,7 +73,7 @@ export default function ContentOS() {
     setDataLoading(true);
     loadAll().then((d) => {
       if (!active) return;
-      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setNotifs(d.notifs);
+      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setNotifs(d.notifs);
       setSettings(d.settings); setProfile(d.profile);
       setChannel((cur) => cur || d.channels[0]?.id || "");
       setDataLoading(false);
@@ -82,7 +83,7 @@ export default function ContentOS() {
 
   const reload = useCallback(async () => {
     const d = await loadAll();
-    setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setNotifs(d.notifs);
+    setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setNotifs(d.notifs);
     setSettings(d.settings); setProfile(d.profile);
     setChannel((cur) => cur || d.channels[0]?.id || "");
   }, []);
@@ -202,11 +203,24 @@ export default function ContentOS() {
       showToast(`Gagal menyimpan: ${e.message || e}`, "error");
     }
   };
+  // Persist Settings-view preference fields (telegram, daily ping, grace).
+  // Optimistic: apply the patch, write it, revert to the prior snapshot on error.
+  const saveSettings = async (patch, { toast: t = false } = {}) => {
+    let prev;
+    setSettings(p => { prev = p; return { ...p, ...patch }; });
+    try {
+      await saveSettingsFields(patch);
+      if (t) showToast("Pengaturan disimpan", "success");
+    } catch (e) {
+      if (prev) setSettings(prev);
+      showToast(`Gagal menyimpan: ${e.message || e}`, "error");
+    }
+  };
 
-  const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, notifs, setNotifs,
+  const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, oneoffs, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
-    toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel,
+    toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, saveSettings,
     isMobile, openMenu: () => setDrawerOpen(true) };
 
   // Auth gate

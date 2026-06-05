@@ -8,6 +8,11 @@ const STATUS = { connected: "Connected", expiring: "Expiring", needs_reconnect: 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 const fmtDate = (iso) => { if (!iso) return "—"; const d = new Date(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; };
 const fmtFollowers = (n) => { if (n == null) return "—"; return n >= 1000 ? (n / 1000).toFixed(1).replace(".0", "") + "rb" : String(n); };
+const pad2 = (n) => String(n).padStart(2, "0");
+const toWib = (iso) => new Date(new Date(iso).getTime() + 7 * 3600 * 1000); // shift so getUTC* reads WIB
+const fmtDateTimeWib = (iso) => { if (!iso) return "—"; const d = toWib(iso); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}, ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`; };
+const fmtTimeWib = (iso) => { if (!iso) return ""; const d = toWib(iso); return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`; };
+const dateKeyWib = (iso) => { if (!iso) return ""; const d = toWib(iso); return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`; };
 const cadenceLabel = (r) => {
   if (r.cadence_type === "daily") return "Setiap hari";
   if (r.cadence_type === "every_n_days") return `Setiap ${r.interval_days || 2} hari`;
@@ -36,6 +41,9 @@ function mapRule(r, slugById) {
     id: r.id, ch: slugById[r.channel_id] || "", name: r.name, mode: r.mode, active: r.active,
     cadence: cadenceLabel(r), time: (isSched ? r.weekday_time : r.post_time)?.slice(0, 5) || "—",
     grace: r.grace_minutes,
+    // raw scheduling fields for the calendar projection
+    cadenceType: r.cadence_type, intervalDays: r.interval_days, weekdaysDb: r.weekdays || [], createdAt: r.created_at,
+    weekdayTime: r.weekday_time?.slice(0, 5) || "", weekendTime: r.weekend_time?.slice(0, 5) || "", postTime: r.post_time?.slice(0, 5) || "",
     pools: isSched ? { weekday: 0, weekend: 0 } : { pool: 0 }, // counts filled below if pools loaded
     cycle: { used: 0, total: 0 }, nextRun: r.active ? "Belum dijadwalkan" : "Nonaktif",
     todayStatus: r.active ? "Scheduled" : "Inactive", lastImg: 0, runs7: [0, 0, 0, 0, 0, 0, 0],
@@ -59,15 +67,19 @@ export async function loadAll() {
 
   // pools + image counts per rule (for "X gambar" + cycle) + first thumbnail
   const { data: pools = [] } = await supabase.from("pool").select("id, rule_id, role");
-  const { data: imgs = [] } = await supabase.from("pool_image").select("pool_id, used_in_cycle, storage_path, position").order("position");
+  const { data: imgs = [] } = await supabase.from("pool_image").select("id, pool_id, used_in_cycle, storage_path, position, bytes").order("position");
   const imgByPool = {};
   const firstPathByPool = {};
   const pathsByPool = {};
+  const bytesByPool = {};
+  const pathById = {}; // pool_image.id → storage_path (for run thumbnails)
   for (const im of imgs || []) {
     const p = (imgByPool[im.pool_id] ||= { total: 0, used: 0 });
     p.total++; if (im.used_in_cycle) p.used++;
     if (!(im.pool_id in firstPathByPool)) firstPathByPool[im.pool_id] = im.storage_path;
     (pathsByPool[im.pool_id] ||= []).push(im.storage_path);
+    bytesByPool[im.pool_id] = (bytesByPool[im.pool_id] || 0) + (im.bytes || 0);
+    pathById[im.id] = im.storage_path;
   }
   const pubUrl = (sp) => supabase.storage.from(BUCKET).getPublicUrl(sp).data.publicUrl;
   const poolsByRule = {};
@@ -90,6 +102,74 @@ export async function loadAll() {
     return base;
   });
 
+  // ---- real storage usage (sum of pool_image bytes), per channel + total ----
+  const ruleChannelId = Object.fromEntries((rulesRaw || []).map((r) => [r.id, r.channel_id]));
+  const bytesByChannel = {}; // slug → bytes
+  for (const p of pools || []) {
+    const slug = slugById[ruleChannelId[p.rule_id]];
+    if (!slug) continue;
+    bytesByChannel[slug] = (bytesByChannel[slug] || 0) + (bytesByPool[p.id] || 0);
+  }
+  const toMB = (b) => Math.round((b / (1024 * 1024)) * 10) / 10;
+  const totalBytes = Object.values(bytesByPool).reduce((a, b) => a + b, 0);
+  const storage = {
+    used: toMB(totalBytes), total: 1024,
+    perChannel: Object.fromEntries((channelsRaw || []).map((c) => [c.slug, toMB(bytesByChannel[c.slug] || 0)])),
+  };
+
+  // ---- activity: real post_run rows (reverse chronological) + their attempts ----
+  const ruleNameById = Object.fromEntries((rulesRaw || []).map((r) => [r.id, r.name]));
+  const POOL_LABEL = { weekday: "Weekday", weekend: "Weekend", single: "Pool" };
+  const RUN_STATUS = { published: "Published", failed: "Failed", publishing: "Publishing", pending: "Publishing", skipped: "Skipped" };
+  const { data: runsRaw = [] } = await supabase
+    .from("post_run")
+    .select("id, channel_id, rule_id, pool_role, image_id, status, trigger, scheduled_at, published_at, permalink, fail_reason, created_at")
+    .order("created_at", { ascending: false })
+    .limit(150);
+  const runIds = (runsRaw || []).map((r) => r.id);
+  let attemptsRaw = [];
+  if (runIds.length) {
+    const res = await supabase.from("post_attempt").select("run_id, at, outcome, is_fail").in("run_id", runIds).order("at", { ascending: true });
+    attemptsRaw = res.data || [];
+  }
+  const attemptsByRun = {};
+  for (const a of attemptsRaw) (attemptsByRun[a.run_id] ||= []).push({ t: fmtTimeWib(a.at), o: a.outcome, ...(a.is_fail ? { fail: true } : {}) });
+  const runs = (runsRaw || []).map((r) => ({
+    id: r.id,
+    ch: slugById[r.channel_id] || "",
+    ruleId: r.rule_id,
+    rule: ruleNameById[r.rule_id] || "(rule dihapus)",
+    status: RUN_STATUS[r.status] || r.status,
+    trigger: r.trigger,
+    sched: fmtDateTimeWib(r.scheduled_at),
+    actual: r.published_at ? fmtDateTimeWib(r.published_at) : "—",
+    dateWib: dateKeyWib(r.published_at || r.scheduled_at || r.created_at),
+    img: 0,
+    thumbUrl: r.image_id && pathById[r.image_id] ? pubUrl(pathById[r.image_id]) : null,
+    pool: POOL_LABEL[r.pool_role] || "Pool",
+    fail: r.fail_reason || (r.status === "failed" ? "Gagal menerbitkan" : null),
+    link: r.permalink ? r.permalink.replace(/^https?:\/\//, "") : null,
+    attempts: attemptsByRun[r.id] || [{ t: fmtTimeWib(r.created_at), o: "Menunggu…" }],
+  }));
+
+  // ---- calendar: real one-off scheduled posts ----
+  const SCHED_STATUS = { draft: "Draft", scheduled: "Scheduled", publishing: "Publishing", published: "Published", failed: "Failed", canceled: "Skipped" };
+  const { data: schedRaw = [] } = await supabase
+    .from("scheduled_post")
+    .select("id, channel_id, post_type, caption, scheduled_at, status")
+    .not("scheduled_at", "is", null);
+  const oneoffs = (schedRaw || []).map((s) => {
+    const d = toWib(s.scheduled_at);
+    return {
+      id: s.id, ch: slugById[s.channel_id] || "", day: d.getUTCDate(),
+      ym: `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}`,
+      type: s.post_type === "feed" ? "Feed" : "Story",
+      title: s.caption ? s.caption.slice(0, 40) : (s.post_type === "feed" ? "Feed post" : "Story"),
+      time: `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`,
+      status: SCHED_STATUS[s.status] || "Scheduled",
+    };
+  });
+
   const { data: settingsRaw } = await supabase.from("app_settings").select("*").maybeSingle();
   const settings = {
     pauseAll: settingsRaw?.pause_all ?? false,
@@ -99,7 +179,7 @@ export async function loadAll() {
     telegram: { connected: settingsRaw?.telegram_connected ?? false, handle: settingsRaw?.telegram_handle || "" },
     failAlerts: settingsRaw?.fail_alerts ?? true,
     dailyPing: settingsRaw?.daily_ping ?? true,
-    storage: { used: 0, total: 1024 },
+    storage,
   };
 
   const { data: profileRaw } = await supabase.from("app_user").select("*").maybeSingle();
@@ -110,7 +190,7 @@ export async function loadAll() {
     joined: profileRaw?.joined_at ? fmtDate(profileRaw.joined_at) : "—",
   };
 
-  return { channels, rules, runs: [], notifs: [], settings, profile };
+  return { channels, rules, runs, oneoffs, notifs: [], settings, profile };
 }
 
 // ---- writes ----
@@ -229,6 +309,24 @@ export async function setChannelPaused(channelDbId, paused) {
   const patch = { paused };
   if (!paused) patch.resume_date = null;
   const { error } = await supabase.from("channel").update(patch).eq("id", channelDbId);
+  if (error) throw error;
+}
+
+// Persist app-level preference fields (Settings view). Accepts a partial of
+// UI fields and maps them to app_settings columns. Upsert keyed by owner_id.
+export async function saveSettingsFields(patch) {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u?.user?.id;
+  if (!uid) throw new Error("Not signed in");
+  const row = { owner_id: uid };
+  if (patch.defaultGrace != null) row.default_grace = patch.defaultGrace;
+  if (patch.dailyPing != null) row.daily_ping = patch.dailyPing;
+  if (patch.failAlerts != null) row.fail_alerts = patch.failAlerts;
+  if (patch.telegram) {
+    row.telegram_connected = !!patch.telegram.connected;
+    row.telegram_handle = patch.telegram.handle || null;
+  }
+  const { error } = await supabase.from("app_settings").upsert(row, { onConflict: "owner_id" });
   if (error) throw error;
 }
 

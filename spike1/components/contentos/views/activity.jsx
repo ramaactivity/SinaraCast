@@ -1,7 +1,6 @@
 "use client";
 import React from "react";
 import { Icons } from "../icons";
-import { MOCK } from "../mockdata";
 import { useApp, useFetchState } from "../store";
 import { Topbar } from "../shell";
 import {
@@ -11,8 +10,14 @@ import {
 const { useState: uAc } = React;
 const FA = "var(--font)";
 
-const FILTERS = [{ value: "all", label: "Semua" }, ...MOCK.CHANNELS.map(c => ({ value: c.id, label: BRANDS[c.brand].name.split(" ")[0] }))];
 const TRIGGER = { scheduled: "Terjadwal", manual: "Manual", retry: "Coba lagi", swap: "Swap" };
+// Brand styling for a channel slug, with a neutral fallback for channels added
+// via OAuth that aren't in the preset BRANDS map.
+const brandFor = (slug, channels) => BRANDS[slug] || {
+  name: channels.find(c => c.id === slug)?.name || slug,
+  short: (channels.find(c => c.id === slug)?.name || slug || "?").slice(0, 2).toUpperCase(),
+  accent: "var(--ink-500)", soft: "var(--line)", grad: "linear-gradient(135deg,#9aa0ab,#7a8090)",
+};
 
 export function ActivityView() {
   const app = useApp();
@@ -22,11 +27,12 @@ export function ActivityView() {
 
   const runs = app.runs.filter(r => filter === "all" || r.ch === filter);
   const openRun = app.runs.find(r => r.id === open);
+  const filters = [{ value: "all", label: "Semua" }, ...app.channels.map(c => ({ value: c.id, label: brandFor(c.id, app.channels).name.split(" ")[0] }))];
 
   return (
     <div>
       <Topbar title="Activity" sub="Riwayat run lintas channel — semua waktu WIB"
-        right={<Segmented options={FILTERS} value={filter} onChange={setFilter} />} />
+        right={<Segmented options={filters} value={filter} onChange={setFilter} />} />
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: 18, alignItems: "start" }}>
         <Panel flush style={{ overflow: "hidden" }}>
@@ -42,12 +48,12 @@ export function ActivityView() {
               </div>
               )}
               {runs.map(r => {
-                const b = BRANDS[r.ch] || { name: r.ch, accent: "var(--ink-500)", soft: "var(--line)" };
+                const b = brandFor(r.ch, app.channels);
                 const tstr = r.actual !== "—" ? r.actual.split(", ")[1] || r.actual : r.sched.split(", ")[1] || r.sched;
                 return (
                   <div key={r.id} onClick={() => setOpen(r.id)} style={{ display: "grid", gridTemplateColumns: app.isMobile ? "40px minmax(0,1fr) auto" : "48px 1fr 130px 120px", gap: 12, padding: app.isMobile ? "12px 16px" : "13px 20px", borderBottom: "1px solid var(--line)", cursor: "pointer", alignItems: "center", transition: "background .12s" }}
                     onMouseEnter={e => e.currentTarget.style.background = "rgba(140,144,158,.06)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <MediaThumb seed={r.img} w={34} />
+                    <MediaThumb seed={r.img} src={r.thumbUrl} w={34} />
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <span style={{ fontFamily: FA, fontWeight: 600, fontSize: 13.5, color: "var(--ink-900)" }}>{r.rule}</span>
@@ -59,7 +65,7 @@ export function ActivityView() {
                     </div>
                     {!app.isMobile && <span style={{ fontFamily: FA, fontSize: 12, color: "var(--ink-500)" }}>{tstr}</span>}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
-                      {r.status === "Failed" && <IconButton size={30} icon={<Icons.retry size={15} />} tone="green" tip="Coba lagi" onClick={e => { e.stopPropagation(); app.toast(`Mencoba ulang “${r.rule}”…`, "info"); }} />}
+                      {r.status === "Failed" && <IconButton size={30} icon={<Icons.retry size={15} />} tone="green" tip="Coba lagi" onClick={e => { e.stopPropagation(); const rule = app.rules.find(x => x.id === r.ruleId); rule ? app.postNow(rule) : app.toast("Rule untuk run ini sudah tidak ada", "error"); }} />}
                       <Status s={r.status} pulse={r.status === "Publishing"} />
                     </div>
                   </div>
@@ -79,8 +85,8 @@ export function ActivityView() {
 
 function StorageCard() {
   const app = useApp();
-  const { used, total } = app.settings.storage;
-  const pct = Math.round((used / total) * 100);
+  const { used, total, perChannel = {} } = app.settings.storage;
+  const pct = Math.min(100, Math.round((used / total) * 100));
   return (
     <Panel strong>
       <SectionTitle sub="Media tersimpan">Penyimpanan</SectionTitle>
@@ -90,9 +96,9 @@ function StorageCard() {
       </div>
       <Progress value={pct} showWarn h={9} />
       <div style={{ fontFamily: FA, fontSize: 11.5, color: pct >= 80 ? "var(--danger)" : "var(--ink-400)", marginTop: 9 }}>{pct}% terpakai{pct >= 80 ? " — mendekati batas" : ""}</div>
-      <div style={{ height: 1, background: "var(--line)", margin: "16px 0" }} />
+      {app.channels.length > 0 && <div style={{ height: 1, background: "var(--line)", margin: "16px 0" }} />}
       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-        {MOCK.CHANNELS.map(c => { const b = BRANDS[c.brand]; const mb = [220, 150, 130, 112][MOCK.CHANNELS.indexOf(c)]; return (
+        {app.channels.map(c => { const b = brandFor(c.id, app.channels); const mb = perChannel[c.id] ?? 0; return (
           <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <BrandAvatar brand={b} size={22} />
             <span style={{ flex: 1, fontFamily: FA, fontSize: 12, color: "var(--ink-600)" }}>{b.name.split(" ")[0]}</span>
@@ -107,7 +113,7 @@ function StorageCard() {
 function RunDetail({ run, onClose }) {
   const app = useApp();
   if (!run) return null;
-  const b = BRANDS[run.ch];
+  const b = brandFor(run.ch, app.channels);
   const row = (label, val, mono) => (
     <div style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
       <span style={{ fontFamily: FA, fontSize: 12.5, color: "var(--ink-400)" }}>{label}</span>
@@ -126,7 +132,7 @@ function RunDetail({ run, onClose }) {
         </div>
         <div style={{ display: "flex", gap: 18 }}>
           <div style={{ position: "relative" }}>
-            <MediaThumb seed={run.img} w={120} label="9:16" />
+            <MediaThumb seed={run.img} src={run.thumbUrl} w={120} label="9:16" />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             {row("Channel", <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><BrandAvatar brand={b} size={18} /> {b.name}</span>)}
@@ -158,7 +164,7 @@ function RunDetail({ run, onClose }) {
           ))}
         </div>
 
-        {run.status === "Failed" && <Button variant="primary" full icon={<Icons.retry size={16} />} style={{ marginTop: 20 }} onClick={() => { app.toast(`Mencoba ulang “${run.rule}”…`, "info"); onClose(); }}>Coba lagi sekarang</Button>}
+        {run.status === "Failed" && <Button variant="primary" full icon={<Icons.retry size={16} />} style={{ marginTop: 20 }} onClick={() => { const rule = app.rules.find(x => x.id === run.ruleId); rule ? app.postNow(rule) : app.toast("Rule untuk run ini sudah tidak ada", "error"); onClose(); }}>Coba lagi sekarang</Button>}
       </div>
     </Modal>
   );
