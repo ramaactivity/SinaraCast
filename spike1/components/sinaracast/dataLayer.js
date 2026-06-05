@@ -204,7 +204,7 @@ export async function loadAll() {
   for (const r of rulesRaw || []) {
     const slug = slugById[r.channel_id];
     for (const p of (poolsByRule[r.id] || [])) {
-      for (const sp of (pathsByPool[p.id] || [])) pushMedia(slug, { id: `pool:${sp}`, url: pubUrl(sp), tag: r.name, usage: r.name });
+      for (const im of (pathsByPool[p.id] || [])) pushMedia(slug, { id: `pool:${im.id}`, url: pubUrl(im.storage_path), tag: r.name, usage: r.name });
     }
   }
   for (const a of assetsRaw || []) {
