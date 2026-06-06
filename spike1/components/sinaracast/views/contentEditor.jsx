@@ -44,8 +44,9 @@ const todayWib = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); retur
 export function ContentEditorView() {
   const app = useApp();
   const planId = app.params.id || null; // present → edit mode
-  const [brandId, setBrandId] = uCE(app.params.brand || app.brand || app.brands?.[0]?.id || "");
-  const [platform, setPlatform] = uCE(app.params.platform || "instagram");
+  const _initAcct = app.channels.find((c) => c.id === app.channel); // active account → its brand + platform
+  const [brandId, setBrandId] = uCE(app.params.brand || _initAcct?.brandId || app.brand || app.brands?.[0]?.id || "");
+  const [platform, setPlatform] = uCE(app.params.platform || _initAcct?.platform || "instagram");
   const [date, setDate] = uCE(app.params.date || todayWib());
   const [time, setTime] = uCE(app.params.time || "");
   const [title, setTitle] = uCE("");
@@ -98,13 +99,19 @@ export function ContentEditorView() {
     return () => { active = false; };
   }, [planId]);
 
-  // Follow the sidebar's active brand for NEW content (not when editing an existing
-  // plan). Only on an actual switch, so opening with a specific params.brand is kept.
-  const lastBrand = React.useRef(brandId);
+  // Follow the sidebar's active account/brand for NEW content (not when editing a plan).
+  // An account switch (e.g. Mahakan IG → TikTok) re-derives brand + platform from it;
+  // an empty brand just sets the brand. Ref-guarded so opening with params is preserved.
+  const lastSel = React.useRef(app.channel + "|" + app.brand);
   useEffect(() => {
     if (planId) return;
-    if (app.brand && app.brand !== lastBrand.current) { lastBrand.current = app.brand; setBrandId(app.brand); }
-  }, [app.brand, planId]);
+    const sel = app.channel + "|" + app.brand;
+    if (sel === lastSel.current) return;
+    lastSel.current = sel;
+    const acct = app.channels.find((c) => c.id === app.channel);
+    if (acct) { setBrandId(acct.brandId); setPlatform(acct.platform); }
+    else if (app.brand) setBrandId(app.brand);
+  }, [app.channel, app.brand, planId]);
 
   const plat = PLATFORM[platform] || PLATFORM.instagram;
   const brandObj = app.brands.find((x) => x.id === brandId) || null;
