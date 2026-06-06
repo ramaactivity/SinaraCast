@@ -15,7 +15,8 @@ function modeLabel(m) { return m === "schedule" ? "Beda akhir pekan" : "Satu kum
 export function RulesView() {
   const app = useApp();
   const phase = app.dataLoading ? "loading" : "ready";
-  const ch = app.channels.find(c => c.id === app.channel) || app.channels[0];
+  // resolve within the ACTIVE brand's accounts only (never fall back to another brand's channel)
+  const ch = (app.brandAccounts || []).find(c => c.id === app.channel) || (app.brandAccounts || [])[0];
   const b = BRANDS[ch?.brand] || { name: ch?.name || "—", accent: "var(--ink-500)", soft: "var(--line)" };
   const rules = app.rules.filter(r => r.ch === (ch?.id || app.channel));
   const [sel, setSel] = uRl(null);
@@ -117,6 +118,17 @@ const Div = () => <div style={{ width: 1, alignSelf: "stretch", background: "var
 function RuleCard({ r, b, selected, onSelect, disabled }) {
   const app = useApp();
   const [menu, setMenu] = uRl(false);
+  const menuRef = React.useRef(null);
+  // Close the "..." menu on outside click / Escape (robust, not via a fixed overlay
+  // which app-shell's backdrop-filter would trap).
+  React.useEffect(() => {
+    if (!menu) return;
+    const onDoc = (e) => { if (!menuRef.current?.contains(e.target)) setMenu(false); };
+    const onKey = (e) => { if (e.key === "Escape") setMenu(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [menu]);
   const total = r.mode === "schedule" ? (r.pools.weekday + r.pools.weekend) : r.pools.pool;
   return (
     <Card pad={0} onClick={onSelect} style={{ borderColor: selected ? b.accent : "var(--line)", borderWidth: selected ? 1.5 : 1,
@@ -147,11 +159,10 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
         </div>
         )}
         <Toggle on={r.active} onChange={(v) => app.toggleRuleActive(r, v)} />
-        <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+        <div ref={menuRef} style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
           <IconButton icon={<Icons.more size={18} />} onClick={() => setMenu(m => !m)} active={menu} />
           {menu && (
             <>
-              <div onClick={() => setMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
               <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 50, background: "#fff", borderRadius: 13, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 5, width: 168, animation: "scPop .14s" }}>
                 <Menu icon={<Icons.edit size={16} />} onClick={() => { setMenu(false); app.go("editor", { ch: r.ch, id: r.id }); }}>Ubah jadwal</Menu>
                 <Menu icon={<Icons.play size={16} />} onClick={() => { setMenu(false); app.postNow(r); }}>Terbitkan sekarang</Menu>

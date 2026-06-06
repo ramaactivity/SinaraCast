@@ -88,7 +88,9 @@ export function ComposerView() {
   const postId = app.params.postId || null; // present → edit mode
   const planId = app.params.planId || null; // present → creating a one-off FOR a content_plan (hybrid link)
   const [chId, setChId] = uCo(app.params.ch || app.channel);
-  const channel = app.channels.find(c => c.id === chId) || app.channels.find(c => c.id === app.channel) || app.channels[0];
+  // resolve within the active brand's accounts (avoid falling back to another brand's channel)
+  const accts = app.brandAccounts || [];
+  const channel = accts.find(c => c.id === chId) || accts.find(c => c.id === app.channel) || accts[0];
   const b = brandFor(channel?.id, app.channels);
   const isTikTok = channel?.platform === "tiktok";
 
