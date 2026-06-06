@@ -161,12 +161,14 @@ export default function SinaraCast() {
   const showToast = useCallback((msg, type = "info") => { setToast({ msg, type, k: Date.now() }); setTimeout(() => setToast(t => (t && t.k ? null : t)), 2600); }, []);
   const confirm = useCallback((cfg) => setConfirmCfg(cfg), []);
 
-  // Switch the active brand (workspace) → reset the active account to that brand's first.
-  const activeBrand = brands.find((b) => b.id === brand) || null;
+  // Brands carry LIVE accounts derived from `channels` (not the load-time snapshot),
+  // so optimistic channel changes (pause, rename, archive) reflect instantly everywhere.
+  const liveBrands = brands.map((b) => ({ ...b, accounts: channels.filter((c) => c.brandId === b.id) }));
+  const activeBrand = liveBrands.find((b) => b.id === brand) || null;
   const brandAccounts = activeBrand?.accounts || [];
   const selectBrand = (bid) => {
     brandRef.current = bid; setBrand(bid);
-    const acct = (brands.find((b) => b.id === bid)?.accounts) || [];
+    const acct = channels.filter((c) => c.brandId === bid);
     setChannel(acct[0]?.id || "");
   };
 
@@ -355,7 +357,7 @@ export default function SinaraCast() {
     }
   };
 
-  const ctx = { view, params, go, channel, setChannel, brands, brand, activeBrand, brandAccounts, selectBrand, rules, setRules, runs, setRuns, oneoffs, plans, followerSeries, library, notifs, setNotifs,
+  const ctx = { view, params, go, channel, setChannel, brands: liveBrands, brand, activeBrand, brandAccounts, selectBrand, rules, setRules, runs, setRuns, oneoffs, plans, followerSeries, library, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
     toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, connectTikTokChannel, saveSettings,

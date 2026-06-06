@@ -74,6 +74,7 @@ export function ConnectionsView() {
             {c.status === "Needs reconnect" || c.status === "Expiring"
               ? <Button size="sm" variant={c.status === "Needs reconnect" ? "danger" : "secondary"} icon={<Icons.retry size={15} />} onClick={() => reconnect(c)}>Sambungkan ulang</Button>
               : <Button size="sm" variant={c.paused ? "primary" : "secondary"} icon={c.paused ? <Icons.play size={15} /> : <Icons.pause size={15} />} onClick={() => app.toggleChannelPause(c, nameOf(c))}>{c.paused ? "Lanjutkan" : "Jeda"}</Button>}
+            {c.status === "Connected" && <IconButton size={34} icon={<Icons.retry size={16} />} tip="Sambungkan ulang (perbarui izin)" onClick={() => reconnect(c)} />}
             <IconButton size={34} icon={<Icons.swap size={16} />} tip="Pindahkan ke brand lain" onClick={() => setMoveAcct(c)} />
             <IconButton size={34} icon={<Icons.edit size={16} />} tip="Ubah nama akun" onClick={() => setEditAcct(c)} />
             <IconButton size={34} icon={<Icons.trash size={16} />} tone="danger" tip="Hapus akun" onClick={() => app.confirm({
