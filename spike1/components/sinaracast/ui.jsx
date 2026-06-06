@@ -199,16 +199,21 @@ function Floating({ anchorRef, open, onClose, width, estHeight = 280, children }
   }, [open]);
   if (!open || !rect) return null;
   const vw = window.innerWidth, vh = window.innerHeight, m = 8;
-  const w = Math.min(width || rect.width, vw - 16);
-  // Prefer left-aligned to the anchor; if that would overflow, right-align to the
-  // anchor (open leftward) so it tucks under the field instead of hugging the screen edge.
+  const maxW = Math.min(vw - 2 * m, 360);
+  // fixed width when given (Time/Date pickers have fixed internal layouts); otherwise
+  // size to content (Select) between the anchor width and maxW so long options never wrap.
+  const fixed = width != null;
+  const reserve = fixed ? Math.min(width, maxW) : maxW; // width to reserve when clamping
   let left = rect.left;
-  if (left + w > vw - m) left = rect.left + rect.width - w;
-  left = Math.max(m, Math.min(left, vw - w - m)); // final hard clamp to the viewport
+  if (left + reserve > vw - m) left = rect.left + rect.width - reserve; // open leftward, tuck under the field
+  left = Math.max(m, Math.min(left, vw - m - reserve));
   const openUp = (vh - rect.bottom) < estHeight && rect.top > (vh - rect.bottom);
   const pos = openUp ? { bottom: vh - rect.top + m } : { top: rect.bottom + m };
+  const sizing = fixed
+    ? { width: Math.min(width, maxW) }
+    : { minWidth: Math.min(rect.width, maxW), maxWidth: maxW, width: "max-content" };
   return createPortal(
-    <div data-floating style={{ position: "fixed", left, width: w, zIndex: 1000, animation: "scPop .14s", ...pos }}>{children}</div>,
+    <div data-floating style={{ position: "fixed", left, ...sizing, zIndex: 1000, animation: "scPop .14s", ...pos }}>{children}</div>,
     document.body
   );
 }
@@ -226,7 +231,7 @@ export function Select({ options = [], value, onChange, style, placeholder, size
         borderColor: open ? "var(--primary-500)" : "var(--line)", boxShadow: open ? "0 0 0 3px rgba(255,159,67,.16)" : "var(--shadow-sm)", ...style,
       }}>
         <span style={{ flex: 1, minWidth: 0, color: cur ? "var(--ink-900)" : "var(--ink-400)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cur ? (cur.label ?? cur) : (placeholder || "Pilih…")}</span>
-        <span style={{ position: "absolute", right: 13, top: "50%", color: "var(--ink-400)", pointerEvents: "none", transition: "transform .15s", transform: `translateY(-50%) rotate(${open ? 180 : 0}deg)` }}><Icons.chevDown size={17} /></span>
+        <span style={{ position: "absolute", right: sm ? 11 : 13, top: "50%", color: open ? "var(--primary-500)" : "var(--ink-400)", pointerEvents: "none", display: "flex", transition: "transform .2s cubic-bezier(.2,.8,.2,1), color .15s", transform: `translateY(-50%) rotate(${open ? 180 : 0}deg)` }}><Icons.chevDown size={sm ? 15 : 16} /></span>
       </button>
       <Floating anchorRef={ref} open={open} onClose={() => setOpen(false)} estHeight={Math.min(options.length * 42 + 12, 280)}>
         <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 13, boxShadow: "var(--shadow-lg)", padding: 5 }}>
@@ -240,7 +245,7 @@ export function Select({ options = [], value, onChange, style, placeholder, size
               }}
               onMouseEnter={(e) => { if (!on) e.currentTarget.style.background = "var(--line-soft)"; }}
               onMouseLeave={(e) => { if (!on) e.currentTarget.style.background = "transparent"; }}>
-                <span style={{ flex: 1 }}>{o.label ?? o}</span>{on && <Icons.check size={15} sw={2.4} />}
+                <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{o.label ?? o}</span>{on && <Icons.check size={15} sw={2.4} style={{ flex: "0 0 auto" }} />}
               </button>
             );
           })}
