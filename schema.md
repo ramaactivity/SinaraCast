@@ -1,7 +1,7 @@
 # Database Schema: SinaraCast
 
-> **Changelog:** v1.2 (2026-06-05) — added the **Content Planner** tables/enums (`content_plan`, optional `content_metric_snapshot`) + RLS; see §11. v1.1 — Instagram Login (`ig_user_id`, no `fb_page_id`).
-> **Version:** 1.2
+> **Changelog:** v1.3 (2026-06-06) — added **brand workspaces** (`brand` table; `channel.brand_id`; `content_plan.brand_id`, `channel_id` now nullable); see §12. v1.2 (2026-06-05) — Content Planner tables/enums + RLS (§11). v1.1 — Instagram Login (`ig_user_id`, no `fb_page_id`).
+> **Version:** 1.3
 > **Pairs with:** `design.md` v6.1 (architecture + data model §6) · `prd.md` v2 (entities §7) · `tsd.md` v1.1 · the Claude Design frontend (`app/mockdata.jsx` — this schema maps 1:1 to it).
 > **Target:** Supabase (PostgreSQL 15). This is the backend spine; when wiring the frontend, replace `mockdata.jsx`/`store.jsx` reads with queries against these tables — the field mapping is in §9.
 > **Scope:** P1 tables are core; tables/columns tagged **[P2]** support the expansion phase (calendar, one-off posts, library, campaigns) and can be created now or later without breaking P1.
@@ -455,6 +455,27 @@ create policy owner_rw on content_plan for all
 | Link Postingan | `post_link` |
 | Views/Likes/Comm/Shares/Saves/Reach | `m_*` (auto for IG, manual otherwise) |
 | PIC | *(deferred — agency phase)* |
+
+---
+
+## 12. Addendum: Brand workspaces (v1.3)
+
+> **Source:** strategic pivot follow-up — a **brand** (business) owns several **accounts** (channels), e.g. Mahakan Coffee owns an Instagram + a TikTok account. Until v1.2 `channel` was flat (each account stood alone). Migration `spike1/supabase/migrations/2026-06-06-brand-workspaces.sql` (additive + backfilled: each existing account gets its own brand).
+
+```sql
+create table brand (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references app_user(id) on delete cascade,
+  name text not null, avatar_emoji text, color_token text,
+  created_at timestamptz not null default now()
+);
+alter table channel add column brand_id uuid references brand(id) on delete set null;   -- account → brand
+alter table content_plan add column brand_id uuid references brand(id) on delete cascade; -- plan belongs to a brand (the workspace)
+alter table content_plan alter column channel_id drop not null;                           -- specific account is optional now
+```
+- **RLS:** `brand` owner-direct (`owner_id = auth.uid()`).
+- **`content_plan` now belongs to a brand.** `channel_id` is the *specific connected account* a plan targets (e.g. the IG account for auto-publish); plan-only platforms (TikTok/YouTube/… without a linked account) leave it null. The brand is the workspace scope; the global brand switcher (sidebar) scopes every view.
+- **The planner is per-brand:** Rencana Konten, Kalender, Riwayat, and Composer all read the active brand's accounts.
 
 ---
 

@@ -1,7 +1,7 @@
 # Functional Specification Document (FSD): SinaraCast
 
-> **Changelog:** v1.1 (2026-06-05) — added the **Planner** (extends Calendar) and **Content editor** views; see §16. v1.0 — baseline per-view behavior.
-> **Version:** 1.1
+> **Changelog:** v1.2 (2026-06-06) — **brand workspaces**: a global brand switcher scopes every view; Rencana Konten is a per-brand table/lanes page; Manajemen Akun groups accounts by brand (create/rename/move). v1.1 (2026-06-05) — Planner + Content editor (§16). v1.0 — baseline.
+> **Version:** 1.2
 > **Pairs with:** `prd.md` v2 (FRs) · `design.md` v6 · `schema.md` v1 (data) · `tsd.md` v1 (engine). Describes the **behavior of each view as built in the Claude Design frontend** (`app/views/*`, `app/shell.jsx`), tied to its FR(s) and backend operation. Visuals are owned by the design system; this doc is behavior only.
 > **How to read:** each view lists *Purpose · Entry/Exit · Reads · Actions (→ effect [FR] / backend op) · States · Edge cases.* "Backend op" refers to a TSD §10 action or engine path.
 

@@ -335,10 +335,10 @@ export function ComposerView() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel>
             <SectionTitle sub="Pilih akun & jenis postingan">Akun & jenis</SectionTitle>
-            {!postId && app.channels.length > 1 && (
+            {!postId && (app.brandAccounts || []).length > 1 && (
               <Field label="Posting ke akun" style={{ marginBottom: 14 }}>
                 <Select value={channel.id} onChange={(v) => { setChId(v); app.setChannel(v); setMedia([]); }}
-                  options={app.channels.map(c => ({ value: c.id, label: `${c.name} · ${c.handle}` }))} />
+                  options={(app.brandAccounts || []).map(c => ({ value: c.id, label: `${c.name} · ${c.handle}` }))} />
               </Field>
             )}
             {isTikTok

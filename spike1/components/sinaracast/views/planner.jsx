@@ -3,20 +3,14 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { BRANDS, BrandAvatar, Panel, Button, Select, Input, EmptyState, Skeleton, Segmented } from "../ui";
+import { Panel, Button, Select, Input, EmptyState, Skeleton, Segmented } from "../ui";
 import { PLATFORM } from "./contentEditor";
 const { useState: uPl } = React;
 const FPl = "var(--font)";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 const MONTH_FULL = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-const pad2 = (n) => String(n).padStart(2, "0");
 const fmtDate = (ymd) => { if (!ymd) return "—"; const [Y, M, D] = ymd.split("-").map(Number); return `${D} ${MONTHS[M - 1]} ${Y}`; };
-const brandFor = (slug, channels) => BRANDS[slug] || {
-  name: channels.find(c => c.id === slug)?.name || slug,
-  short: (channels.find(c => c.id === slug)?.name || slug || "?").slice(0, 2).toUpperCase(),
-  accent: "var(--ink-500)", soft: "var(--line)", grad: "linear-gradient(135deg,#9aa0ab,#7a8090)",
-};
 const platMeta = (p) => PLATFORM[p] || { label: p || "—", accent: "var(--ink-500)" };
 const tint = (c, pct = 12) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
 
@@ -32,165 +26,170 @@ const StatusChip = ({ s, label }) => (
     <span style={{ width: 6, height: 6, borderRadius: "50%", background: PLAN_ST_COLOR[s] || "var(--ink-500)" }} />{label || PLAN_LABEL[s] || s}
   </span>
 );
-const PlatTag = ({ p }) => { const m = platMeta(p); return (
-  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: FPl, fontSize: 12, color: "var(--ink-700)", whiteSpace: "nowrap" }}>
-    <span style={{ width: 8, height: 8, borderRadius: 2, background: m.accent, flex: "0 0 auto" }} />{m.label}
+const PlatTag = ({ p, big }) => { const m = platMeta(p); return (
+  <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: FPl, fontSize: big ? 13 : 12, fontWeight: big ? 600 : 500, color: "var(--ink-800)", whiteSpace: "nowrap" }}>
+    <span style={{ width: big ? 9 : 8, height: big ? 9 : 8, borderRadius: 2, background: m.accent, flex: "0 0 auto" }} />{m.label}
   </span>
 ); };
 
 export function PlannerView() {
   const app = useApp();
   const phase = app.dataLoading ? "loading" : "ready";
-  const [brand, setBrand] = uPl("all");
+  const brandId = app.brand;
+  const brand = app.activeBrand;
+  const accounts = app.brandAccounts || [];
   const [plat, setPlat] = uPl("all");
   const [stat, setStat] = uPl("all");
-  const [month, setMonth] = uPl("all");           // "all" | "YYYY-MM"
+  const [month, setMonth] = uPl("all");
   const [q, setQ] = uPl("");
-  const [sortDir, setSortDir] = uPl("asc");        // by planned date
+  const [sortDir, setSortDir] = uPl("asc");
+  const [mode, setMode] = uPl("table");          // table | lanes
 
-  const all = app.plans || [];
-  // month options present in the data (+ All)
-  const monthsPresent = [...new Set(all.map(p => p.ym).filter(Boolean))].sort();
+  // scope to the active brand (workspace)
+  const brandPlans = (app.plans || []).filter(p => p.brandId === brandId);
+  const monthsPresent = [...new Set(brandPlans.map(p => p.ym).filter(Boolean))].sort();
   const monthOpts = [{ value: "all", label: "Semua bulan" }, ...monthsPresent.map(ym => { const [Y, M] = ym.split("-"); return { value: ym, label: `${MONTH_FULL[+M - 1]} ${Y}` }; })];
-  const brandOpts = [{ value: "all", label: "Semua akun" }, ...app.channels.map(c => ({ value: c.id, label: brandFor(c.id, app.channels).name }))];
   const platOpts = [{ value: "all", label: "Semua platform" }, ...Object.entries(PLATFORM).map(([v, m]) => ({ value: v, label: m.label }))];
   const statOpts = [{ value: "all", label: "Semua status" }, ...PLAN_ORDER.map(s => ({ value: s, label: PLAN_LABEL[s] }))];
 
   const qn = q.trim().toLowerCase();
-  const rows = all
-    .filter(p => (brand === "all" || p.ch === brand)
-      && (plat === "all" || p.platform === plat)
-      && (stat === "all" || p.status === stat)
-      && (month === "all" || p.ym === month)
+  const rows = brandPlans
+    .filter(p => (plat === "all" || p.platform === plat) && (stat === "all" || p.status === stat) && (month === "all" || p.ym === month)
       && (!qn || (p.title || "").toLowerCase().includes(qn) || (p.contentType || "").toLowerCase().includes(qn) || (p.pillar || "").toLowerCase().includes(qn)))
-    .slice()
-    .sort((a, b) => { const k = `${a.plannedDate} ${a.plannedTime}`.localeCompare(`${b.plannedDate} ${b.plannedTime}`); return sortDir === "asc" ? k : -k; });
+    .slice().sort((a, b) => { const k = `${a.plannedDate} ${a.plannedTime}`.localeCompare(`${b.plannedDate} ${b.plannedTime}`); return sortDir === "asc" ? k : -k; });
 
-  // summary counts (over the filtered set, ignoring status filter for the breakdown)
-  const summaryBase = all.filter(p => (brand === "all" || p.ch === brand) && (plat === "all" || p.platform === plat) && (month === "all" || p.ym === month));
+  const summaryBase = brandPlans.filter(p => (plat === "all" || p.platform === plat) && (month === "all" || p.ym === month));
   const byStatus = {}; PLAN_ORDER.forEach(s => { const n = summaryBase.filter(p => p.status === s).length; if (n) byStatus[s] = n; });
 
-  const create = () => app.go("contentEditor", { ch: brand === "all" ? app.channel : brand });
-  const open = (p) => app.go("contentEditor", { id: p.id, ch: p.ch });
-  const anyFilter = brand !== "all" || plat !== "all" || stat !== "all" || month !== "all" || !!qn;
+  // platforms to show as lanes: the brand's connected accounts' platforms ∪ platforms used by its plans
+  const lanePlatforms = [...new Set([...accounts.map(a => a.platform), ...brandPlans.map(p => p.platform)])];
 
-  const TH = ({ children, w, onClick, active }) => (
-    <th onClick={onClick} style={{ textAlign: "left", padding: "10px 12px", fontFamily: FPl, fontSize: 10.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--ink-400)", whiteSpace: "nowrap", width: w, cursor: onClick ? "pointer" : "default", userSelect: "none" }}>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{children}{active && <Icons.chevDown size={13} style={{ transform: sortDir === "asc" ? "none" : "rotate(180deg)", transition: "transform .15s" }} />}</span>
-    </th>
-  );
+  const create = (platform) => app.go("contentEditor", { brand: brandId, platform });
+  const open = (p) => app.go("contentEditor", { id: p.id });
+  const anyFilter = plat !== "all" || stat !== "all" || month !== "all" || !!qn;
+
+  if (phase === "ready" && !brand) {
+    return (
+      <div>
+        <Topbar title="Rencana Konten" />
+        <Panel pad={0}><EmptyState icon={<Icons.layers size={28} />} title="Belum ada brand" body="Tambahkan akun sosial media dulu — tiap akun otomatis jadi sebuah brand yang bisa kamu kelola." action={<Button variant="amber" onClick={() => app.go("connections")}>Buka Manajemen Akun</Button>} />
+        </Panel>
+      </div>
+    );
+  }
+
+  const Row = ({ p, compact }) => {
+    const m = platMeta(p.platform);
+    return (
+      <button onClick={() => open(p)} style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", border: "1px solid var(--line)", borderLeft: `3px solid ${m.accent}`, borderRadius: 12, background: "#fff", cursor: "pointer", textAlign: "left", width: "100%" }}>
+        <span style={{ fontFamily: FPl, fontSize: 11.5, fontWeight: 700, color: "var(--ink-500)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", flex: "0 0 auto", minWidth: 64 }}>{fmtDate(p.plannedDate)}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: FPl, fontWeight: 600, fontSize: 13, color: p.title ? "var(--ink-900)" : "var(--ink-300)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {p.linked && <Icons.sparkle size={12} style={{ color: "var(--st-publishing)", marginRight: 5 }} />}{p.title || "(tanpa judul)"}
+          </div>
+          {!compact && <div style={{ fontFamily: FPl, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.label}{p.format ? ` · ${FORMAT_LABEL[p.format] || p.format}` : ""}{p.contentType ? ` · ${p.contentType}` : ""}{p.plannedTime ? ` · ${p.plannedTime} WIB` : ""}</div>}
+        </div>
+        <StatusChip s={p.status} />
+      </button>
+    );
+  };
 
   return (
     <div>
-      <Topbar title="Rencana Konten" sub="Daftar semua konten yang kamu rencanakan · waktu WIB"
-        right={<Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={create}>Buat konten</Button>} />
+      <Topbar title="Rencana Konten" sub={brand ? `${brand.name} · ${accounts.length} akun sosial media · WIB` : "·"}
+        right={<div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {!app.isMobile && <Segmented options={[{ value: "table", label: "Tabel" }, { value: "lanes", label: "Per platform" }]} value={mode} onChange={setMode} />}
+          <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => create()}>Buat konten</Button>
+        </div>} />
 
-      {/* summary strip */}
+      {/* accounts in this brand (which socials this workspace covers) */}
       {phase === "ready" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <span style={{ fontFamily: FPl, fontWeight: 800, fontSize: 22, color: "var(--ink-900)", letterSpacing: "-.02em" }}>{summaryBase.length}</span>
-            <span style={{ fontFamily: FPl, fontSize: 12.5, color: "var(--ink-400)" }}>konten{month !== "all" ? ` · ${monthOpts.find(o => o.value === month)?.label}` : ""}</span>
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {Object.entries(byStatus).map(([s, n]) => (
-              <button key={s} onClick={() => setStat(cur => cur === s ? "all" : s)} style={{ border: "none", cursor: "pointer", background: stat === s ? tint(PLAN_ST_COLOR[s], 18) : "transparent", borderRadius: 999, padding: "3px 4px" }}>
-                <StatusChip s={s} label={`${PLAN_LABEL[s]} ${n}`} />
-              </button>
-            ))}
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+          {accounts.map(a => <span key={a.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: FPl, fontSize: 11.5, color: "var(--ink-600)", background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "4px 10px" }}><span style={{ width: 7, height: 7, borderRadius: 2, background: platMeta(a.platform).accent }} />{platMeta(a.platform).label} · {a.handle}</span>)}
+          {accounts.length === 0 && <span style={{ fontFamily: FPl, fontSize: 12, color: "var(--ink-400)" }}>Belum ada akun terhubung di brand ini — konten masih bisa direncanakan (plan-only).</span>}
+          <span style={{ flex: 1 }} />
+          <span style={{ fontFamily: FPl, fontWeight: 700, fontSize: 15, color: "var(--ink-900)" }}>{summaryBase.length}</span>
+          <span style={{ fontFamily: FPl, fontSize: 12, color: "var(--ink-400)" }}>konten</span>
+          {Object.entries(byStatus).map(([s, n]) => (
+            <button key={s} onClick={() => setStat(cur => cur === s ? "all" : s)} style={{ border: "none", cursor: "pointer", background: stat === s ? tint(PLAN_ST_COLOR[s], 18) : "transparent", borderRadius: 999, padding: "2px 3px" }}><StatusChip s={s} label={`${PLAN_LABEL[s]} ${n}`} /></button>
+          ))}
         </div>
       )}
 
       {/* filters */}
       <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ width: app.isMobile ? "100%" : 240, flex: app.isMobile ? "1 1 100%" : "0 0 auto" }}>
-          <Input icon={<Icons.search size={16} />} value={q} onChange={e => setQ(e.target.value)} placeholder="Cari judul / tipe / pilar…" />
-        </div>
-        <div style={{ width: app.isMobile ? "47%" : 150 }}><Select value={brand} onChange={setBrand} options={brandOpts} /></div>
-        <div style={{ width: app.isMobile ? "47%" : 150 }}><Select value={plat} onChange={setPlat} options={platOpts} /></div>
+        <div style={{ width: app.isMobile ? "100%" : 240, flex: app.isMobile ? "1 1 100%" : "0 0 auto" }}><Input icon={<Icons.search size={16} />} value={q} onChange={e => setQ(e.target.value)} placeholder="Cari judul / tipe / pilar…" /></div>
+        <div style={{ width: app.isMobile ? "47%" : 160 }}><Select value={plat} onChange={setPlat} options={platOpts} /></div>
         <div style={{ width: app.isMobile ? "47%" : 150 }}><Select value={stat} onChange={setStat} options={statOpts} /></div>
-        <div style={{ width: app.isMobile ? "47%" : 160 }}><Select value={month} onChange={setMonth} options={monthOpts} /></div>
+        <div style={{ width: app.isMobile ? "47%" : 170 }}><Select value={month} onChange={setMonth} options={monthOpts} /></div>
       </div>
 
-      {phase === "loading" && <Panel><Skeleton h={22} w="40%" /><div style={{ height: 14 }} />{Array.from({ length: 8 }).map((_, i) => <div key={i} style={{ marginBottom: 8 }}><Skeleton h={44} r={10} /></div>)}</Panel>}
+      {phase === "loading" && <Panel>{Array.from({ length: 8 }).map((_, i) => <div key={i} style={{ marginBottom: 8 }}><Skeleton h={44} r={10} /></div>)}</Panel>}
 
       {phase === "ready" && rows.length === 0 && (
         <Panel pad={0}><EmptyState icon={<Icons.layers size={28} />}
           title={anyFilter ? "Tidak ada yang cocok" : "Belum ada konten"}
-          body={anyFilter ? "Coba ubah atau hapus filter." : "Mulai rencanakan konten pertamamu — judul, jadwal, status, semuanya di satu tempat."}
-          action={anyFilter
-            ? <Button variant="secondary" onClick={() => { setBrand("all"); setPlat("all"); setStat("all"); setMonth("all"); setQ(""); }}>Hapus filter</Button>
-            : <Button variant="amber" icon={<Icons.plus size={16} />} onClick={create}>Buat konten</Button>} />
+          body={anyFilter ? "Coba ubah atau hapus filter." : `Mulai rencanakan konten untuk ${brand?.name || "brand ini"} — semua platform di satu tempat.`}
+          action={anyFilter ? <Button variant="secondary" onClick={() => { setPlat("all"); setStat("all"); setMonth("all"); setQ(""); }}>Hapus filter</Button> : <Button variant="amber" icon={<Icons.plus size={16} />} onClick={() => create()}>Buat konten</Button>} />
         </Panel>
       )}
 
-      {/* desktop: spreadsheet-style table; mobile: stacked cards */}
-      {phase === "ready" && rows.length > 0 && (app.isMobile ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-          {rows.map(p => {
-            const b = brandFor(p.ch, app.channels), pm = platMeta(p.platform);
-            return (
-              <button key={p.id} onClick={() => open(p)} style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 12px", border: "1px solid var(--line)", borderLeft: `3px solid ${pm.accent}`, borderRadius: 13, background: "#fff", cursor: "pointer", textAlign: "left", width: "100%" }}>
-                <BrandAvatar brand={b} src={app.channels.find(c => c.id === p.ch)?.avatarUrl} size={32} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: FPl, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title || "(tanpa judul)"}</div>
-                  <div style={{ fontFamily: FPl, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtDate(p.plannedDate)}{p.plannedTime ? ` · ${p.plannedTime}` : ""} · {pm.label}{p.format ? ` · ${FORMAT_LABEL[p.format] || p.format}` : ""}</div>
-                </div>
-                <StatusChip s={p.status} />
-              </button>
-            );
-          })}
-        </div>
-      ) : (
+      {/* TABLE view (spreadsheet) */}
+      {phase === "ready" && rows.length > 0 && mode === "table" && !app.isMobile && (
         <Panel pad={0} style={{ overflow: "hidden" }}>
           <div className="sc-scroll" style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 920 }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--line)", background: "rgba(140,144,158,.04)" }}>
-                  <TH w={132} onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")} active>Tanggal</TH>
-                  <TH w={170}>Akun</TH>
-                  <TH w={130}>Platform</TH>
-                  <TH w={120}>Tipe</TH>
-                  <TH w={130}>Format</TH>
-                  <TH>Judul</TH>
-                  <TH w={110}>Status</TH>
-                </tr>
-              </thead>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 820 }}>
+              <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "rgba(140,144,158,.04)" }}>
+                {[["Tanggal", 132, true], ["Platform", 140], ["Tipe", 130], ["Format", 140], ["Judul", null], ["Status", 110]].map(([label, w, sortable]) => (
+                  <th key={label} onClick={sortable ? () => setSortDir(d => d === "asc" ? "desc" : "asc") : undefined} style={{ textAlign: "left", padding: "10px 12px", fontFamily: FPl, fontSize: 10.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--ink-400)", whiteSpace: "nowrap", width: w || undefined, cursor: sortable ? "pointer" : "default", userSelect: "none" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{label}{sortable && <Icons.chevDown size={13} style={{ transform: sortDir === "asc" ? "none" : "rotate(180deg)" }} />}</span>
+                  </th>
+                ))}
+              </tr></thead>
               <tbody>
-                {rows.map((p, i) => {
-                  const b = brandFor(p.ch, app.channels);
-                  return (
-                    <tr key={p.id} onClick={() => open(p)} style={{ borderBottom: "1px solid var(--line-soft)", cursor: "pointer", background: "#fff" }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "var(--primary-100)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}>
-                      <td style={{ padding: "11px 12px", fontFamily: FPl, fontSize: 12.5, color: "var(--ink-700)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                        {fmtDate(p.plannedDate)}{p.plannedTime && <span style={{ color: "var(--ink-400)" }}> · {p.plannedTime}</span>}
-                      </td>
-                      <td style={{ padding: "9px 12px" }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                          <BrandAvatar brand={b} src={app.channels.find(c => c.id === p.ch)?.avatarUrl} size={24} />
-                          <span style={{ fontFamily: FPl, fontSize: 12.5, color: "var(--ink-800)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{b.name}</span>
-                        </span>
-                      </td>
-                      <td style={{ padding: "11px 12px" }}><PlatTag p={p.platform} /></td>
-                      <td style={{ padding: "11px 12px", fontFamily: FPl, fontSize: 12.5, color: p.contentType ? "var(--ink-700)" : "var(--ink-300)", whiteSpace: "nowrap" }}>{p.contentType || "—"}</td>
-                      <td style={{ padding: "11px 12px", fontFamily: FPl, fontSize: 12.5, color: p.format ? "var(--ink-700)" : "var(--ink-300)", whiteSpace: "nowrap" }}>{p.format ? (FORMAT_LABEL[p.format] || p.format) : "—"}</td>
-                      <td style={{ padding: "11px 12px", fontFamily: FPl, fontSize: 13, fontWeight: 500, color: p.title ? "var(--ink-900)" : "var(--ink-300)", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-                          {p.linked && <Icons.sparkle size={13} style={{ color: "var(--st-publishing)", flex: "0 0 auto" }} title="Auto-publish" />}
-                          {p.title || "(tanpa judul)"}
-                        </span>
-                      </td>
-                      <td style={{ padding: "11px 12px" }}><StatusChip s={p.status} /></td>
-                    </tr>
-                  );
-                })}
+                {rows.map(p => (
+                  <tr key={p.id} onClick={() => open(p)} style={{ borderBottom: "1px solid var(--line-soft)", cursor: "pointer", background: "#fff" }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--primary-100)"; }} onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}>
+                    <td style={{ padding: "11px 12px", fontFamily: FPl, fontSize: 12.5, color: "var(--ink-700)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{fmtDate(p.plannedDate)}{p.plannedTime && <span style={{ color: "var(--ink-400)" }}> · {p.plannedTime}</span>}</td>
+                    <td style={{ padding: "11px 12px" }}><PlatTag p={p.platform} /></td>
+                    <td style={{ padding: "11px 12px", fontFamily: FPl, fontSize: 12.5, color: p.contentType ? "var(--ink-700)" : "var(--ink-300)", whiteSpace: "nowrap" }}>{p.contentType || "—"}</td>
+                    <td style={{ padding: "11px 12px", fontFamily: FPl, fontSize: 12.5, color: p.format ? "var(--ink-700)" : "var(--ink-300)", whiteSpace: "nowrap" }}>{p.format ? (FORMAT_LABEL[p.format] || p.format) : "—"}</td>
+                    <td style={{ padding: "11px 12px", fontFamily: FPl, fontSize: 13, fontWeight: 500, color: p.title ? "var(--ink-900)" : "var(--ink-300)", maxWidth: 340, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>{p.linked && <Icons.sparkle size={13} style={{ color: "var(--st-publishing)" }} />}{p.title || "(tanpa judul)"}</span>
+                    </td>
+                    <td style={{ padding: "11px 12px" }}><StatusChip s={p.status} /></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         </Panel>
-      ))}
+      )}
+
+      {/* LANES view (per platform) + mobile always uses card lists */}
+      {phase === "ready" && rows.length > 0 && (mode === "lanes" || app.isMobile) && (
+        app.isMobile && mode === "table" ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>{rows.map(p => <Row key={p.id} p={p} />)}</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr" : `repeat(${Math.min(lanePlatforms.length || 1, 3)}, minmax(0,1fr))`, gap: 14, alignItems: "start" }}>
+            {lanePlatforms.map(pf => {
+              const m = platMeta(pf);
+              const laneRows = rows.filter(p => p.platform === pf);
+              return (
+                <Panel key={pf} pad={14}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                    <PlatTag p={pf} big />
+                    <Button size="sm" variant="ghost" icon={<Icons.plus size={14} />} onClick={() => create(pf)}>Konten</Button>
+                  </div>
+                  {laneRows.length === 0
+                    ? <div style={{ fontFamily: FPl, fontSize: 12, color: "var(--ink-300)", padding: "12px 2px" }}>Belum ada konten {m.label}.</div>
+                    : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{laneRows.map(p => <Row key={p.id} p={p} compact />)}</div>}
+                </Panel>
+              );
+            })}
+          </div>
+        )
+      )}
     </div>
   );
 }

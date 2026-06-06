@@ -3,8 +3,8 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { loadContentPlan, createContentPlan, updateContentPlan, deleteContentPlan, linkPlanToRule, unlinkPlan } from "../dataLayer";
-import { BRANDS, BrandAvatar, Panel, Button, Field, Input, Textarea, Select, Segmented, TimeField, SectionTitle, Spinner, Banner } from "../ui";
+import { loadContentPlan, createContentPlan, updateContentPlan, deleteContentPlan, linkPlanToRule, unlinkPlan, adaptContentPlan } from "../dataLayer";
+import { BrandAvatar, Panel, Button, Field, Input, Textarea, Select, Segmented, TimeField, SectionTitle, Spinner, Banner } from "../ui";
 const { useState: uCE, useEffect } = React;
 const FCE = "var(--font)";
 
@@ -40,20 +40,12 @@ const ALL_STATUS_OPTS = [
 
 const pad = (n) => String(n).padStart(2, "0");
 const todayWib = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
-const brandFor = (slug, channels) => BRANDS[slug] || {
-  name: channels.find(c => c.id === slug)?.name || slug,
-  short: (channels.find(c => c.id === slug)?.name || slug || "?").slice(0, 2).toUpperCase(),
-  accent: "var(--ink-500)", soft: "var(--line)", grad: "linear-gradient(135deg,#9aa0ab,#7a8090)",
-};
 
 export function ContentEditorView() {
   const app = useApp();
   const planId = app.params.id || null; // present → edit mode
-  const [chId, setChId] = uCE(app.params.ch || app.channel);
-  const channel = app.channels.find(c => c.id === chId) || app.channels.find(c => c.id === app.channel) || app.channels[0];
-  const b = brandFor(channel?.id, app.channels);
-
-  const [platform, setPlatform] = uCE("instagram");
+  const [brandId, setBrandId] = uCE(app.params.brand || app.brand || app.brands?.[0]?.id || "");
+  const [platform, setPlatform] = uCE(app.params.platform || "instagram");
   const [date, setDate] = uCE(app.params.date || todayWib());
   const [time, setTime] = uCE(app.params.time || "");
   const [title, setTitle] = uCE("");
@@ -89,8 +81,7 @@ export function ContentEditorView() {
     let active = true;
     loadContentPlan(planId).then((p) => {
       if (!active || !p) { if (active) setLoading(false); return; }
-      const slug = app.channels.find((c) => c._id === p.channel_id)?.id;
-      if (slug) setChId(slug);
+      if (p.brand_id) setBrandId(p.brand_id);
       setPlatform(p.platform); setDate(p.planned_date || todayWib()); setTime((p.planned_time || "").slice(0, 5));
       setTitle(p.title || ""); setContentType(p.content_type || ""); setPillar(p.pillar || "");
       setFormat(p.format || ""); setGoal(p.goal || "");
@@ -108,17 +99,25 @@ export function ContentEditorView() {
   }, [planId]);
 
   const plat = PLATFORM[platform] || PLATFORM.instagram;
+  const brandObj = app.brands.find((x) => x.id === brandId) || null;
+  // resolved connected account for this brand+platform (null = plan-only, no API account)
+  const account = app.channels.find((c) => c.brandId === brandId && c.platform === platform) || null;
+  const igAccount = app.channels.find((c) => c.brandId === brandId && c.platform === "instagram") || null;
+  const brandAvatar = { name: brandObj?.name || "—", short: (brandObj?.name || "?").slice(0, 2).toUpperCase(), grad: "var(--primary-grad)" };
   const isPosted = status === "posted";
   // Lock metrics only when they're actually engine-sourced (auto_ig). A linked plan
   // that's posted but whose insights aren't pulled yet still allows manual entry.
   const metricsLocked = metricsSource === "auto_ig";
-  const valid = !!channel && !!platform && !!date;
+  const valid = !!brandId && !!platform && !!date;
   const linked = source !== "manual";                              // connected to a one-off or rule
   const linkedOneoff = scheduledPostId ? (app.oneoffs || []).find((o) => o.id === scheduledPostId) : null;
   const linkedRule = recurringRuleId ? (app.rules || []).find((r) => r.id === recurringRuleId) : null;
-  const igRules = (app.rules || []).filter((r) => r.ch === channel?.id); // this channel's recurring rules (all IG)
+  const igRules = igAccount ? (app.rules || []).filter((r) => r.ch === igAccount.id) : [];
+  const canAuto = plat.auto && !!igAccount;                         // IG auto-publish needs a connected IG account in this brand
+  // other platforms of this brand to "adapt" into (exclude the current one)
+  const brandPlatforms = [...new Set((brandObj?.accounts || []).map((a) => a.platform))].filter((p) => p !== platform);
 
-  if (!channel) {
+  if (!brandObj) {
     return (
       <div>
         <Topbar title="Konten" />
@@ -132,7 +131,7 @@ export function ContentEditorView() {
 
   function payload() {
     return {
-      channelDbId: channel._id, platform, plannedDate: date, plannedTime: time || null,
+      brandDbId: brandId, channelDbId: account?._id || null, platform, plannedDate: date, plannedTime: time || null,
       title, contentType, pillar, format, goal, hook, caption, notes,
       referenceUrl, briefUrl, designUrl, status, postLink, postedAt,
       m: metricsLocked ? null : m,
@@ -142,7 +141,7 @@ export function ContentEditorView() {
   // Save the form (create or update) and return the plan id — shared by the Save
   // button and the auto-publish link actions (which need a persisted id first).
   async function persist() {
-    if (!valid) { app.toast("Lengkapi akun, platform, dan tanggal tayang.", "error"); return null; }
+    if (!valid) { app.toast("Lengkapi brand, platform, dan tanggal tayang.", "error"); return null; }
     setSaving(true);
     try {
       if (planId) { await updateContentPlan(planId, payload()); return planId; }
@@ -162,9 +161,22 @@ export function ContentEditorView() {
   // "Jadwalkan otomatis via SinaraCast" → persist, then open the composer to build
   // the linked one-off (it links back on schedule). IG only.
   async function scheduleAuto() {
+    if (!igAccount) { app.toast("Hubungkan akun Instagram di brand ini dulu (Manajemen Akun).", "error"); return; }
     const id = await persist();
     if (!id) return;
-    app.go("composer", { ch: channel.id, planId: id });
+    app.go("composer", { ch: igAccount.id, planId: id });
+  }
+  // Adapt this plan into another of the brand's platforms (clone as a fresh idea).
+  async function adapt(toPlatform) {
+    const id = planId || await persist();
+    if (!id) return;
+    try {
+      const acct = app.channels.find((c) => c.brandId === brandId && c.platform === toPlatform) || null;
+      const newId = await adaptContentPlan(id, { platform: toPlatform, channelDbId: acct?._id || null });
+      await app.reload();
+      app.toast(`Disalin ke ${PLATFORM[toPlatform]?.label || toPlatform} ✓`, "success");
+      app.go("contentEditor", { id: newId });
+    } catch (e) { app.toast("Gagal menyalin: " + (e.message || e), "error"); }
   }
   async function linkRule(ruleId) {
     const id = await persist();
@@ -196,14 +208,14 @@ export function ContentEditorView() {
     });
   }
 
-  // This channel's other plan entries, newest planned-date first.
-  const myPlans = (app.plans || []).filter((p) => p.ch === channel.id && p.id !== planId)
+  // This brand's other plan entries, newest planned-date first.
+  const myPlans = (app.plans || []).filter((p) => p.brandId === brandId && p.id !== planId)
     .slice().sort((a, b) => `${b.plannedDate} ${b.plannedTime}`.localeCompare(`${a.plannedDate} ${a.plannedTime}`)).slice(0, 8);
 
   return (
     <div>
       <Topbar title={planId ? "Edit Konten" : "Rencana Konten"}
-        sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} src={channel.avatarUrl} size={18} /> {b.name} · {plat.label}</span>}
+        sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={brandAvatar} size={18} /> {brandObj.name} · {plat.label}{account ? ` · ${account.handle}` : ""}</span>}
         right={<div style={{ display: "flex", gap: 10 }}>
           <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("planner")}>Kembali</Button>
           {planId && <Button variant="danger" icon={<Icons.trash size={15} />} disabled={saving} onClick={remove}>Hapus</Button>}
@@ -216,9 +228,8 @@ export function ContentEditorView() {
           <Panel>
             <SectionTitle sub="Akun, platform, dan jadwal tayang">Utama</SectionTitle>
             <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
-              <Field label="Akun / brand">
-                <Select value={channel.id} onChange={(v) => { setChId(v); app.setChannel(v); }}
-                  options={app.channels.map((c) => ({ value: c.id, label: `${c.name} · ${c.handle}` }))} />
+              <Field label="Brand" hint={account ? `Akun: ${account.handle}` : "Plan-only (belum ada akun untuk platform ini)"}>
+                <Select value={brandId} onChange={setBrandId} options={app.brands.map((br) => ({ value: br.id, label: br.name }))} />
               </Field>
               <Field label="Platform">
                 <Select value={platform} onChange={setPlatform} options={PLATFORM_OPTS} />
@@ -229,15 +240,20 @@ export function ContentEditorView() {
             <Field label="Judul / headline" style={{ marginTop: 14 }}>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="mis. Promo kopi akhir pekan" />
             </Field>
-            {plat.auto
+            {canAuto
               ? <div style={{ display: "flex", gap: 9, marginTop: 14, background: "var(--st-publishing-bg)", borderRadius: 11, padding: "10px 12px" }}>
                   <Icons.sparkle size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-                  <span style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Instagram bisa dijadwalkan otomatis lewat SinaraCast — status & link terisi sendiri saat terbit. Atur di panel <b>Otomatis</b>.</span>
+                  <span style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Instagram ({igAccount.handle}) bisa dijadwalkan otomatis lewat SinaraCast — status & link terisi sendiri saat terbit. Atur di panel <b>Otomatis</b>.</span>
                 </div>
-              : <div style={{ display: "flex", gap: 9, marginTop: 14, background: "rgba(140,144,158,.09)", borderRadius: 11, padding: "10px 12px" }}>
-                  <Icons.info size={15} style={{ color: "var(--ink-400)", flex: "0 0 auto", marginTop: 1 }} />
-                  <span style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}><b>Auto-publish: Segera hadir</b> untuk {plat.label}. Untuk sekarang, rencanakan & lacak manual (tandai Posted + tempel link sendiri).</span>
-                </div>}
+              : plat.auto
+                ? <div style={{ display: "flex", gap: 9, marginTop: 14, background: "rgba(140,144,158,.09)", borderRadius: 11, padding: "10px 12px" }}>
+                    <Icons.info size={15} style={{ color: "var(--ink-400)", flex: "0 0 auto", marginTop: 1 }} />
+                    <span style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Brand ini belum punya akun Instagram terhubung. <b onClick={() => app.go("connections")} style={{ color: "var(--primary-500)", cursor: "pointer" }}>Hubungkan akun IG</b> untuk auto-publish; sementara ini rencanakan & lacak manual.</span>
+                  </div>
+                : <div style={{ display: "flex", gap: 9, marginTop: 14, background: "rgba(140,144,158,.09)", borderRadius: 11, padding: "10px 12px" }}>
+                    <Icons.info size={15} style={{ color: "var(--ink-400)", flex: "0 0 auto", marginTop: 1 }} />
+                    <span style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}><b>Auto-publish: Segera hadir</b> untuk {plat.label}. Untuk sekarang, rencanakan & lacak manual (tandai Posted + tempel link sendiri).</span>
+                  </div>}
           </Panel>
 
           <Panel>
@@ -323,7 +339,7 @@ export function ContentEditorView() {
                     <span style={{ fontFamily: FCE, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.45 }}>Terhubung ke postingan terjadwal{linkedOneoff ? <> · {linkedOneoff.type} · {pad(linkedOneoff.day)}/{linkedOneoff.ym.slice(5)} {linkedOneoff.time} WIB</> : ""}. Status & link terisi otomatis saat terbit.</span>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
-                    {scheduledPostId && <Button size="sm" variant="secondary" full icon={<Icons.edit size={15} />} onClick={() => app.go("composer", { ch: channel.id, postId: scheduledPostId })}>Buka postingan</Button>}
+                    {scheduledPostId && <Button size="sm" variant="secondary" full icon={<Icons.edit size={15} />} onClick={() => app.go("composer", { ch: igAccount?.id, postId: scheduledPostId })}>Buka postingan</Button>}
                     <Button size="sm" variant="ghost" full onClick={disconnect}>Putuskan</Button>
                   </div>
                 </div>
@@ -334,6 +350,11 @@ export function ContentEditorView() {
                     <span style={{ fontFamily: FCE, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.45 }}>Terhubung ke jadwal rutin <b>{linkedRule?.name || "(jadwal)"}</b>. Akan terbit otomatis sesuai jadwalnya.</span>
                   </div>
                   <Button size="sm" variant="ghost" full onClick={disconnect}>Putuskan</Button>
+                </div>
+              ) : !canAuto ? (
+                <div style={{ display: "flex", gap: 9, padding: "10px 12px", background: "rgba(140,144,158,.09)", borderRadius: 11 }}>
+                  <Icons.info size={15} style={{ color: "var(--ink-400)", flex: "0 0 auto", marginTop: 1 }} />
+                  <span style={{ fontFamily: FCE, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.45 }}>Brand ini belum punya akun Instagram terhubung. <b onClick={() => app.go("connections")} style={{ color: "var(--primary-500)", cursor: "pointer" }}>Hubungkan akun IG</b> untuk menjadwalkan otomatis.</span>
                 </div>
               ) : (
                 <div>
@@ -357,14 +378,30 @@ export function ContentEditorView() {
             <Banner tone="warn" icon={<Icons.info size={18} />} title="Plan-only"
               body={`${plat.label} belum bisa auto-publish. Saat sudah tayang, tandai Posted dan isi metrik manual.`} />
           )}
+
+          {/* Adapt to another of the brand's platforms (plan once → per-platform variants) */}
+          {brandPlatforms.length > 0 && (
+            <Panel>
+              <SectionTitle sub="Plan sekali, sebar ke platform lain brand ini">Salin ke platform lain</SectionTitle>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {brandPlatforms.map((pf) => {
+                  const m = PLATFORM[pf] || { label: pf, accent: "var(--ink-500)" };
+                  return (
+                    <Button key={pf} size="sm" variant="secondary" disabled={saving} icon={<span style={{ width: 8, height: 8, borderRadius: 2, background: m.accent }} />} onClick={() => adapt(pf)}>{m.label}</Button>
+                  );
+                })}
+              </div>
+              <div style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-400)", marginTop: 10, lineHeight: 1.45 }}>Menyalin judul, caption, dan strategi sebagai konten baru (status Ide) untuk platform itu.</div>
+            </Panel>
+          )}
         </div>
       </div>
 
-      {/* this channel's other plan entries */}
+      {/* this brand's other plan entries */}
       <Panel style={{ marginTop: 18 }}>
-        <SectionTitle sub={`Rencana konten untuk ${b.name}`}>Konten kamu</SectionTitle>
+        <SectionTitle sub={`Rencana konten untuk ${brandObj.name}`}>Konten brand ini</SectionTitle>
         {myPlans.length === 0 ? (
-          <div style={{ fontFamily: FCE, fontSize: 12.5, color: "var(--ink-400)", padding: "8px 2px" }}>Belum ada konten lain untuk akun ini. Yang kamu simpan akan muncul di sini dan di kalender.</div>
+          <div style={{ fontFamily: FCE, fontSize: 12.5, color: "var(--ink-400)", padding: "8px 2px" }}>Belum ada konten lain untuk brand ini. Yang kamu simpan akan muncul di sini, di Rencana Konten, dan di kalender.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {myPlans.map((p) => {

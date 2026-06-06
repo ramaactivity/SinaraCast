@@ -81,6 +81,7 @@ function mapChannel(c) {
     paused: c.paused, resumeDate: c.resume_date ? fmtDate(c.resume_date) : "",
     followers: fmtFollowers(c.followers),
     avatarUrl: c.avatar_url || null,
+    brandId: c.brand_id || null,
     _id: c.id,
   };
 }
@@ -104,7 +105,7 @@ export async function loadAll() {
   // Fire every independent read in parallel. allSettled (not all) so a single
   // failed query can NEVER blank the whole app — each just falls back to empty.
   const results = await Promise.allSettled([
-    supabase.from("channel").select("id, slug, name, handle, platform, token_status, token_expires_at, last_refresh_at, paused, resume_date, followers, color_token, avatar_url").is("archived_at", null).order("created_at", { ascending: true }),
+    supabase.from("channel").select("id, slug, name, handle, platform, brand_id, token_status, token_expires_at, last_refresh_at, paused, resume_date, followers, color_token, avatar_url").is("archived_at", null).order("created_at", { ascending: true }),
     supabase.from("recurring_rule").select("*").is("archived_at", null),
     supabase.from("pool").select("id, rule_id, role"),
     supabase.from("pool_image").select("id, pool_id, used_in_cycle, storage_path, position, bytes").order("position"),
@@ -114,7 +115,8 @@ export async function loadAll() {
     supabase.from("notification").select("id, channel_id, type, title, body, run_id, read, created_at").order("created_at", { ascending: false }).limit(50),
     supabase.from("app_settings").select("*").maybeSingle(),
     supabase.from("app_user").select("*").maybeSingle(),
-    supabase.from("content_plan").select("id, channel_id, platform, planned_date, planned_time, title, content_type, pillar, format, goal, status, source, scheduled_post_id, recurring_rule_id, auto_managed, post_link, posted_at, m_views, m_likes, m_comments, m_shares, m_saves, m_reach, metrics_source, metrics_updated_at").order("planned_date", { ascending: true }),
+    supabase.from("content_plan").select("id, brand_id, channel_id, platform, planned_date, planned_time, title, content_type, pillar, format, goal, status, source, scheduled_post_id, recurring_rule_id, auto_managed, post_link, posted_at, m_views, m_likes, m_comments, m_shares, m_saves, m_reach, metrics_source, metrics_updated_at").order("planned_date", { ascending: true }),
+    supabase.from("brand").select("id, name, avatar_emoji, color_token, created_at").order("created_at", { ascending: true }),
   ]);
   const at = (i) => (results[i].status === "fulfilled" ? results[i].value?.data : null);
   const channelsRaw = at(0) || [];
@@ -128,9 +130,17 @@ export async function loadAll() {
   const settingsRaw = at(8);
   const profileRaw = at(9);
   const plansRaw = at(10) || [];
+  const brandsRaw = at(11) || [];
 
   const slugById = Object.fromEntries((channelsRaw || []).map((c) => [c.id, c.slug]));
   const channels = (channelsRaw || []).map(mapChannel);
+  const brandIdByChannelDb = Object.fromEntries((channelsRaw || []).map((c) => [c.id, c.brand_id || null]));
+
+  // Brands (workspaces) each own ≥0 accounts. Accounts carry their mapped channel shape.
+  const brands = (brandsRaw || []).map((br) => ({
+    id: br.id, name: br.name, avatarEmoji: br.avatar_emoji || null, colorToken: br.color_token || null,
+    accounts: channels.filter((c) => c.brandId === br.id),
+  }));
 
   // pools + image counts per rule (for "X gambar" + cycle) + first thumbnail
   const imgByPool = {};
@@ -272,7 +282,8 @@ export async function loadAll() {
   const plans = (plansRaw || []).map((p) => {
     const D = p.planned_date ? parseInt(p.planned_date.slice(8, 10), 10) : null;
     return {
-      id: p.id, ch: slugById[p.channel_id] || "", _channelId: p.channel_id,
+      id: p.id, ch: p.channel_id ? (slugById[p.channel_id] || "") : "", _channelId: p.channel_id || null,
+      brandId: p.brand_id || null,
       platform: p.platform, plannedDate: p.planned_date || "",
       plannedTime: (p.planned_time || "").slice(0, 5),
       ym: p.planned_date ? p.planned_date.slice(0, 7) : "", day: D,
@@ -314,7 +325,7 @@ export async function loadAll() {
     joined: profileRaw?.joined_at ? fmtDate(profileRaw.joined_at) : "—",
   };
 
-  return { channels, rules, runs, oneoffs, plans, notifs, settings, profile, library: mediaByChannel };
+  return { channels, brands, rules, runs, oneoffs, plans, notifs, settings, profile, library: mediaByChannel };
 }
 
 // ============================================================
@@ -343,7 +354,9 @@ function planRow(p, ownerId) {
     row.metrics_source = p.status === "posted" && hasMetric ? "manual" : "none";
     row.metrics_updated_at = p.status === "posted" && hasMetric ? new Date().toISOString() : null;
   }
-  if (ownerId) { row.owner_id = ownerId; row.channel_id = p.channelDbId; }
+  row.brand_id = p.brandDbId || null;
+  row.channel_id = p.channelDbId || null; // specific account (IG auto-publish target); null for plan-only
+  if (ownerId) row.owner_id = ownerId;
   return row;
 }
 
@@ -363,16 +376,58 @@ export async function createContentPlan(p) {
 }
 
 export async function updateContentPlan(id, p) {
-  // owner_id / channel_id are immutable here (channel set on create); pass null ownerId.
-  const row = planRow(p, null);
-  row.channel_id = p.channelDbId; // allow re-targeting brand
-  const { error } = await supabase.from("content_plan").update(row).eq("id", id);
+  // planRow already carries brand_id + channel_id; owner_id stays immutable.
+  const { error } = await supabase.from("content_plan").update(planRow(p, null)).eq("id", id);
   if (error) throw error;
   return id;
 }
 
 export async function deleteContentPlan(id) {
   const { error } = await supabase.from("content_plan").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// Adapt-to-platform (clone a plan as a sibling for another platform/account of the
+// same brand). Copies the creative fields; resets automation + status to a fresh idea.
+export async function adaptContentPlan(sourceId, { platform, channelDbId = null }) {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u?.user?.id;
+  if (!uid) throw new Error("Not signed in");
+  const { data: src, error: e1 } = await supabase.from("content_plan").select("*").eq("id", sourceId).single();
+  if (e1) throw e1;
+  const { data, error } = await supabase.from("content_plan").insert({
+    owner_id: uid, brand_id: src.brand_id, channel_id: channelDbId, platform,
+    planned_date: src.planned_date, planned_time: src.planned_time,
+    title: src.title, content_type: src.content_type, pillar: src.pillar, format: src.format, goal: src.goal,
+    hook: src.hook, caption: src.caption, notes: src.notes,
+    reference_url: src.reference_url, brief_url: src.brief_url, design_url: src.design_url,
+    status: "idea", source: "manual", auto_managed: false, metrics_source: "none",
+  }).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+
+// ---- Brand (workspace) CRUD ----
+export async function createBrand(name) {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u?.user?.id;
+  if (!uid) throw new Error("Not signed in");
+  const { data, error } = await supabase.from("brand").insert({ owner_id: uid, name: (name || "Brand baru").trim() }).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+export async function renameBrand(id, name) {
+  const { error } = await supabase.from("brand").update({ name: (name || "").trim() }).eq("id", id);
+  if (error) throw error;
+}
+// Move an account (channel) into a brand (or detach with brandId=null).
+export async function setChannelBrand(channelDbId, brandId) {
+  const { error } = await supabase.from("channel").update({ brand_id: brandId }).eq("id", channelDbId);
+  if (error) throw error;
+}
+// Delete a brand. Accounts detach (channel.brand_id → null via FK); plans cascade.
+export async function deleteBrand(id) {
+  const { error } = await supabase.from("brand").delete().eq("id", id);
   if (error) throw error;
 }
 
@@ -440,7 +495,11 @@ export async function archiveChannel(id) {
 // images, runs, media_assets, scheduled_posts) + notifications. RLS scopes the
 // deletes to the signed-in owner. Account + app_settings preferences are kept.
 export async function deleteAllData() {
-  let { error } = await supabase.from("channel").delete().not("id", "is", null);
+  let { error } = await supabase.from("content_plan").delete().not("id", "is", null);
+  if (error) throw error;
+  ({ error } = await supabase.from("channel").delete().not("id", "is", null));
+  if (error) throw error;
+  ({ error } = await supabase.from("brand").delete().not("id", "is", null));
   if (error) throw error;
   ({ error } = await supabase.from("notification").delete().not("id", "is", null));
   if (error) throw error;

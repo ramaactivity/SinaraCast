@@ -25,14 +25,17 @@ export function ActivityView() {
   const [filter, setFilter] = uAc("all");
   const [open, setOpen] = uAc(null);
 
-  const runs = app.runs.filter(r => filter === "all" || r.ch === filter);
+  // scoped to the active brand's accounts
+  const brandAccts = app.brandAccounts || [];
+  const brandSlugs = new Set(brandAccts.map(a => a.id));
+  const runs = app.runs.filter(r => brandSlugs.has(r.ch) && (filter === "all" || r.ch === filter));
   const openRun = app.runs.find(r => r.id === open);
-  const filters = [{ value: "all", label: "Semua" }, ...app.channels.map(c => ({ value: c.id, label: brandFor(c.id, app.channels).name.split(" ")[0] }))];
+  const filters = [{ value: "all", label: "Semua" }, ...brandAccts.map(a => ({ value: a.id, label: a.handle }))];
 
   return (
     <div>
-      <Topbar title="Riwayat" sub="Semua postingan dari semua akun · waktu WIB"
-        right={<Segmented options={filters} value={filter} onChange={setFilter} />} />
+      <Topbar title="Riwayat" sub={`${app.activeBrand?.name || "Semua"} · postingan akun brand ini · WIB`}
+        right={brandAccts.length > 1 ? <Segmented options={filters} value={filter} onChange={setFilter} /> : null} />
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: 18, alignItems: "start" }}>
         <Panel flush style={{ overflow: "hidden" }}>
@@ -96,9 +99,9 @@ function StorageCard() {
       </div>
       <Progress value={pct} showWarn h={9} />
       <div style={{ fontFamily: FA, fontSize: 11.5, color: pct >= 80 ? "var(--danger)" : "var(--ink-400)", marginTop: 9 }}>{pct}% terpakai{pct >= 80 ? ", hampir penuh" : ""}</div>
-      {app.channels.length > 0 && <div style={{ height: 1, background: "var(--line)", margin: "16px 0" }} />}
+      {(app.brandAccounts || []).length > 0 && <div style={{ height: 1, background: "var(--line)", margin: "16px 0" }} />}
       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-        {app.channels.map(c => { const b = brandFor(c.id, app.channels); const mb = perChannel[c.id] ?? 0; return (
+        {(app.brandAccounts || []).map(c => { const b = brandFor(c.id, app.channels); const mb = perChannel[c.id] ?? 0; return (
           <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <BrandAvatar brand={b} size={22} />
             <span style={{ flex: 1, fontFamily: FA, fontSize: 12, color: "var(--ink-600)" }}>{b.name.split(" ")[0]}</span>

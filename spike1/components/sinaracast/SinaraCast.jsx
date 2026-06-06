@@ -30,7 +30,10 @@ const DEFAULT_PROFILE = { name: "Rama", email: "", method: "Magic link", joined:
 export default function SinaraCast() {
   const [view, setView] = uA("rules");
   const [params, setParams] = uA({});
-  const [channel, setChannel] = uA("");
+  const [channel, setChannel] = uA("");      // active account (channel) within the active brand
+  const [brands, setBrands] = uA([]);
+  const [brand, setBrand] = uA("");          // active brand (workspace) id
+  const brandRef = React.useRef("");          // survives reload() (useCallback []) so we keep the user's pick
   const [rules, setRules] = uA([]);
   const [runs, setRuns] = uA([]);
   const [oneoffs, setOneoffs] = uA([]);
@@ -67,6 +70,16 @@ export default function SinaraCast() {
   // the session object — so Supabase token refreshes (which fire on every tab
   // refocus and hand back a fresh session object) don't trigger a full reload /
   // spinner. The session itself still updates above to keep the access token fresh.
+  // Resolve the active brand (keep the user's pick across reloads via brandRef, else
+  // first brand) + the active account within it (keep if still in that brand, else its first).
+  const applyScope = useCallback((brandsArr, channelsArr) => {
+    setBrands(brandsArr);
+    const vb = brandsArr.some((b) => b.id === brandRef.current) ? brandRef.current : (brandsArr[0]?.id || "");
+    brandRef.current = vb; setBrand(vb);
+    const acct = brandsArr.find((b) => b.id === vb)?.accounts || [];
+    setChannel((cur) => acct.some((a) => a.id === cur) ? cur : (acct[0]?.id || channelsArr[0]?.id || ""));
+  }, []);
+
   const loadedFor = React.useRef(null);
   React.useEffect(() => {
     const uid = session?.user?.id || null;
@@ -79,7 +92,7 @@ export default function SinaraCast() {
       if (!active) return;
       setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setLibrary(d.library || {}); setNotifs(d.notifs);
       setSettings(d.settings); setProfile(d.profile);
-      setChannel((cur) => cur || d.channels[0]?.id || "");
+      applyScope(d.brands || [], d.channels);
       setDataLoading(false);
     }).catch((e) => { console.error("loadAll failed", e); if (active) { loadedFor.current = null; setDataLoading(false); } });
     return () => { active = false; };
@@ -89,8 +102,8 @@ export default function SinaraCast() {
     const d = await loadAll();
     setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setLibrary(d.library || {}); setNotifs(d.notifs);
     setSettings(d.settings); setProfile(d.profile);
-    setChannel((cur) => cur || d.channels[0]?.id || "");
-  }, []);
+    applyScope(d.brands || [], d.channels);
+  }, [applyScope]);
 
   // Refresh data when the tab regains focus / becomes visible, so server-side
   // publishes (the per-minute cron) show up in Riwayat/Kalender without a manual
@@ -145,6 +158,15 @@ export default function SinaraCast() {
   const go = useCallback((v, p = {}) => { setView(v); setParams(p); setDrawerOpen(false); window.scrollTo(0, 0); document.querySelector("#content")?.scrollTo(0, 0); }, []);
   const showToast = useCallback((msg, type = "info") => { setToast({ msg, type, k: Date.now() }); setTimeout(() => setToast(t => (t && t.k ? null : t)), 2600); }, []);
   const confirm = useCallback((cfg) => setConfirmCfg(cfg), []);
+
+  // Switch the active brand (workspace) → reset the active account to that brand's first.
+  const activeBrand = brands.find((b) => b.id === brand) || null;
+  const brandAccounts = activeBrand?.accounts || [];
+  const selectBrand = (bid) => {
+    brandRef.current = bid; setBrand(bid);
+    const acct = (brands.find((b) => b.id === bid)?.accounts) || [];
+    setChannel(acct[0]?.id || "");
+  };
 
   const updateRule = (id, patch) => setRules(rs => rs.map(r => r.id === id ? { ...r, ...patch } : r));
   const deleteRule = (id) => setRules(rs => rs.filter(r => r.id !== id));
@@ -331,7 +353,7 @@ export default function SinaraCast() {
     }
   };
 
-  const ctx = { view, params, go, channel, setChannel, rules, setRules, runs, setRuns, oneoffs, plans, library, notifs, setNotifs,
+  const ctx = { view, params, go, channel, setChannel, brands, brand, activeBrand, brandAccounts, selectBrand, rules, setRules, runs, setRuns, oneoffs, plans, library, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
     toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, connectTikTokChannel, saveSettings,

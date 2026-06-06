@@ -87,18 +87,22 @@ export function CalendarView() {
   // projection window: future month → all days; current → today onward; past → none
   const projectFrom = monthOffset > 0 ? 1 : monthOffset < 0 ? Infinity : TODAY;
 
+  // Everything is scoped to the active BRAND (workspace); `filter` narrows to one account.
+  const brandAccts = app.brandAccounts || [];
+  const brandSlugs = new Set(brandAccts.map(a => a.id));
+  const inScope = (slug) => brandSlugs.has(slug) && (filter === "all" || slug === filter);
   const statusActive = statFilter !== "all";       // a planner-status filter hides runs/one-offs (they're not plan-pipeline items)
   const platOk = (p) => platFilter === "all" || p === platFilter;
-  const rules = app.rules.filter(r => filter === "all" || r.ch === filter);
-  const oneoffs = app.oneoffs.filter(o => o.ym === ym && (filter === "all" || o.ch === filter));
+  const rules = app.rules.filter(r => inScope(r.ch));
+  const oneoffs = app.oneoffs.filter(o => o.ym === ym && inScope(o.ch));
 
-  // content_plan entries this month, after brand+platform+status filters.
-  const plansMonth = (app.plans || []).filter(p => p.ym === ym
+  // content_plan entries this month for this brand, after account+platform+status filters.
+  const plansMonth = (app.plans || []).filter(p => p.ym === ym && p.brandId === app.brand
     && (filter === "all" || p.ch === filter)
     && platOk(p.platform)
     && (statFilter === "all" || p.status === statFilter));
   // summary ignores the status filter so the breakdown stays meaningful.
-  const plansSummary = (app.plans || []).filter(p => p.ym === ym
+  const plansSummary = (app.plans || []).filter(p => p.ym === ym && p.brandId === app.brand
     && (filter === "all" || p.ch === filter)
     && platOk(p.platform));
 
@@ -106,7 +110,7 @@ export function CalendarView() {
   const runByRuleDay = {};
   app.runs.forEach(r => {
     if (!r.dateWib || !r.dateWib.startsWith(ym)) return;
-    if (filter !== "all" && r.ch !== filter) return;
+    if (!inScope(r.ch)) return;
     const day = parseInt(r.dateWib.slice(8, 10), 10);
     const time = (r.actual !== "—" ? r.actual : r.sched).split(", ")[1] || "";
     runByRuleDay[`${r.ruleId}|${day}`] = { status: r.status, time, ch: r.ch, rule: r.rule, ruleId: r.ruleId };
@@ -146,9 +150,9 @@ export function CalendarView() {
     else if (it.kind === "oneoff") app.go("composer", { ch: it.ch, postId: it.id });
     else app.go("rules");
   };
-  const createForDay = (day) => app.go("contentEditor", { ch: filter === "all" ? app.channel : filter, date: `${ym}-${pad2(day)}` });
+  const createForDay = (day) => app.go("contentEditor", { brand: app.brand, date: `${ym}-${pad2(day)}` });
 
-  const brandOpts = [{ value: "all", label: "Semua akun" }, ...app.channels.map(c => ({ value: c.id, label: brandFor(c.id, app.channels).name }))];
+  const brandOpts = [{ value: "all", label: "Semua akun" }, ...brandAccts.map(a => ({ value: a.id, label: `${platMeta(a.platform).label} · ${a.handle}` }))];
   const platOpts = [{ value: "all", label: "Semua platform" }, ...Object.entries(PLATFORM).map(([v, m]) => ({ value: v, label: m.label }))];
   const statOpts = [{ value: "all", label: "Semua status" }, ...PLAN_ORDER.map(s => ({ value: s, label: PLAN_LABEL[s] }))];
 
@@ -314,15 +318,15 @@ export function CalendarView() {
   const summaryRail = (
     <SummaryRail compact={app.isMobile} monthLabel={MONTH} total={plansSummary.length} byStatus={byStatus} byPlatform={byPlatform}
       statFilter={statFilter} onPickStatus={(s) => setStatFilter(cur => cur === s ? "all" : s)} onClear={() => { setStatFilter("all"); setPlatFilter("all"); }}
-      onCreate={() => app.go("contentEditor", { ch: filter === "all" ? app.channel : filter })} />
+      onCreate={() => app.go("contentEditor", { brand: app.brand })} />
   );
 
   return (
     <div style={app.isMobile ? undefined : { height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
-      <Topbar title="Kalender" sub="Rencana konten, jadwal otomatis & postingan · waktu WIB"
+      <Topbar title="Kalender" sub={`${app.activeBrand?.name || "Semua"} · rencana, jadwal otomatis & postingan · WIB`}
         right={<div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           {!app.isMobile && <Segmented options={[{ value: "month", label: "Bulan" }, { value: "week", label: "Minggu" }]} value={mode} onChange={setMode} />}
-          <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("contentEditor", { ch: filter === "all" ? app.channel : filter })}>Buat konten</Button>
+          <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("contentEditor", { brand: app.brand })}>Buat konten</Button>
           <Button variant="secondary" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("composer", { ch: filter === "all" ? app.channel : filter })}>Buat postingan</Button>
         </div>} />
 

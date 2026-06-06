@@ -2,9 +2,17 @@
 import React from "react";
 import { Icons } from "./icons";
 import { useApp } from "./store";
-import { BRANDS, BrandAvatar, Avatar, statusLabel } from "./ui";
+import { BrandAvatar, Avatar } from "./ui";
 const { useState: uSh } = React;
 const FS = "var(--font)";
+
+// platform label + accent (small local copy to avoid a circular import with views)
+const PLAT = {
+  instagram: { l: "Instagram", c: "#C2387E" }, tiktok: { l: "TikTok", c: "#3B3B3F" },
+  youtube: { l: "YouTube", c: "#E0322B" }, linkedin: { l: "LinkedIn", c: "#1467B0" },
+  twitter: { l: "X", c: "#3A3A3C" }, threads: { l: "Threads", c: "#5A5A5E" }, facebook: { l: "Facebook", c: "#1877F2" },
+};
+const brandAv = (name) => ({ name: name || "—", short: (name || "?").slice(0, 2).toUpperCase(), grad: "var(--primary-grad)" });
 
 const NAV = [
   { id: "rules", label: "Jadwal Otomatis", icon: "rules" },
@@ -22,8 +30,8 @@ const MenuIcon = ({ size = 22 }) => (
 export function Sidebar({ mobile, open, onClose }) {
   const app = useApp();
   const [swOpen, setSwOpen] = uSh(false);
-  const ch = app.channels.find(c => c.id === app.channel) || app.channels[0];
-  const active = BRANDS[ch?.brand] || { name: ch?.name || "—", accent: "var(--ink-500)", soft: "var(--line)" };
+  const brandObj = app.activeBrand || { name: app.brands?.[0]?.name || "—", accounts: app.brandAccounts || [] };
+  const accounts = app.brandAccounts || [];
 
   const asideStyle = mobile ? {
     position: "fixed", top: 0, left: 0, height: "100%", width: 280, maxWidth: "85vw",
@@ -49,43 +57,69 @@ export function Sidebar({ mobile, open, onClose }) {
         {mobile && <button onClick={onClose} aria-label="Tutup menu" style={{ marginLeft: "auto", width: 34, height: 34, borderRadius: 10, border: "none", background: "rgba(140,144,158,.12)", color: "var(--ink-500)", display: "grid", placeItems: "center", cursor: "pointer" }}><Icons.x size={18} /></button>}
       </div>
 
-      {/* channel switcher */}
-      <div style={{ position: "relative", marginBottom: 20 }}>
-        <button onClick={() => setSwOpen(o => !o)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 11,
-          padding: "9px 11px", background: "#fff", border: "1px solid var(--line)", borderRadius: 14, cursor: "pointer",
-          boxShadow: "var(--shadow-sm)" }}>
-          <BrandAvatar brand={active} src={ch?.avatarUrl} size={32} />
-          <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
-            <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{active.name}</div>
-            <div style={{ fontFamily: FS, fontSize: 10.5, color: "var(--ink-400)" }}>{ch?.handle}</div>
-          </div>
-          <Icons.chevDown size={16} style={{ color: "var(--ink-400)", transform: swOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
-        </button>
-        {swOpen && (
-          <>
-            <div onClick={() => setSwOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
-            <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, background: "#fff",
-              borderRadius: 16, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 6, animation: "scPop .15s" }}>
-              <div style={{ fontFamily: FS, fontSize: 10, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-400)", padding: "8px 10px 6px" }}>GANTI AKUN</div>
-              {app.channels.map(c => {
-                const b = BRANDS[c.brand] || { name: c.name, accent: "var(--ink-500)", soft: "var(--line)" }, on = c.id === app.channel;
-                const dot = c.status === "Connected" ? "var(--st-success)" : c.status === "Expiring" ? "var(--st-publishing)" : "var(--st-failed)";
-                return (
-                  <button key={c.id} onClick={() => { app.setChannel(c.id); setSwOpen(false); onClose && onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 11,
-                    padding: "9px 10px", border: "none", background: on ? "var(--primary-100)" : "transparent", borderRadius: 11, cursor: "pointer", marginBottom: 2 }}>
-                    <BrandAvatar brand={b} src={c.avatarUrl} size={30} />
-                    <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
-                      <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 12.5, color: "var(--ink-900)" }}>{b.name}</div>
-                      <div style={{ fontFamily: FS, fontSize: 10, color: "var(--ink-400)", display: "flex", alignItems: "center", gap: 5 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot }} />{statusLabel(c.status)}{c.paused ? " · dijeda" : ""}
-                      </div>
-                    </div>
-                    {on && <Icons.check size={16} style={{ color: "var(--primary-500)" }} />}
-                  </button>
-                );
-              })}
+      {/* brand switcher + account chips */}
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ position: "relative" }}>
+          <button onClick={() => setSwOpen(o => !o)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 11,
+            padding: "9px 11px", background: "#fff", border: "1px solid var(--line)", borderRadius: 14, cursor: "pointer", boxShadow: "var(--shadow-sm)" }}>
+            <BrandAvatar brand={brandAv(brandObj.name)} size={32} />
+            <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+              <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{brandObj.name}</div>
+              <div style={{ fontFamily: FS, fontSize: 10.5, color: "var(--ink-400)" }}>{accounts.length} akun sosial media</div>
             </div>
-          </>
+            <Icons.chevDown size={16} style={{ color: "var(--ink-400)", transform: swOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
+          </button>
+          {swOpen && (
+            <>
+              <div onClick={() => setSwOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+              <div className="sc-scroll" style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, background: "#fff",
+                borderRadius: 16, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 6, animation: "scPop .15s", maxHeight: 380, overflowY: "auto" }}>
+                <div style={{ fontFamily: FS, fontSize: 10, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-400)", padding: "8px 10px 6px" }}>GANTI BRAND</div>
+                {app.brands.map(br => {
+                  const on = br.id === app.brand;
+                  return (
+                    <button key={br.id} onClick={() => { app.selectBrand(br.id); setSwOpen(false); onClose && onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 11,
+                      padding: "9px 10px", border: "none", background: on ? "var(--primary-100)" : "transparent", borderRadius: 11, cursor: "pointer", marginBottom: 2 }}>
+                      <BrandAvatar brand={brandAv(br.name)} size={30} />
+                      <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+                        <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 12.5, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{br.name}</div>
+                        <div style={{ fontFamily: FS, fontSize: 10, color: "var(--ink-400)", display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
+                          {(br.accounts || []).slice(0, 6).map(a => <span key={a.id} title={PLAT[a.platform]?.l} style={{ width: 7, height: 7, borderRadius: 2, background: PLAT[a.platform]?.c || "var(--ink-400)" }} />)}
+                          <span style={{ marginLeft: 2 }}>{(br.accounts || []).length} akun</span>
+                        </div>
+                      </div>
+                      {on && <Icons.check size={16} style={{ color: "var(--primary-500)" }} />}
+                    </button>
+                  );
+                })}
+                <div style={{ borderTop: "1px solid var(--line-soft)", marginTop: 4, paddingTop: 4 }}>
+                  <button onClick={() => { setSwOpen(false); app.go("connections"); onClose && onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", border: "none", background: "transparent", borderRadius: 11, cursor: "pointer", color: "var(--ink-500)", fontFamily: FS, fontSize: 12.5, fontWeight: 600 }}>
+                    <Icons.settings size={15} /> Kelola brand & akun
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* account chips for the active brand (pick which social media you're working in) */}
+        {accounts.length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+            {accounts.map(a => {
+              const on = a.id === app.channel;
+              const dot = a.status === "Connected" ? "var(--st-success)" : a.status === "Expiring" ? "var(--st-publishing)" : "var(--st-failed)";
+              return (
+                <button key={a.id} onClick={() => { app.setChannel(a.id); onClose && onClose(); }} title={`${PLAT[a.platform]?.l || a.platform} · ${a.handle}${a.paused ? " · dijeda" : ""}`}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 9px", border: `1px solid ${on ? "var(--primary-300)" : "var(--line)"}`, background: on ? "var(--primary-100)" : "#fff", borderRadius: 999, cursor: "pointer", maxWidth: "100%", boxShadow: on ? "none" : "var(--shadow-sm)" }}>
+                  <span style={{ width: 7, height: 7, borderRadius: 2, background: PLAT[a.platform]?.c || "var(--ink-400)", flex: "0 0 auto" }} />
+                  <span style={{ fontFamily: FS, fontSize: 11, fontWeight: on ? 600 : 500, color: "var(--ink-800)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 110 }}>{a.handle}</span>
+                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: dot, flex: "0 0 auto" }} />
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <button onClick={() => { app.go("connections"); onClose && onClose(); }} style={{ marginTop: 8, width: "100%", padding: "8px 10px", border: "1px dashed var(--line)", background: "transparent", borderRadius: 11, cursor: "pointer", fontFamily: FS, fontSize: 11.5, color: "var(--ink-400)" }}>+ Tambah akun ke brand ini</button>
         )}
       </div>
 
