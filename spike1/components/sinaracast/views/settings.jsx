@@ -3,7 +3,7 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { Panel, Button, Toggle, Field, Input, Progress, SectionTitle, Avatar } from "../ui";
+import { Panel, Button, Toggle, Field, Input, Progress, SectionTitle, Avatar, DateField, Slider } from "../ui";
 const FSe = "var(--font)";
 
 function Row({ title, body, children }) {
@@ -41,7 +41,7 @@ export function SettingsView() {
             {s.pauseAll && (
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(149,121,196,.25)" }}>
                 <Field label="Lanjut otomatis pada tanggal (boleh dikosongkan)">
-                  <Input type="date" value={s.resumeDate} onChange={e => set({ resumeDate: e.target.value })} />
+                  <DateField value={s.resumeDate} onChange={v => set({ resumeDate: v })} />
                 </Field>
               </div>
             )}
@@ -73,11 +73,10 @@ export function SettingsView() {
                 <span style={{ fontFamily: FSe, fontSize: 12.5, fontWeight: 500, color: "var(--ink-700)" }}>WIB (UTC+7)</span>
               </Row>
               <Row title={`Toleransi telat — ${s.defaultGrace} menit`} body="Berapa lama postingan masih boleh telat sebelum dianggap terlewat.">
-                <input type="range" min={10} max={60} step={5} value={s.defaultGrace}
-                  onChange={e => set({ defaultGrace: +e.target.value })}
-                  onMouseUp={e => app.saveSettings({ defaultGrace: +e.target.value })}
-                  onTouchEnd={e => app.saveSettings({ defaultGrace: +e.target.value })}
-                  style={{ width: 160, accentColor: "var(--green-500)" }} />
+                <Slider min={10} max={60} step={5} value={s.defaultGrace}
+                  onChange={v => set({ defaultGrace: v })}
+                  onCommit={v => app.saveSettings({ defaultGrace: v })}
+                  style={{ width: 160 }} />
               </Row>
             </div>
           </Panel>

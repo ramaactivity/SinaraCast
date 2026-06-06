@@ -321,6 +321,119 @@ export function TimeField({ value, onChange, style }) {
   );
 }
 
+/* ---------------- Date field (custom calendar, no native picker) ---------------- */
+const MON_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const MONFULL_ID = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+const DOW_ID = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+const ymd = (y, m, d) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
+const fmtDateID = (s) => { if (!s) return ""; const [y, m, d] = s.split("-").map(Number); return `${d} ${MON_ID[m - 1]} ${y}`; };
+const todayID = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); return ymd(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
+
+export function DateField({ value, onChange, min, style }) {
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef(null);
+  const today = todayID();
+  const baseStr = value || today;
+  const [vm, setVm] = useState(() => { const [y, m] = baseStr.split("-").map(Number); return { y, m: m - 1 }; });
+  const openIt = () => { const [y, m] = (value || today).split("-").map(Number); setVm({ y, m: m - 1 }); setOpen(true); };
+  const days = new Date(Date.UTC(vm.y, vm.m + 1, 0)).getUTCDate();
+  const lead = (new Date(Date.UTC(vm.y, vm.m, 1)).getUTCDay() + 6) % 7;
+  const cells = []; for (let i = 0; i < lead; i++) cells.push(null); for (let d = 1; d <= days; d++) cells.push(d);
+  const shift = (n) => setVm((s) => { const dt = new Date(Date.UTC(s.y, s.m + n, 1)); return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() }; });
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button type="button" onClick={() => (open ? setOpen(false) : openIt())} style={{
+        ...inputBase, paddingLeft: 42, paddingRight: 14, display: "flex", alignItems: "center", cursor: "pointer", textAlign: "left",
+        borderColor: open ? "var(--primary-500)" : "var(--line)", boxShadow: open ? "0 0 0 3px rgba(255,159,67,.16)" : "var(--shadow-sm)", ...style,
+      }}>
+        <span style={{ position: "absolute", left: 14, color: "var(--primary-500)", display: "flex" }}><Icons.calendar size={18} /></span>
+        <span style={{ flex: 1, color: value ? "var(--ink-900)" : "var(--ink-400)" }}>{value ? fmtDateID(value) : "Pilih tanggal"}</span>
+      </button>
+      <Floating anchorRef={ref} open={open} onClose={() => setOpen(false)} width={290} estHeight={320}>
+        <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 16, boxShadow: "var(--shadow-lg)", padding: 12, width: 290 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <button type="button" onClick={() => shift(-1)} style={navBtn}><Icons.chevLeft size={17} /></button>
+            <span style={{ fontFamily: F, fontWeight: 700, fontSize: 13.5, color: "var(--ink-900)" }}>{MONFULL_ID[vm.m]} {vm.y}</span>
+            <button type="button" onClick={() => shift(1)} style={navBtn}><Icons.chevRight size={17} /></button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
+            {DOW_ID.map((d) => <div key={d} style={{ textAlign: "center", fontFamily: F, fontSize: 10, fontWeight: 700, color: "var(--ink-300)", padding: "2px 0 6px" }}>{d}</div>)}
+            {cells.map((d, i) => {
+              if (d == null) return <div key={"e" + i} />;
+              const s = ymd(vm.y, vm.m, d);
+              const on = s === value, isToday = s === today, disabled = min && s < min;
+              return (
+                <button key={d} type="button" disabled={disabled} onClick={() => { onChange && onChange(s); setOpen(false); }}
+                  style={{ height: 34, borderRadius: 9, border: "none", cursor: disabled ? "not-allowed" : "pointer", fontFamily: F, fontSize: 13,
+                    fontWeight: on ? 700 : 500, fontVariantNumeric: "tabular-nums", opacity: disabled ? 0.32 : 1,
+                    background: on ? "var(--primary-500)" : "transparent", color: on ? "#fff" : isToday ? "var(--primary-600,#b8338a)" : "var(--ink-700)",
+                    boxShadow: isToday && !on ? "inset 0 0 0 1.5px var(--primary-200)" : "none", transition: "background .12s" }}
+                  onMouseEnter={(e) => { if (!on && !disabled) e.currentTarget.style.background = "var(--line-soft)"; }}
+                  onMouseLeave={(e) => { if (!on) e.currentTarget.style.background = "transparent"; }}>{d}</button>
+              );
+            })}
+          </div>
+        </div>
+      </Floating>
+    </div>
+  );
+}
+const navBtn = { width: 30, height: 30, borderRadius: 9, border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-500)", display: "grid", placeItems: "center" };
+
+/* ---------------- Checkbox (custom) ---------------- */
+export function Checkbox({ checked, onChange, disabled, size = 18 }) {
+  return (
+    <button type="button" role="checkbox" aria-checked={!!checked} disabled={disabled}
+      onClick={(e) => { e.stopPropagation(); if (!disabled && onChange) onChange(!checked); }}
+      style={{ width: size, height: size, flex: "0 0 auto", borderRadius: 6, padding: 0, cursor: disabled ? "not-allowed" : "pointer",
+        border: `1.5px solid ${checked ? "var(--primary-500)" : "var(--line)"}`, background: checked ? "var(--primary-grad)" : "#fff",
+        color: "#fff", display: "grid", placeItems: "center", boxShadow: checked ? "var(--shadow-primary)" : "var(--shadow-sm)", transition: "background .15s, border-color .15s" }}>
+      {checked && <Icons.check size={size - 6} sw={3} />}
+    </button>
+  );
+}
+
+/* ---------------- Slider (custom range, pointer-drag) ---------------- */
+export function Slider({ value, onChange, onCommit, min = 0, max = 100, step = 1, tone = "green", style }) {
+  const ref = React.useRef(null);
+  const last = React.useRef(value);
+  const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+  const grad = tone === "amber" ? "var(--primary-grad)" : "var(--green-grad)";
+  const accent = tone === "amber" ? "var(--primary-500)" : "var(--green-500)";
+  const setFrom = (clientX) => {
+    const r = ref.current?.getBoundingClientRect(); if (!r) return;
+    let p = (clientX - r.left) / r.width; p = Math.max(0, Math.min(1, p));
+    let v = Math.max(min, Math.min(max, Math.round((min + p * (max - min)) / step) * step));
+    last.current = v; onChange && onChange(v);
+  };
+  const onDown = (e) => {
+    e.preventDefault(); setFrom(e.clientX);
+    const move = (ev) => setFrom(ev.clientX);
+    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); onCommit && onCommit(last.current); };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+  };
+  return (
+    <div ref={ref} onPointerDown={onDown} style={{ position: "relative", height: 26, display: "flex", alignItems: "center", cursor: "pointer", touchAction: "none", ...style }}>
+      <div style={{ position: "absolute", left: 0, right: 0, height: 7, borderRadius: 999, background: "rgba(140,144,158,.18)" }} />
+      <div style={{ position: "absolute", left: 0, width: `${pct}%`, height: 7, borderRadius: 999, background: grad }} />
+      <div style={{ position: "absolute", left: `${pct}%`, transform: "translateX(-50%)", width: 18, height: 18, borderRadius: "50%", background: "#fff", border: `2px solid ${accent}`, boxShadow: "var(--shadow-sm)" }} />
+    </div>
+  );
+}
+
+/* ---------------- Number stepper (custom, no native spinner) ---------------- */
+export function NumberField({ value, onChange, min = 0, max = 9999, step = 1, suffix, style }) {
+  const clamp = (v) => Math.max(min, Math.min(max, v));
+  const btn = (disabled) => ({ width: 40, height: 44, flex: "0 0 auto", borderRadius: 11, border: "1px solid var(--line)", background: "#fff", cursor: disabled ? "not-allowed" : "pointer", color: disabled ? "var(--ink-300)" : "var(--ink-700)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)" });
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 8, ...style }}>
+      <button type="button" disabled={value <= min} onClick={() => onChange(clamp(value - step))} style={btn(value <= min)}><span style={{ fontSize: 20, fontWeight: 600, lineHeight: 1, marginTop: -2 }}>−</span></button>
+      <div style={{ minWidth: 58, height: 44, borderRadius: 12, border: "1px solid var(--line)", background: "#fff", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center", fontFamily: F, fontSize: 15, fontWeight: 600, color: "var(--ink-900)", fontVariantNumeric: "tabular-nums", padding: "0 12px" }}>{value}{suffix ? <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-400)", marginLeft: 3 }}>{suffix}</span> : null}</div>
+      <button type="button" disabled={value >= max} onClick={() => onChange(clamp(value + step))} style={btn(value >= max)}><span style={{ fontSize: 20, fontWeight: 600, lineHeight: 1, marginTop: -2 }}>+</span></button>
+    </div>
+  );
+}
+
 /* ---------------- Segmented control / Tabs ---------------- */
 export function Segmented({ options, value, onChange, full }) {
   return (

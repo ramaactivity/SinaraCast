@@ -4,7 +4,7 @@ import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { loadContentPlan, createContentPlan, updateContentPlan, deleteContentPlan, linkPlanToRule, unlinkPlan, adaptContentPlan } from "../dataLayer";
-import { BrandAvatar, Panel, Button, Field, Input, Textarea, Select, Segmented, TimeField, SectionTitle, Spinner, PlatIcon } from "../ui";
+import { BrandAvatar, Panel, Button, Field, Input, Textarea, Select, Segmented, TimeField, DateField, SectionTitle, Spinner, PlatIcon } from "../ui";
 const { useState: uCE, useEffect } = React;
 const FCE = "var(--font)";
 
@@ -234,7 +234,7 @@ export function ContentEditorView() {
               <Field label="Platform">
                 <Select value={platform} onChange={setPlatform} options={PLATFORM_OPTS} />
               </Field>
-              <Field label="Tanggal tayang"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+              <Field label="Tanggal tayang"><DateField value={date} onChange={setDate} /></Field>
               <Field label="Jam (opsional, WIB)"><TimeField value={time || "09:00"} onChange={setTime} /></Field>
             </div>
             <Field label="Judul / headline" style={{ marginTop: 14 }}>

@@ -4,7 +4,7 @@ import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { uploadPoolImage, uploadReelVideo, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost, loadContentPlan, linkPlanToOneoff } from "../dataLayer";
-import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, Segmented, MediaThumb, SectionTitle, Spinner, Chip, Input, Select, Status } from "../ui";
+import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, DateField, Checkbox, Segmented, MediaThumb, SectionTitle, Spinner, Chip, Input, Select, Status } from "../ui";
 import { Lightbox } from "../lightbox";
 const { useState: uCo, useRef, useEffect } = React;
 const FCo = "var(--font)";
@@ -409,7 +409,7 @@ export function ComposerView() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel strong>
             <SectionTitle sub="Waktu WIB">Kapan terbit</SectionTitle>
-            <Field label="Tanggal"><Input type="date" value={date} min={todayWib()} onChange={e => setDate(e.target.value)} /></Field>
+            <Field label="Tanggal"><DateField value={date} min={todayWib()} onChange={setDate} /></Field>
             <Field label="Jam" style={{ marginTop: 14 }}><TimeField value={time} onChange={setTime} /></Field>
             <div style={{ display: "flex", gap: 9, marginTop: 14, background: "var(--green-100)", borderRadius: 11, padding: "10px 12px" }}>
               <Icons.info size={15} style={{ color: "var(--green-500)", flex: "0 0 auto", marginTop: 1 }} />
@@ -470,13 +470,13 @@ const TT_PRIVACY_LABEL = { SELF_ONLY: "Hanya saya (privat)", MUTUAL_FOLLOW_FRIEN
 
 function Check({ label, hint, checked, onChange, disabled }) {
   return (
-    <label style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "7px 2px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>
-      <input type="checkbox" checked={!!checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} style={{ marginTop: 1, width: 16, height: 16, accentColor: "#111", flex: "0 0 auto" }} />
+    <div onClick={() => !disabled && onChange(!checked)} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "7px 2px", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>
+      <div style={{ marginTop: 1 }}><Checkbox checked={!!checked} disabled={disabled} onChange={onChange} size={18} /></div>
       <span style={{ minWidth: 0 }}>
         <span style={{ fontFamily: FCo, fontSize: 13, color: "var(--ink-800)" }}>{label}</span>
         {hint && <span style={{ display: "block", fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2, lineHeight: 1.4 }}>{hint}</span>}
       </span>
-    </label>
+    </div>
   );
 }
 

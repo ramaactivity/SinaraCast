@@ -5,7 +5,7 @@ import { useApp } from "../store";
 import { Topbar } from "../shell";
 import {
   BRANDS, BrandAvatar, Panel, Button, Field, Input, Select, TimeField,
-  Segmented, EmptyState, Chip, SectionTitle, Banner, Spinner,
+  Segmented, EmptyState, Chip, SectionTitle, Banner, Spinner, Slider, NumberField,
 } from "../ui";
 import {
   uploadPoolImage, uploadReelVideo, createRuleWithPools, updateRuleFields, loadRuleDetail, addPoolImageRow, removePoolImageRow,
@@ -285,7 +285,7 @@ export function EditorView() {
             <Field label="Seberapa sering">
               <Select options={CADENCE} value={cadence} onChange={setCadence} />
             </Field>
-            {cadence === "everyN" && <Field label="Setiap berapa hari" style={{ marginTop: 12 }}><Input type="number" min={2} value={everyN} onChange={(e) => setEveryN(+e.target.value)} /></Field>}
+            {cadence === "everyN" && <Field label="Setiap berapa hari" style={{ marginTop: 12 }}><NumberField min={2} max={30} value={everyN} onChange={setEveryN} suffix="hari" /></Field>}
             {cadence === "weekdays" && (
               <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
                 {WD.map((d, i) => (
@@ -306,7 +306,7 @@ export function EditorView() {
               )}
             </div>
             <Field label={`Toleransi telat — ${grace} menit`} hint="Berapa lama masih boleh telat sebelum dianggap terlewat." style={{ marginTop: 14 }}>
-              <input type="range" min={10} max={60} step={5} value={grace} onChange={(e) => setGrace(+e.target.value)} style={{ width: "100%", accentColor: "var(--green-500)" }} />
+              <Slider min={10} max={60} step={5} value={grace} onChange={setGrace} style={{ width: "100%" }} />
             </Field>
             {clashRule && <div style={{ display: "flex", gap: 9, marginTop: 14, background: "var(--st-publishing-bg)", borderRadius: 11, padding: "10px 12px" }}>
               <Icons.warn size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
