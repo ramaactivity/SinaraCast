@@ -52,35 +52,37 @@ export function ConnectionsView() {
     onConfirm: async () => { try { await deleteBrand(br.id); await app.reload(); app.toast("Brand dihapus", "success"); } catch (e) { app.toast("Gagal: " + (e.message || e), "error"); } },
   });
 
-  const AccountCard = ({ c }) => {
+  // One account, rendered as a row inside its brand's panel.
+  const AccountRow = ({ c }) => {
     const b = acctStyle(c);
+    const isTT = c.platform === "tiktok";
     return (
-      <Panel pad={18}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
-          <BrandAvatar brand={b} src={c.avatarUrl} size={44} />
+      <div style={{ borderTop: "1px solid var(--line-soft)", padding: app.isMobile ? "12px 14px" : "13px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
+          <BrandAvatar brand={b} src={c.avatarUrl} size={38} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-              <span style={{ fontFamily: FC, fontWeight: 600, fontSize: 15, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{c.handle}</span>
-              <span style={{ flex: "0 0 auto", fontFamily: FC, fontSize: 10, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", padding: "2px 7px", borderRadius: 6, color: c.platform === "tiktok" ? "#fff" : "#b8338a", background: c.platform === "tiktok" ? "#111" : "#fbe6f3" }}>{PLAT[c.platform]?.l || c.platform}</span>
+              <span style={{ fontFamily: FC, fontWeight: 600, fontSize: 14.5, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{c.handle}</span>
+              <span style={{ flex: "0 0 auto", fontFamily: FC, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", padding: "2px 7px", borderRadius: 6, color: isTT ? "#fff" : "#b8338a", background: isTT ? "#111" : "#fbe6f3" }}>{PLAT[c.platform]?.l || c.platform}</span>
               <span style={{ flex: "0 0 auto" }}><Status s={c.paused ? "Paused" : c.status} pulse={c.status === "Needs reconnect"} /></span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 5, fontFamily: FC, fontSize: 12, color: "var(--ink-500)", flexWrap: "wrap", rowGap: 3 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 4, fontFamily: FC, fontSize: 11.5, color: "var(--ink-400)", flexWrap: "wrap", rowGap: 2 }}>
               <span>{c.followers} pengikut</span><span style={{ color: "var(--ink-300)" }}>·</span><span>Aktif s/d {c.tokenExpires}</span>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flex: "0 0 auto", marginLeft: app.isMobile ? 0 : "auto", marginTop: app.isMobile ? 4 : 0, width: app.isMobile ? "100%" : "auto", justifyContent: app.isMobile ? "flex-start" : "flex-end" }}>
+          <div style={{ display: "flex", gap: 5, alignItems: "center", flex: "0 0 auto", marginLeft: app.isMobile ? 0 : "auto", marginTop: app.isMobile ? 6 : 0, width: app.isMobile ? "100%" : "auto", justifyContent: app.isMobile ? "flex-start" : "flex-end" }}>
             {c.status === "Needs reconnect" || c.status === "Expiring"
               ? <Button size="sm" variant={c.status === "Needs reconnect" ? "danger" : "secondary"} icon={<Icons.retry size={15} />} onClick={() => reconnect(c)}>Sambungkan ulang</Button>
               : <Button size="sm" variant={c.paused ? "primary" : "secondary"} icon={c.paused ? <Icons.play size={15} /> : <Icons.pause size={15} />} onClick={() => app.toggleChannelPause(c, nameOf(c))}>{c.paused ? "Lanjutkan" : "Jeda"}</Button>}
-            <IconButton icon={<Icons.swap size={17} />} tip="Pindahkan ke brand lain" onClick={() => setMoveAcct(c)} />
-            <IconButton icon={<Icons.edit size={17} />} tip="Ubah nama akun" onClick={() => setEditAcct(c)} />
-            <IconButton icon={<Icons.trash size={17} />} tone="danger" tip="Hapus akun" onClick={() => app.confirm({
+            <IconButton size={34} icon={<Icons.swap size={16} />} tip="Pindahkan ke brand lain" onClick={() => setMoveAcct(c)} />
+            <IconButton size={34} icon={<Icons.edit size={16} />} tip="Ubah nama akun" onClick={() => setEditAcct(c)} />
+            <IconButton size={34} icon={<Icons.trash size={16} />} tone="danger" tip="Hapus akun" onClick={() => app.confirm({
               title: `Hapus ${c.handle}?`, danger: true, confirmLabel: "Hapus akun", body: "Akun ini diputus dari SinaraCast.",
               consequence: "Jadwal & postingannya berhenti. Akun disembunyikan, bukan dihapus permanen.", onConfirm: () => app.archiveChannel(c) })} />
           </div>
         </div>
-        {c.status === "Needs reconnect" && <div style={{ marginTop: 13, background: "var(--danger-bg)", borderRadius: 11, padding: "10px 13px", fontFamily: FC, fontSize: 12, color: "var(--danger)", display: "flex", gap: 8 }}><Icons.alert size={16} style={{ flex: "0 0 auto" }} />Koneksi ke {PLAT[c.platform]?.l || c.platform} putus. Posting dihentikan sampai disambungkan kembali.</div>}
-      </Panel>
+        {c.status === "Needs reconnect" && <div style={{ marginTop: 11, background: "var(--danger-bg)", borderRadius: 11, padding: "9px 12px", fontFamily: FC, fontSize: 11.5, color: "var(--danger)", display: "flex", gap: 8 }}><Icons.alert size={15} style={{ flex: "0 0 auto" }} />Koneksi ke {PLAT[c.platform]?.l || c.platform} putus. Posting dihentikan sampai disambungkan kembali.</div>}
+      </div>
     );
   };
 
@@ -94,7 +96,7 @@ export function ConnectionsView() {
         </div>} />
 
       <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr" : "minmax(0,1fr) 340px", gap: 18, alignItems: "start" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {phase === "loading" && [0, 1, 2].map(i => <Panel key={i}><div style={{ display: "flex", gap: 14, alignItems: "center" }}><Skeleton w={48} h={48} r={13} /><div style={{ flex: 1 }}><Skeleton w="35%" h={16} /><div style={{ height: 8 }} /><Skeleton w="55%" h={12} /></div></div></Panel>)}
 
           {phase === "ready" && channels.length === 0 && brands.length === 0 && (
@@ -111,24 +113,24 @@ export function ConnectionsView() {
             </Panel>
           )}
 
-          {/* brand workspaces — each brand groups its social accounts */}
+          {/* brand workspaces — one panel per brand, its social accounts as rows inside */}
           {phase === "ready" && brands.map(br => (
-            <div key={br.id}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, padding: "0 2px" }}>
-                <BrandAvatar brand={brandAv(br.name)} size={28} />
-                <span style={{ fontFamily: FC, fontWeight: 700, fontSize: 15, color: "var(--ink-900)" }}>{br.name}</span>
-                <span style={{ fontFamily: FC, fontSize: 11, fontWeight: 600, color: "var(--ink-500)", background: "rgba(140,144,158,.13)", padding: "2px 9px", borderRadius: 999 }}>{br.accounts.length} akun</span>
-                {br.id === app.brand && <span style={{ fontFamily: FC, fontSize: 10.5, fontWeight: 600, color: "var(--primary-500)", background: "var(--primary-100)", padding: "2px 8px", borderRadius: 999 }}>aktif</span>}
+            <Panel key={br.id} pad={0}>
+              <div style={{ display: "flex", alignItems: "center", gap: 11, padding: app.isMobile ? "14px 14px" : "15px 18px" }}>
+                <BrandAvatar brand={brandAv(br.name)} size={32} />
+                <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", rowGap: 4 }}>
+                  <span style={{ fontFamily: FC, fontWeight: 700, fontSize: 15.5, color: "var(--ink-900)", letterSpacing: "-.01em" }}>{br.name}</span>
+                  <span style={{ fontFamily: FC, fontSize: 11, fontWeight: 600, color: "var(--ink-500)", background: "rgba(140,144,158,.13)", padding: "2px 9px", borderRadius: 999 }}>{br.accounts.length} akun</span>
+                  {br.id === app.brand && <span style={{ fontFamily: FC, fontSize: 10.5, fontWeight: 600, color: "var(--primary-600, #b8338a)", background: "var(--primary-100)", padding: "2px 8px", borderRadius: 999 }}>aktif</span>}
+                </div>
                 <span style={{ flex: 1 }} />
                 <IconButton size={32} icon={<Icons.edit size={16} />} tip="Ubah nama brand" onClick={() => setNameModal({ mode: "rename", brand: br })} />
                 <IconButton size={32} icon={<Icons.trash size={16} />} tone="danger" tip="Hapus brand" onClick={() => removeBrand(br)} />
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {br.accounts.length === 0
-                  ? <Panel pad={16}><div style={{ fontFamily: FC, fontSize: 12.5, color: "var(--ink-400)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>Belum ada akun di brand ini.<Button size="sm" variant="secondary" icon={<Icons.plus size={14} />} onClick={() => app.connectChannel()}>Tambah Instagram</Button><Button size="sm" variant="secondary" icon={<Icons.plus size={14} />} onClick={() => app.connectTikTokChannel()}>TikTok</Button></div></Panel>
-                  : br.accounts.map(c => <AccountCard key={c.id} c={c} />)}
-              </div>
-            </div>
+              {br.accounts.length === 0
+                ? <div style={{ borderTop: "1px solid var(--line-soft)", padding: "14px 18px", fontFamily: FC, fontSize: 12.5, color: "var(--ink-400)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>Belum ada akun di brand ini.<Button size="sm" variant="secondary" icon={<Icons.plus size={14} />} onClick={() => app.connectChannel()}>Tambah Instagram</Button><Button size="sm" variant="secondary" icon={<Icons.plus size={14} />} onClick={() => app.connectTikTokChannel()}>TikTok</Button></div>
+                : br.accounts.map(c => <AccountRow key={c.id} c={c} />)}
+            </Panel>
           ))}
         </div>
 

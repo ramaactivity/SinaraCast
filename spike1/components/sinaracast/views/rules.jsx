@@ -44,11 +44,10 @@ export function RulesView() {
   const week = last7.map(key => chRuns.filter(r => r.dateWib === key && r.status === "Published").length);
   const pubWeek = week.reduce((a, n) => a + n, 0);
 
-  const right = (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("editor", { ch: app.channel, mode: "schedule", isNew: true })}>Buat jadwal</Button>
-    </div>
-  );
+  const isTikTok = ch.platform === "tiktok";
+  const right = isTikTok
+    ? <Button variant="secondary" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("composer", { ch: app.channel })}>Buat postingan TikTok</Button>
+    : <Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("editor", { ch: app.channel, mode: "schedule", isNew: true })}>Buat jadwal</Button>;
 
   return (
     <div>
@@ -83,9 +82,13 @@ export function RulesView() {
           {phase === "loading" && <LoadingRules />}
           {phase === "error" && <ErrorState onRetry={() => app.toast("Memuat ulang…", "info")} />}
           {phase === "ready" && rules.length === 0 && (
-            <Panel pad={0}><EmptyState icon={<Icons.rules size={28} />} title="Belum ada jadwal di akun ini"
-              body={`Buat jadwal otomatis pertama untuk ${b.name}. Masukkan kumpulan gambar, atur waktunya, lalu biarkan terbit sendiri.`}
-              action={<Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("editor", { ch: app.channel, mode: "schedule", isNew: true })}>Buat jadwal</Button>} /></Panel>
+            isTikTok
+              ? <Panel pad={0}><EmptyState icon={<Icons.film size={28} />} title="Jadwal otomatis khusus Instagram"
+                  body={`Jadwal Stories berulang baru tersedia untuk Instagram. Untuk ${b.name} (TikTok), jadwalkan video sekali lewat Buat Postingan.`}
+                  action={<Button variant="amber" icon={<Icons.plus size={16} sw={2} />} onClick={() => app.go("composer", { ch: app.channel })}>Buat postingan TikTok</Button>} /></Panel>
+              : <Panel pad={0}><EmptyState icon={<Icons.rules size={28} />} title="Belum ada jadwal di akun ini"
+                  body={`Buat jadwal otomatis pertama untuk ${b.name}. Masukkan kumpulan gambar, atur waktunya, lalu biarkan terbit sendiri.`}
+                  action={<Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.go("editor", { ch: app.channel, mode: "schedule", isNew: true })}>Buat jadwal</Button>} /></Panel>
           )}
           {phase === "ready" && rules.map(r => (
             <RuleCard key={r.id} r={r} b={b} selected={selRule && selRule.id === r.id} onSelect={() => setSel(r.id)} disabled={ch.status === "Needs reconnect"} />
