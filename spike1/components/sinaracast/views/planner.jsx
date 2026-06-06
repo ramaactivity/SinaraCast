@@ -56,6 +56,8 @@ export function PlannerView() {
   const [q, setQ] = uPl("");
   const [sortDir, setSortDir] = uPl("asc");
   const [mode, setMode] = uPl("table");          // table | lanes
+  // Reset brand-specific filters on brand switch (month options + status differ per brand).
+  React.useEffect(() => { setMonth("all"); setStat("all"); setPlat("all"); setQ(""); }, [app.brand]);
 
   const brandPlans = (app.plans || []).filter(p => p.brandId === brandId);
   const monthsPresent = [...new Set(brandPlans.map(p => p.ym).filter(Boolean))].sort();

@@ -41,6 +41,8 @@ export function RingkasanView() {
   const brand = app.activeBrand;
   const accounts = app.brandAccounts || [];
   const [month, setMonth] = uRk("all");
+  // Reset the month filter on brand switch (month options are per-brand).
+  React.useEffect(() => { setMonth("all"); }, [app.brand]);
 
   const brandPlans = (app.plans || []).filter(p => p.brandId === app.brand);
   const monthsPresent = [...new Set(brandPlans.map(p => p.ym).filter(Boolean))].sort().reverse();

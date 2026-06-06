@@ -71,6 +71,9 @@ export function CalendarView() {
   const [mode, setMode] = uCa("month");            // month | week | list
   const [sel, setSel] = uCa(null);                 // {day, items}
   const [monthOffset, setMonthOffset] = uCa(0);    // 0 = current month
+  // Reset filters when the brand changes — an account/status filter from another
+  // brand is meaningless here and would blank the calendar.
+  React.useEffect(() => { setFilter("all"); setPlatFilter("all"); setStatFilter("all"); }, [app.brand]);
 
   // target month in WIB (shiftable via the prev/next nav)
   const nowWib = new Date(Date.now() + 7 * 3600 * 1000);

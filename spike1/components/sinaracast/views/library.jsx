@@ -63,6 +63,8 @@ export function MediaLibraryView() {
   const [q, setQ] = uLi("");
   const [tag, setTag] = uLi("all");
   const [uploading, setUploading] = uLi(false);
+  // Reset filters when the active account changes (tags differ per account).
+  React.useEffect(() => { setTag("all"); setQ(""); }, [chId]);
   const fileRef = useRef(null);
 
   const all = app.library?.[chId] || [];

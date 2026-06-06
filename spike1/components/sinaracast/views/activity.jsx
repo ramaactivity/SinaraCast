@@ -24,6 +24,8 @@ export function ActivityView() {
   const phase = app.dataLoading ? "loading" : "ready";
   const [filter, setFilter] = uAc("all");
   const [open, setOpen] = uAc(null);
+  // Reset the account filter on brand switch (a stale account id blanks the list).
+  React.useEffect(() => { setFilter("all"); }, [app.brand]);
 
   // scoped to the active brand's accounts
   const brandAccts = app.brandAccounts || [];
