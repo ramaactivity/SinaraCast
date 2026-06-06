@@ -542,15 +542,24 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, body, consequen
 }
 
 /* ---------------- Toast ---------------- */
-export function Toast({ toast }) {
+// Bottom-right, auto-dismissed by the store; click to dismiss early. Icon sits in a
+// tinted chip so the tone reads at a glance without a colored side-stripe.
+export function Toast({ toast, onClose }) {
   if (!toast) return null;
-  const tones = { success: ["var(--green-500)", <Icons.checkCircle size={19} />], error: ["var(--danger)", <Icons.warn size={19} />], info: ["var(--ink-700)", <Icons.info size={19} />] };
-  const [fg, ic] = tones[toast.type] || tones.info;
+  const tones = {
+    success: ["var(--green-500)", "var(--green-100)", <Icons.checkCircle size={18} />],
+    error: ["var(--danger)", "var(--danger-bg)", <Icons.warn size={18} />],
+    info: ["var(--ink-700)", "rgba(140,144,158,.14)", <Icons.info size={18} />],
+  };
+  const [fg, chipBg, ic] = tones[toast.type] || tones.info;
   return (
-    <div style={{ position: "fixed", bottom: 26, left: "50%", transform: "translateX(-50%)", zIndex: 300,
-      display: "flex", alignItems: "center", gap: 11, background: "#fff", borderRadius: 14, padding: "13px 20px",
-      boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", animation: "scToast .25s", fontFamily: F2, fontSize: 13.5, fontWeight: 500, color: "var(--ink-900)" }}>
-      <span style={{ color: fg }}>{ic}</span>{toast.msg}
+    <div onClick={onClose} role="status" aria-live="polite" title="Tutup"
+      style={{ position: "fixed", bottom: 22, right: 22, left: "auto", zIndex: 300, maxWidth: "min(380px, calc(100vw - 44px))",
+        display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 14, padding: "11px 15px 11px 11px",
+        boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", animation: "scToast .26s cubic-bezier(.2,.85,.25,1)",
+        cursor: "pointer", fontFamily: F2, fontSize: 13.5, fontWeight: 500, color: "var(--ink-900)" }}>
+      <span style={{ width: 30, height: 30, borderRadius: 10, flex: "0 0 auto", display: "grid", placeItems: "center", background: chipBg, color: fg }}>{ic}</span>
+      <span style={{ lineHeight: 1.4 }}>{toast.msg}</span>
     </div>
   );
 }

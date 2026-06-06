@@ -107,6 +107,14 @@ export default function SinaraCast() {
     applyScope(d.brands || [], d.channels);
   }, [applyScope]);
 
+  // Transient toast with a reliable auto-dismiss. The timer only clears THIS toast
+  // (matched by key), so a newer toast can't be cancelled early and nothing lingers.
+  const showToast = useCallback((msg, type = "info") => {
+    const k = Date.now() + Math.random();
+    setToast({ msg, type, k });
+    setTimeout(() => setToast(t => (t && t.k === k ? null : t)), 3000);
+  }, []);
+
   // Refresh data when the tab regains focus / becomes visible, so server-side
   // publishes (the per-minute cron) show up in Riwayat/Kalender without a manual
   // reload. Throttled so rapid focus changes don't hammer the database.
@@ -132,8 +140,8 @@ export default function SinaraCast() {
       if (ev.origin !== window.location.origin) return;
       const d = ev.data;
       if (!d || d.type !== "sinara-oauth") return;
-      if (d.status === "error") { setToast({ msg: `Gagal menyambungkan: ${d.error}`, type: "error", k: Date.now() }); return; }
-      setToast({ msg: d.status === "reconnected" ? `@${d.name} tersambung kembali ✓` : `Channel @${d.name} tersambung ✓`, type: "success", k: Date.now() });
+      if (d.status === "error") { showToast(`Gagal menyambungkan: ${d.error}`, "error"); return; }
+      showToast(d.status === "reconnected" ? `@${d.name} tersambung kembali ✓` : `Channel @${d.name} tersambung ✓`, "success");
       setView("connections");
       reload().catch((e) => console.error("reload after connect failed", e));
     };
@@ -149,16 +157,15 @@ export default function SinaraCast() {
     const connected = sp.get("connected"), reconnected = sp.get("reconnected"), err = sp.get("connect_error");
     if (!connected && !reconnected && !err) return;
     window.history.replaceState({}, "", window.location.pathname); // clean the URL
-    if (err) { setToast({ msg: `Gagal menyambungkan: ${err}`, type: "error", k: Date.now() }); return; }
+    if (err) { showToast(`Gagal menyambungkan: ${err}`, "error"); return; }
     const name = connected || reconnected;
-    setToast({ msg: connected ? `Channel @${name} tersambung ✓` : `@${name} tersambung kembali ✓`, type: "success", k: Date.now() });
+    showToast(connected ? `Channel @${name} tersambung ✓` : `@${name} tersambung kembali ✓`, "success");
     setView("connections");
     reload().catch((e) => console.error("reload after connect failed", e));
   }, [session]);
   const signOut = useCallback(async () => { await supabase.auth.signOut(); }, []);
 
   const go = useCallback((v, p = {}) => { setView(v); setParams(p); setDrawerOpen(false); window.scrollTo(0, 0); document.querySelector("#content")?.scrollTo(0, 0); }, []);
-  const showToast = useCallback((msg, type = "info") => { setToast({ msg, type, k: Date.now() }); setTimeout(() => setToast(t => (t && t.k ? null : t)), 2600); }, []);
   const confirm = useCallback((cfg) => setConfirmCfg(cfg), []);
 
   // Brands carry LIVE accounts derived from `channels` (not the load-time snapshot),
@@ -388,7 +395,7 @@ export default function SinaraCast() {
           {view === "signin" ? (
             <>
               <SignInView />
-              <Toast toast={toast} />
+              <Toast toast={toast} onClose={() => setToast(null)} />
             </>
           ) : (
             <>
@@ -401,7 +408,7 @@ export default function SinaraCast() {
                   {View ? <View key={view + (params.id || params.ch || "")} /> : <Stub name={view} />}
                 </main>
               </div>
-              <Toast toast={toast} />
+              <Toast toast={toast} onClose={() => setToast(null)} />
               <ConfirmDialog open={!!confirmCfg} onClose={() => setConfirmCfg(null)} {...(confirmCfg || {})}
                 onConfirm={() => { confirmCfg?.onConfirm?.(); setConfirmCfg(null); }} />
             </>

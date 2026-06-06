@@ -188,7 +188,7 @@ input, textarea, select { font-family: var(--font); }
 @keyframes scFade { from{opacity:0} to{opacity:1} }
 @keyframes scPop { from{opacity:0; transform:translateY(6px) scale(.98)} to{opacity:1; transform:none} }
 @keyframes scLbIn { from{opacity:0; transform:scale(.965) translateY(8px)} to{opacity:1; transform:none} }
-@keyframes scToast { from{opacity:0; transform:translateX(-50%) translateY(10px)} to{opacity:1; transform:translateX(-50%)} }
+@keyframes scToast { from{opacity:0; transform:translateY(12px) scale(.98)} to{opacity:1; transform:none} }
 
 /* ============================================================
    Responsive — below 860px the app goes full-bleed and the
