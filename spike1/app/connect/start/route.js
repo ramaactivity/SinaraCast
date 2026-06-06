@@ -32,7 +32,10 @@ export async function POST(request) {
   const sig = crypto.createHmac("sha256", SIGN).update(payload).digest("base64url");
   const state = `${payload}.${sig}`;
 
-  const scope = "instagram_business_basic,instagram_business_content_publish";
+  // instagram_business_manage_insights = read post/account insights (the metrics
+  // auto-pull). In Dev Mode it's granted to the app's own tester accounts without
+  // App Review (same as content_publish today); for Live/other users it needs review.
+  const scope = "instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights";
   const url = new URL("https://www.instagram.com/oauth/authorize");
   url.searchParams.set("client_id", appId);
   url.searchParams.set("redirect_uri", redirectUri);

@@ -59,24 +59,26 @@ export async function fillLinkedPlan(svc, { scheduledPostId = null, ruleId = nul
   } catch (_) { /* auto-fill must never break publishing */ }
 }
 
-// Content Planner metrics auto-pull (FR-47 / tsd §14.2) — BEST-EFFORT SPIKE.
-// PROVEN on 2026-06-05: media-insights on graph.instagram.com returns HTTP 403
-// "Application does not have permission for this action" (code 10) with our current
-// scopes (instagram_business_basic + instagram_business_content_publish). It needs
-// an added insights permission + re-consent of each connected account (and likely
-// App Review for live use). So this is GATED OFF by default — flip PLAN_METRICS_AUTOPULL=1
-// only after the insights permission is granted. Manual metric entry is the reliable path.
-const PLAN_METRICS_ENABLED = process.env.PLAN_METRICS_AUTOPULL === "1";
+// Content Planner metrics auto-pull (FR-47 / tsd §14.2) — Instagram only, free-tier-cheap.
+// On by default; kill with PLAN_METRICS_AUTOPULL=0. Requires the insights permission
+// (instagram_business_manage_insights) granted on the account → reconnect once. In Dev
+// Mode that's free (no App Review) for the app's own tester accounts; Live/other users
+// need App Review (the proper-SaaS upgrade). Until granted, the call 403s and we back off
+// (bump metrics_updated_at) so it costs ≤ a few calls/day. Bounded: posts ≤30d old,
+// refreshed at most once/day, small per-tick cap. Manual entry stays the fallback.
+const PLAN_METRICS_ENABLED = process.env.PLAN_METRICS_AUTOPULL !== "0";
 // Valid IG media-insight metrics (story excluded — limited + ephemeral ~24h).
 const PLAN_METRIC_NAMES = "reach,likes,comments,saved,shares,views";
-export async function refreshPlanMetricsDue(svc, { limit = 5, staleHours = 12 } = {}) {
-  if (!PLAN_METRICS_ENABLED) return { enabled: false, note: "off — IG insights need an added permission + re-consent (proven 403)" };
+export async function refreshPlanMetricsDue(svc, { limit = 4, staleHours = 24, windowDays = 30 } = {}) {
+  if (!PLAN_METRICS_ENABLED) return { enabled: false, note: "off (PLAN_METRICS_AUTOPULL=0)" };
   const staleIso = new Date(Date.now() - staleHours * 3600 * 1000).toISOString();
+  const windowIso = new Date(Date.now() - windowDays * 86400 * 1000).toISOString();
   const { data: plans = [] } = await svc.from("content_plan")
     .select("id, channel_id, post_run_id, metrics_updated_at")
     .eq("auto_managed", true).eq("status", "posted").eq("platform", "instagram")
     .in("format", ["feed", "reels", "carousel", "video", "single_image"])
     .neq("metrics_source", "manual").not("post_run_id", "is", null)
+    .gte("posted_at", windowIso)  // stop polling old posts — metrics are basically final
     .or(`metrics_updated_at.is.null,metrics_updated_at.lte.${staleIso}`).limit(limit);
   const out = [];
   for (const p of plans || []) {
