@@ -213,17 +213,19 @@ function Floating({ anchorRef, open, onClose, width, estHeight = 280, children }
   );
 }
 
-export function Select({ options = [], value, onChange, style, placeholder }) {
+export function Select({ options = [], value, onChange, style, placeholder, size = "md" }) {
   const [open, setOpen] = useState(false);
   const ref = React.useRef(null);
   const cur = options.find((o) => (o.value ?? o) === value);
+  const sm = size === "sm";
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button type="button" onClick={() => setOpen((o) => !o)} style={{
-        ...inputBase, display: "flex", alignItems: "center", cursor: "pointer", textAlign: "left", paddingRight: 38,
+        ...inputBase, ...(sm ? { height: 40, fontSize: 13, paddingLeft: 13, borderRadius: 11 } : {}),
+        display: "flex", alignItems: "center", cursor: "pointer", textAlign: "left", paddingRight: sm ? 34 : 38,
         borderColor: open ? "var(--primary-500)" : "var(--line)", boxShadow: open ? "0 0 0 3px rgba(255,159,67,.16)" : "var(--shadow-sm)", ...style,
       }}>
-        <span style={{ flex: 1, color: cur ? "var(--ink-900)" : "var(--ink-400)" }}>{cur ? (cur.label ?? cur) : (placeholder || "Pilih…")}</span>
+        <span style={{ flex: 1, minWidth: 0, color: cur ? "var(--ink-900)" : "var(--ink-400)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cur ? (cur.label ?? cur) : (placeholder || "Pilih…")}</span>
         <span style={{ position: "absolute", right: 13, top: "50%", color: "var(--ink-400)", pointerEvents: "none", transition: "transform .15s", transform: `translateY(-50%) rotate(${open ? 180 : 0}deg)` }}><Icons.chevDown size={17} /></span>
       </button>
       <Floating anchorRef={ref} open={open} onClose={() => setOpen(false)} estHeight={Math.min(options.length * 42 + 12, 280)}>

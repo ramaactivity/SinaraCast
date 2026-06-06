@@ -296,10 +296,12 @@ export function CalendarView() {
       </div>
 
       {/* filters: brand · platform · status (combinable) */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", flex: "0 0 auto" }}>
-        <div style={{ width: app.isMobile ? "100%" : 168 }}><Select value={filter} onChange={setFilter} options={brandOpts} /></div>
-        <div style={{ width: app.isMobile ? "47%" : 160 }}><Select value={platFilter} onChange={setPlatFilter} options={platOpts} /></div>
-        <div style={{ width: app.isMobile ? "47%" : 160 }}><Select value={statFilter} onChange={setStatFilter} options={statOpts} /></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", flex: "0 0 auto" }}>
+        <Icons.filter size={15} style={{ color: "var(--ink-300)", flex: "0 0 auto", marginRight: 1 }} />
+        <div style={{ width: app.isMobile ? "30%" : 152, flex: app.isMobile ? "1 1 30%" : "0 0 auto" }}><Select size="sm" value={filter} onChange={setFilter} options={brandOpts} /></div>
+        <div style={{ width: app.isMobile ? "30%" : 152, flex: app.isMobile ? "1 1 30%" : "0 0 auto" }}><Select size="sm" value={platFilter} onChange={setPlatFilter} options={platOpts} /></div>
+        <div style={{ width: app.isMobile ? "30%" : 152, flex: app.isMobile ? "1 1 30%" : "0 0 auto" }}><Select size="sm" value={statFilter} onChange={setStatFilter} options={statOpts} /></div>
+        {(platFilter !== "all" || statFilter !== "all" || filter !== "all") && <button onClick={() => { setFilter("all"); setPlatFilter("all"); setStatFilter("all"); }} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: FCa, fontSize: 12, fontWeight: 600, color: "var(--ink-400)", padding: "0 4px" }}>Reset</button>}
       </div>
 
       {totalItems === 0 && (
