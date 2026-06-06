@@ -149,9 +149,9 @@ export function PlannerView() {
       {phase === "ready" && brandPlans.length > 0 && (
         <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ flex: app.isMobile ? "1 1 100%" : "1 1 240px", minWidth: 0, maxWidth: app.isMobile ? "none" : 300 }}><Input icon={<Icons.search size={16} />} value={q} onChange={e => setQ(e.target.value)} placeholder="Cari judul, tipe, atau pilar…" /></div>
-          <div style={{ width: app.isMobile ? "31%" : 160 }}><Select value={plat} onChange={setPlat} options={platOpts} /></div>
-          <div style={{ width: app.isMobile ? "31%" : 150 }}><Select value={stat} onChange={setStat} options={statOpts} /></div>
-          <div style={{ width: app.isMobile ? "31%" : 170 }}><Select value={month} onChange={setMonth} options={monthOpts} /></div>
+          <div style={{ width: app.isMobile ? "31%" : 172 }}><Select value={plat} onChange={setPlat} options={platOpts} /></div>
+          <div style={{ width: app.isMobile ? "31%" : 160 }}><Select value={stat} onChange={setStat} options={statOpts} /></div>
+          <div style={{ width: app.isMobile ? "31%" : 178 }}><Select value={month} onChange={setMonth} options={monthOpts} /></div>
         </div>
       )}
 
