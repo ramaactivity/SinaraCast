@@ -3,7 +3,7 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { BRANDS, BrandAvatar, Panel, Button, IconButton, Status, Field, Input, Select, SectionTitle, Skeleton, Modal } from "../ui";
+import { BRANDS, BrandAvatar, Panel, Button, IconButton, Status, Field, Input, Select, SectionTitle, Skeleton, Modal, PlatIcon } from "../ui";
 import { createBrand, renameBrand, setChannelBrand, deleteBrand } from "../dataLayer";
 const { useState: uCn } = React;
 const FC = "var(--font)";
@@ -63,7 +63,7 @@ export function ConnectionsView() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
               <span style={{ fontFamily: FC, fontWeight: 600, fontSize: 14.5, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{c.handle}</span>
-              <span style={{ flex: "0 0 auto", fontFamily: FC, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", padding: "2px 7px", borderRadius: 6, color: isTT ? "#fff" : "#b8338a", background: isTT ? "#111" : "#fbe6f3" }}>{PLAT[c.platform]?.l || c.platform}</span>
+              <span style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 4, fontFamily: FC, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", padding: "2px 7px 2px 5px", borderRadius: 6, color: isTT ? "#fff" : "#b8338a", background: isTT ? "#111" : "#fbe6f3" }}><PlatIcon p={c.platform} size={11} color={isTT ? "#fff" : "#b8338a"} />{PLAT[c.platform]?.l || c.platform}</span>
               <span style={{ flex: "0 0 auto" }}><Status s={c.paused ? "Paused" : c.status} pulse={c.status === "Needs reconnect"} /></span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 4, fontFamily: FC, fontSize: 11.5, color: "var(--ink-400)", flexWrap: "wrap", rowGap: 2 }}>

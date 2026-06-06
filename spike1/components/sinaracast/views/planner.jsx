@@ -3,7 +3,7 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { BrandAvatar, Panel, Card, Button, Select, Input, EmptyState, Skeleton, Segmented } from "../ui";
+import { BrandAvatar, Panel, Card, Button, Select, Input, EmptyState, Skeleton, Segmented, PlatIcon } from "../ui";
 import { PLATFORM } from "./contentEditor";
 const { useState: uPl } = React;
 const FPl = "var(--font)";
@@ -29,7 +29,7 @@ const StatusChip = ({ s }) => (
 );
 const PlatTag = ({ p, big }) => { const m = platMeta(p); return (
   <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: FPl, fontSize: big ? 13 : 12, fontWeight: big ? 600 : 500, color: "var(--ink-800)", whiteSpace: "nowrap" }}>
-    <span style={{ width: big ? 9 : 8, height: big ? 9 : 8, borderRadius: 2, background: m.accent, flex: "0 0 auto" }} />{m.label}
+    <PlatIcon p={p} size={big ? 16 : 14} />{m.label}
   </span>
 ); };
 
@@ -100,8 +100,8 @@ export function PlannerView() {
     const m = platMeta(p.platform);
     return (
       <Card pad={0} hover onClick={() => open(p)} style={{ borderColor: "var(--line)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px" }}>
-          <span style={{ width: 8, height: 8, borderRadius: 2, background: m.accent, flex: "0 0 auto" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 14px" }}>
+          <PlatIcon p={p.platform} size={16} />
           <span style={{ fontFamily: FPl, fontSize: 11.5, fontWeight: 700, color: "var(--ink-500)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", flex: "0 0 auto", minWidth: 60 }}>{fmtDate(p.plannedDate)}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: FPl, fontWeight: 600, fontSize: 13.5, color: p.title ? "var(--ink-900)" : "var(--ink-300)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -139,7 +139,7 @@ export function PlannerView() {
       {/* multi-account brands: show which socials this workspace covers */}
       {phase === "ready" && accounts.length > 1 && (
         <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 14 }}>
-          {accounts.map(a => <span key={a.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: FPl, fontSize: 11.5, color: "var(--ink-600)", background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "4px 10px", boxShadow: "var(--shadow-sm)" }}><span style={{ width: 7, height: 7, borderRadius: 2, background: platMeta(a.platform).accent }} />{platMeta(a.platform).label} · {a.handle}</span>)}
+          {accounts.map(a => <span key={a.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: FPl, fontSize: 11.5, color: "var(--ink-600)", background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "4px 10px", boxShadow: "var(--shadow-sm)" }}><PlatIcon p={a.platform} size={13} />{platMeta(a.platform).label} · {a.handle}</span>)}
         </div>
       )}
 

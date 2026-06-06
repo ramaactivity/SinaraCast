@@ -3,7 +3,7 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { BRANDS, BrandAvatar, Panel, Button, IconButton, Status, EmptyState, Skeleton, Segmented, Select, Modal, SectionTitle } from "../ui";
+import { BRANDS, BrandAvatar, Panel, Button, IconButton, Status, EmptyState, Skeleton, Segmented, Select, Modal, SectionTitle, PlatIcon } from "../ui";
 import { PLATFORM } from "./contentEditor";
 const { useState: uCa } = React;
 const FCa = "var(--font)";
@@ -386,7 +386,7 @@ function SummaryRail({ compact, monthLabel, total, byStatus, byPlatform, statFil
                 const m = platMeta(p);
                 return (
                   <div key={p} style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 9px" }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 2, background: m.accent, flex: "0 0 auto" }} />
+                    <PlatIcon p={p} size={15} />
                     <span style={{ flex: 1, fontFamily: FCa, fontSize: 12.5, color: "var(--ink-600)" }}>{m.label}</span>
                     <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 700, color: "var(--ink-700)", fontVariantNumeric: "tabular-nums" }}>{n}</span>
                   </div>

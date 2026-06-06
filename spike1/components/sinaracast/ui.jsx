@@ -379,6 +379,27 @@ export function Avatar({ name = "", size = 38, grad = "var(--primary-grad)" }) {
     color: "#fff", display: "grid", placeItems: "center", fontFamily: F2, fontWeight: 600, fontSize: size * 0.36 }}>{ini}</div>;
 }
 
+/* ---------------- Platform glyph (shared) ---------------- */
+// Canonical per-platform brand colors (single source for the whole app).
+export const PLATFORM_COLOR = {
+  instagram: "#C2387E", tiktok: "#3B3B3F", youtube: "#E0322B", linkedin: "#1467B0",
+  twitter: "#3A3A3C", threads: "#5A5A5E", facebook: "#1877F2",
+};
+export function PlatIcon({ p, size = 16, color }) {
+  const c = color || PLATFORM_COLOR[p] || "var(--ink-400)";
+  const base = { width: size, height: size, viewBox: "0 0 24 24", style: { flex: "0 0 auto", display: "block" } };
+  switch (p) {
+    case "instagram": return <svg {...base} fill="none" stroke={c} strokeWidth="2"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5" /><circle cx="12" cy="12" r="4.3" /><circle cx="17.4" cy="6.6" r="1.15" fill={c} stroke="none" /></svg>;
+    case "tiktok": return <svg {...base} fill={c}><path d="M16.5 3c.3 2 1.5 3.4 3.5 3.6V9c-1.3 0-2.5-.4-3.5-1.1V15a5.5 5.5 0 1 1-5.5-5.5c.3 0 .6 0 .9.1v2.6a2.9 2.9 0 1 0 2 2.8V3h2.6z" /></svg>;
+    case "youtube": return <svg {...base} fill={c}><path d="M21.6 7.2a2.8 2.8 0 0 0-2-2C17.9 4.8 12 4.8 12 4.8s-5.9 0-7.6.4a2.8 2.8 0 0 0-2 2C2 8.9 2 12 2 12s0 3.1.4 4.8a2.8 2.8 0 0 0 2 2c1.7.4 7.6.4 7.6.4s5.9 0 7.6-.4a2.8 2.8 0 0 0 2-2c.4-1.7.4-4.8.4-4.8s0-3.1-.4-4.8zM10 15V9l5 3-5 3z" /></svg>;
+    case "linkedin": return <svg {...base} fill={c}><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM9 9h3.8v1.7h.1c.5-1 1.8-2 3.7-2 4 0 4.7 2.6 4.7 6V21h-4v-5.3c0-1.3 0-2.9-1.8-2.9s-2 1.4-2 2.8V21H9z" /></svg>;
+    case "twitter": return <svg {...base} fill={c}><path d="M18.2 2H21l-6.5 7.4L22 22h-6.8l-4.3-5.6L5.9 22H3l7-8L2.3 2H9l3.9 5.2L18.2 2zm-1.2 18h1.5L7.1 3.9H5.5L17 20z" /></svg>;
+    case "facebook": return <svg {...base} fill={c}><path d="M14 9V7c0-.9.6-1 1-1h2V3h-3c-2.5 0-4 1.5-4 4v2H8v3h2v9h4v-9h2.5l.5-3h-3z" /></svg>;
+    case "threads": return <svg {...base} fill={c}><path d="M12.2 22C7 22 3.5 18.4 3.5 12.1S7 2 12.1 2c3.7 0 6.4 1.7 7.7 4.7l-1.8.8C17 5.3 15 4 12.1 4 8.1 4 5.5 6.7 5.5 12.1S8.1 20 12.1 20c2.6 0 4.2-.9 5.5-2.8 1-1.4 1.1-3.3.4-4.6-.5-1-1.4-1.7-2.6-2 .1 1.9-.7 3.9-3.1 4-1.7.1-3.2-1-3.3-2.6-.1-1.7 1.3-2.8 3.3-2.8.9 0 1.7.1 2.4.4-.2-1.1-.9-1.8-2.3-1.8-1 0-1.7.3-2.2 1l-1.6-1.1c.9-1.3 2.2-1.9 3.9-1.9 2.8 0 4.3 1.8 4.4 4.3.7.4 1.3 1 1.7 1.7 1 1.9.9 4.7-.6 6.7C17.4 20.8 15.3 22 12.2 22z" /></svg>;
+    default: return <span style={{ width: 8, height: 8, borderRadius: 2, background: c, display: "inline-block", flex: "0 0 auto" }} />;
+  }
+}
+
 /* ---------------- Sparkline (mini analytics) ---------------- */
 export function Sparkline({ data = [], w = 120, h = 38, color = "var(--green-500)", fill = true }) {
   const max = Math.max(...data, 1), min = Math.min(...data, 0);
