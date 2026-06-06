@@ -107,6 +107,7 @@ export function ComposerView() {
   const [tkInfo, setTkInfo] = uCo(null); // creator_info: { audited, privacyOptions, commentDisabled, duetDisabled, stitchDisabled, username }
   const setTkField = (k, v) => setTk((s) => ({ ...s, [k]: v }));
   const [view, setView] = uCo(null); // lightbox index, or null
+  const [dragOver, setDragOver] = uCo(false);
   const fileRef = useRef(null);
   const replaceIdxRef = useRef(null); // when set, the next upload replaces this media index
   function startReplace(idx) { replaceIdxRef.current = idx; fileRef.current?.click(); }
@@ -190,8 +191,9 @@ export function ComposerView() {
     );
   }
 
-  async function onFiles(e) {
-    const files = [...(e.target.files || [])]; e.target.value = "";
+  const onFiles = (e) => { const f = e.target.files; e.target.value = ""; ingestFiles(f); };
+  async function ingestFiles(fileList) {
+    const files = [...(fileList || [])];
     let rep = replaceIdxRef.current; replaceIdxRef.current = null; // replace this slot (Feed); single types replace inherently
     for (const file of files) {
       if (isVideoType) {
@@ -361,20 +363,34 @@ export function ComposerView() {
           <Panel>
             <SectionTitle sub={isVideoType ? "Satu video tegak 9:16" : isFeed ? "Sampai 10 gambar (carousel)" : "Satu gambar atau video tegak 9:16"} right={<Button size="sm" variant="secondary" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={uploading} onClick={() => fileRef.current?.click()}>{(media.length >= 1 && (isVideoType || type === "story")) ? "Ganti" : "Unggah"}</Button>}>{isVideoType ? "Video" : isFeed ? "Gambar" : "Media"}</SectionTitle>
             <input ref={fileRef} type="file" accept={isVideoType ? "video/mp4,video/quicktime" : isFeed ? "image/jpeg,image/png,image/webp" : "image/jpeg,image/png,image/webp,video/mp4,video/quicktime"} multiple={isFeed} onChange={onFiles} style={{ display: "none" }} />
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              {media.map((m, i) => (
-                <div key={i} style={{ position: "relative" }}>
-                  {isVid(m)
-                    ? <div onClick={() => setView(i)} title="Klik untuk pratinjau" style={{ position: "relative", cursor: "zoom-in", lineHeight: 0 }}>
-                        <video src={m.url} muted playsInline preload="metadata" style={{ width: 120, aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", background: "#000", display: "block" }} />
-                        <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.6)", pointerEvents: "none" }}><Icons.play size={26} /></span>
-                      </div>
-                    : <MediaThumb seed={i} src={m.url} w={isFeed ? 96 : 90} ratio={isFeed ? 1 : 16 / 9} label={isFeed ? "Feed" : "9:16"} onClick={() => setView(i)} />}
-                  <button onClick={() => setMedia(ms => ms.filter((_, x) => x !== i))} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
-                </div>
-              ))}
-              {!media.length && <div style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-400)", padding: "10px 2px" }}>{isVideoType ? "Belum ada video. Klik Unggah untuk menambahkan." : isFeed ? "Belum ada gambar. Klik Unggah untuk menambahkan." : "Belum ada media. Unggah gambar atau video."}</div>}
-            </div>
+            {media.length === 0 ? (
+              <div onClick={() => !uploading && fileRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => { e.preventDefault(); setDragOver(false); ingestFiles(e.dataTransfer.files); }}
+                style={{ border: `1.5px dashed ${dragOver ? "var(--primary-400)" : "var(--line)"}`, background: dragOver ? "var(--primary-100)" : "rgba(140,144,158,.045)", borderRadius: 14, padding: "26px 20px", textAlign: "center", cursor: uploading ? "default" : "pointer", transition: "background .15s, border-color .15s" }}>
+                <div style={{ width: 44, height: 44, borderRadius: 13, margin: "0 auto 10px", display: "grid", placeItems: "center", background: "var(--primary-100)", color: "var(--primary-500)" }}>{uploading ? <Spinner size={20} /> : <Icons.upload size={20} />}</div>
+                <div style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13.5, color: "var(--ink-800)" }}>{uploading ? "Mengunggah…" : "Tarik & lepas, atau klik untuk unggah"}</div>
+                <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 4 }}>{isVideoType ? `Video tegak 9:16 · MP4/MOV · maks ${MAX_VIDEO_MB} MB` : isFeed ? "Gambar JPG / PNG · sampai 10 (carousel)" : "Gambar atau video tegak 9:16"}</div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {media.map((m, i) => (
+                  <div key={i} style={{ position: "relative" }}>
+                    {isVid(m)
+                      ? <div onClick={() => setView(i)} title="Klik untuk pratinjau" style={{ position: "relative", cursor: "zoom-in", lineHeight: 0 }}>
+                          <video src={m.url} muted playsInline preload="metadata" style={{ width: 120, aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", background: "#000", display: "block" }} />
+                          <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.6)", pointerEvents: "none" }}><Icons.play size={26} /></span>
+                        </div>
+                      : <MediaThumb seed={i} src={m.url} w={isFeed ? 96 : 90} ratio={isFeed ? 1 : 16 / 9} label={isFeed ? "Feed" : "9:16"} onClick={() => setView(i)} />}
+                    <button onClick={() => setMedia(ms => ms.filter((_, x) => x !== i))} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
+                  </div>
+                ))}
+                {isFeed && media.length < 10 && (
+                  <button onClick={() => fileRef.current?.click()} title="Tambah gambar" style={{ width: 96, height: 96, borderRadius: 12, border: "1.5px dashed var(--line)", background: "rgba(140,144,158,.045)", cursor: "pointer", display: "grid", placeItems: "center", color: "var(--ink-400)" }}><Icons.plus size={22} /></button>
+                )}
+              </div>
+            )}
           </Panel>
 
           {hasCaption && (
