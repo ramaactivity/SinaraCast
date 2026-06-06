@@ -31,8 +31,20 @@ const MenuIcon = ({ size = 22 }) => (
 export function Sidebar({ mobile, open, onClose }) {
   const app = useApp();
   const [swOpen, setSwOpen] = uSh(false);
+  const swRef = React.useRef(null);
   const brandObj = app.activeBrand || { name: app.brands?.[0]?.name || "—", accounts: app.brandAccounts || [] };
   const accounts = app.brandAccounts || [];
+
+  // Close the brand dropdown on outside click / Escape. (A fixed overlay won't work:
+  // the sidebar's backdrop-filter traps position:fixed, so it can't cover the page.)
+  React.useEffect(() => {
+    if (!swOpen) return;
+    const onDoc = (e) => { if (!swRef.current?.contains(e.target)) setSwOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setSwOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [swOpen]);
 
   const asideStyle = mobile ? {
     position: "fixed", top: 0, left: 0, height: "100%", width: 280, maxWidth: "85vw",
@@ -60,7 +72,7 @@ export function Sidebar({ mobile, open, onClose }) {
 
       {/* brand switcher + account chips */}
       <div style={{ marginBottom: 18 }}>
-        <div style={{ position: "relative" }}>
+        <div ref={swRef} style={{ position: "relative" }}>
           <button onClick={() => setSwOpen(o => !o)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 11,
             padding: "9px 11px", background: "#fff", border: "1px solid var(--line)", borderRadius: 14, cursor: "pointer", boxShadow: "var(--shadow-sm)" }}>
             <BrandAvatar brand={brandAv(brandObj.name)} size={32} />
@@ -72,7 +84,6 @@ export function Sidebar({ mobile, open, onClose }) {
           </button>
           {swOpen && (
             <>
-              <div onClick={() => setSwOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
               <div className="sc-scroll" style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, background: "#fff",
                 borderRadius: 16, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 6, animation: "scPop .15s", maxHeight: 380, overflowY: "auto" }}>
                 <div style={{ fontFamily: FS, fontSize: 10, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-400)", padding: "8px 10px 6px" }}>GANTI BRAND</div>
