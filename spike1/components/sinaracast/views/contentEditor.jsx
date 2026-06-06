@@ -98,6 +98,14 @@ export function ContentEditorView() {
     return () => { active = false; };
   }, [planId]);
 
+  // Follow the sidebar's active brand for NEW content (not when editing an existing
+  // plan). Only on an actual switch, so opening with a specific params.brand is kept.
+  const lastBrand = React.useRef(brandId);
+  useEffect(() => {
+    if (planId) return;
+    if (app.brand && app.brand !== lastBrand.current) { lastBrand.current = app.brand; setBrandId(app.brand); }
+  }, [app.brand, planId]);
+
   const plat = PLATFORM[platform] || PLATFORM.instagram;
   const brandObj = app.brands.find((x) => x.id === brandId) || null;
   // resolved connected account for this brand+platform (null = plan-only, no API account)

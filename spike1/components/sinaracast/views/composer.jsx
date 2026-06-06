@@ -152,6 +152,15 @@ export function ComposerView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planId]);
 
+  // Follow the sidebar's active account when composing a new post. Only on an actual
+  // switch (not initial mount, so opening for a specific account via params.ch is kept,
+  // and not in edit/plan flows). Resets media since post type/rules differ per platform.
+  const lastCh = useRef(app.channel);
+  useEffect(() => {
+    if (postId || planId) return;
+    if (app.channel && app.channel !== lastCh.current) { lastCh.current = app.channel; setChId(app.channel); setMedia([]); }
+  }, [app.channel, postId, planId]);
+
   // Keep the post type in sync with the selected channel's platform, and load the
   // TikTok account's creator_info (allowed privacy + disabled interactions).
   useEffect(() => {
