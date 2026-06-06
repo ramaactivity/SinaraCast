@@ -86,7 +86,12 @@ export async function refreshPlanMetricsDue(svc, { limit = 4, staleHours = 24, w
       const { data: run } = await svc.from("post_run").select("ig_media_id").eq("id", p.post_run_id).maybeSingle();
       const { data: ch } = await svc.from("channel").select("access_token").eq("id", p.channel_id).maybeSingle();
       if (!run?.ig_media_id || !ch?.access_token) { out.push({ plan: p.id, ok: false, error: "no media/token" }); continue; }
-      const r = await igCall("GET", `/${run.ig_media_id}/insights`, { metric: PLAN_METRIC_NAMES, access_token: ch.access_token });
+      let r = await igCall("GET", `/${run.ig_media_id}/insights`, { metric: PLAN_METRIC_NAMES, access_token: ch.access_token });
+      // Some media types reject a specific metric (e.g. a feed photo + 'views'); retry
+      // with the core five so we still capture them instead of losing the whole call.
+      if (!r.json.data && /does not support/i.test(r.json.error?.message || "")) {
+        r = await igCall("GET", `/${run.ig_media_id}/insights`, { metric: "reach,likes,comments,saved,shares", access_token: ch.access_token });
+      }
       if (!r.json.data) {
         // back off (bump timestamp) so a known-failing call isn't retried every tick
         await svc.from("content_plan").update({ metrics_updated_at: new Date().toISOString() }).eq("id", p.id);
