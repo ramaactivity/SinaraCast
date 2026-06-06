@@ -4,7 +4,7 @@ import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { loadContentPlan, createContentPlan, updateContentPlan, deleteContentPlan, linkPlanToRule, unlinkPlan, adaptContentPlan } from "../dataLayer";
-import { BrandAvatar, Panel, Button, Field, Input, Textarea, Select, Segmented, TimeField, SectionTitle, Spinner, Banner } from "../ui";
+import { BrandAvatar, Panel, Button, Field, Input, Textarea, Select, Segmented, TimeField, SectionTitle, Spinner } from "../ui";
 const { useState: uCE, useEffect } = React;
 const FCE = "var(--font)";
 
@@ -214,7 +214,7 @@ export function ContentEditorView() {
 
   return (
     <div>
-      <Topbar title={planId ? "Edit Konten" : "Rencana Konten"}
+      <Topbar title={planId ? "Edit Konten" : "Konten Baru"}
         sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={brandAvatar} size={18} /> {brandObj.name} · {plat.label}{account ? ` · ${account.handle}` : ""}</span>}
         right={<div style={{ display: "flex", gap: 10 }}>
           <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("planner")}>Kembali</Button>
@@ -312,7 +312,7 @@ export function ContentEditorView() {
                   Performa {metricsLocked ? "· diisi otomatis" : "· diisi manual"}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  {[["views", "Views / reach utama"], ["reach", "Reach"], ["likes", "Likes"], ["comments", "Komentar"], ["shares", "Shares"], ["saves", "Saves"]].map(([k, label]) => (
+                  {[["views", "Dilihat"], ["reach", "Jangkauan"], ["likes", "Suka"], ["comments", "Komentar"], ["shares", "Dibagikan"], ["saves", "Disimpan"]].map(([k, label]) => (
                     <Field key={k} label={label}>
                       <Input value={m[k]} onChange={(e) => setMetric(k, e.target.value)} inputMode="numeric" placeholder="0" disabled={metricsLocked} />
                     </Field>
@@ -374,10 +374,7 @@ export function ContentEditorView() {
                 </div>
               )}
             </Panel>
-          ) : status !== "posted" && (
-            <Banner tone="warn" icon={<Icons.info size={18} />} title="Plan-only"
-              body={`${plat.label} belum bisa auto-publish. Saat sudah tayang, tandai Posted dan isi metrik manual.`} />
-          )}
+          ) : null}
 
           {/* Adapt to another of the brand's platforms (plan once → per-platform variants) */}
           {brandPlatforms.length > 0 && (
@@ -407,14 +404,14 @@ export function ContentEditorView() {
             {myPlans.map((p) => {
               const pm = PLATFORM[p.platform] || { label: p.platform, accent: "var(--ink-500)" };
               return (
-                <button key={p.id} onClick={() => app.go("contentEditor", { id: p.id, ch: p.ch })}
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderLeft: `3px solid ${pm.accent}`, borderRadius: 13, cursor: "pointer", background: "#fff", textAlign: "left", width: "100%" }}>
+                <button key={p.id} onClick={() => app.go("contentEditor", { id: p.id })}
+                  onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.borderColor = "var(--primary-200)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-sm)"; e.currentTarget.style.borderColor = "var(--line)"; }}
+                  style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, cursor: "pointer", background: "#fff", textAlign: "left", width: "100%", boxShadow: "var(--shadow-sm)", transition: "box-shadow .14s, border-color .14s" }}>
+                  <span title={pm.label} style={{ width: 9, height: 9, borderRadius: 3, background: pm.accent, flex: "0 0 auto" }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontFamily: FCE, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title || "(tanpa judul)"}</span>
-                      <span style={{ fontFamily: FCE, fontSize: 9.5, fontWeight: 600, color: pm.accent, background: "color-mix(in srgb, " + pm.accent + " 12%, transparent)", padding: "1px 7px", borderRadius: 999, flex: "0 0 auto" }}>{pm.label}</span>
-                    </div>
-                    <div style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{p.plannedDate}{p.plannedTime ? ` · ${p.plannedTime} WIB` : ""}</div>
+                    <div style={{ fontFamily: FCE, fontWeight: 600, fontSize: 13, color: p.title ? "var(--ink-900)" : "var(--ink-300)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title || "(tanpa judul)"}</div>
+                    <div style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{pm.label} · {p.plannedDate}{p.plannedTime ? ` · ${p.plannedTime} WIB` : ""}</div>
                   </div>
                   <span style={{ fontFamily: FCE, fontSize: 11, fontWeight: 600, color: "var(--ink-500)", background: "rgba(140,144,158,.13)", padding: "3px 9px", borderRadius: 999, flex: "0 0 auto" }}>{p.statusUi}</span>
                   <Icons.chevRight size={16} style={{ color: "var(--ink-300)", flex: "0 0 auto" }} />

@@ -212,7 +212,9 @@ export function CalendarView() {
     const pm = isPlan ? platMeta(it.platform) : null;
     return (
       <button onClick={() => openItem(it)}
-        style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", border: "1px solid var(--line)", borderLeft: isPlan ? `3px solid ${pm.accent}` : it.kind === "oneoff" ? `3px solid ${b.accent}` : "1px solid var(--line)", borderRadius: 13, background: "#fff", cursor: "pointer", textAlign: "left", width: "100%" }}>
+        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.borderColor = "var(--primary-200)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-sm)"; e.currentTarget.style.borderColor = "var(--line)"; }}
+        style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", border: "1px solid var(--line)", borderRadius: 13, background: "#fff", cursor: "pointer", textAlign: "left", width: "100%", boxShadow: "var(--shadow-sm)", transition: "box-shadow .14s, border-color .14s" }}>
         <BrandAvatar brand={b} size={30} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: FCa, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.title}</div>
@@ -421,7 +423,7 @@ function DayModal({ sel, ym, monthLabel, onClose, openItem, createForDay }) {
             const tag = isPlan ? pm.label : it.kind === "oneoff" ? `${it.type} · sekali` : "Rutin";
             const tagC = isPlan ? pm.accent : b.accent;
             return (
-              <div key={i} onClick={() => { onClose(); openItem(it); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderLeft: `3px solid ${tagC}`, borderRadius: 13, cursor: "pointer", background: "#fff" }}>
+              <div key={i} onClick={() => { onClose(); openItem(it); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, cursor: "pointer", background: "#fff" }}>
                 <BrandAvatar brand={b} size={32} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
