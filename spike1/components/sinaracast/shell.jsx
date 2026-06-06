@@ -102,18 +102,24 @@ export function Sidebar({ mobile, open, onClose }) {
           )}
         </div>
 
-        {/* account chips for the active brand (pick which social media you're working in) */}
+        {/* account sub-list for the active brand — which social media you're working in.
+            Single account = a quiet label row; 2+ = a selectable sub-nav (active = white card, like the menu). */}
         {accounts.length > 0 ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 2 }}>
+            {accounts.length > 1 && <div style={{ fontFamily: FS, fontSize: 9.5, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-300)", padding: "2px 11px 4px" }}>AKUN</div>}
             {accounts.map(a => {
-              const on = a.id === app.channel;
+              const multi = accounts.length > 1;
+              const showSel = multi && a.id === app.channel;
               const dot = a.status === "Connected" ? "var(--st-success)" : a.status === "Expiring" ? "var(--st-publishing)" : "var(--st-failed)";
               return (
                 <button key={a.id} onClick={() => { app.setChannel(a.id); onClose && onClose(); }} title={`${PLAT[a.platform]?.l || a.platform} · ${a.handle}${a.paused ? " · dijeda" : ""}`}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 9px", border: `1px solid ${on ? "var(--primary-300)" : "var(--line)"}`, background: on ? "var(--primary-100)" : "#fff", borderRadius: 999, cursor: "pointer", maxWidth: "100%", boxShadow: on ? "none" : "var(--shadow-sm)" }}>
-                  <span style={{ width: 7, height: 7, borderRadius: 2, background: PLAT[a.platform]?.c || "var(--ink-400)", flex: "0 0 auto" }} />
-                  <span style={{ fontFamily: FS, fontSize: 11, fontWeight: on ? 600 : 500, color: "var(--ink-800)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 110 }}>{a.handle}</span>
-                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: dot, flex: "0 0 auto" }} />
+                  onMouseEnter={(e) => { if (multi && !showSel) e.currentTarget.style.background = "rgba(255,255,255,.55)"; }}
+                  onMouseLeave={(e) => { if (!showSel) e.currentTarget.style.background = "transparent"; }}
+                  style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 11px", borderRadius: 10, border: "none", width: "100%", textAlign: "left",
+                    cursor: multi ? "pointer" : "default", background: showSel ? "#fff" : "transparent", boxShadow: showSel ? "var(--shadow-sm)" : "none", transition: "background .15s" }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 3, background: PLAT[a.platform]?.c || "var(--ink-400)", flex: "0 0 auto" }} />
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: FS, fontSize: 12, fontWeight: showSel ? 600 : 500, color: showSel ? "var(--ink-900)" : "var(--ink-600)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.handle}</span>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, flex: "0 0 auto" }} />
                 </button>
               );
             })}
