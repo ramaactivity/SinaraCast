@@ -19,6 +19,7 @@ const NAV = [
   { id: "composer", label: "Buat Postingan", icon: "plus" },
   { id: "planner", label: "Rencana Konten", icon: "layers" },
   { id: "calendar", label: "Kalender", icon: "calendar" },
+  { id: "ringkasan", label: "Ringkasan", icon: "sparkle" },
   { id: "activity", label: "Riwayat", icon: "activity" },
   { id: "connections", label: "Manajemen Akun", icon: "connections" },
 ];

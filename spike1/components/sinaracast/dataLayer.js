@@ -117,6 +117,7 @@ export async function loadAll() {
     supabase.from("app_user").select("*").maybeSingle(),
     supabase.from("content_plan").select("id, brand_id, channel_id, platform, planned_date, planned_time, title, content_type, pillar, format, goal, status, source, scheduled_post_id, recurring_rule_id, auto_managed, post_link, posted_at, m_views, m_likes, m_comments, m_shares, m_saves, m_reach, metrics_source, metrics_updated_at").order("planned_date", { ascending: true }),
     supabase.from("brand").select("id, name, avatar_emoji, color_token, created_at").order("created_at", { ascending: true }),
+    supabase.from("follower_snapshot").select("channel_id, snap_date, followers").order("snap_date", { ascending: true }).limit(2000),
   ]);
   const at = (i) => (results[i].status === "fulfilled" ? results[i].value?.data : null);
   const channelsRaw = at(0) || [];
@@ -131,6 +132,7 @@ export async function loadAll() {
   const profileRaw = at(9);
   const plansRaw = at(10) || [];
   const brandsRaw = at(11) || [];
+  const snapsRaw = at(12) || [];
 
   const slugById = Object.fromEntries((channelsRaw || []).map((c) => [c.id, c.slug]));
   const channels = (channelsRaw || []).map(mapChannel);
@@ -325,7 +327,15 @@ export async function loadAll() {
     joined: profileRaw?.joined_at ? fmtDate(profileRaw.joined_at) : "—",
   };
 
-  return { channels, brands, rules, runs, oneoffs, plans, notifs, settings, profile, library: mediaByChannel };
+  // ---- follower trend per account (slug → [{date, followers}]) ----
+  const followerSeries = {};
+  for (const s of snapsRaw || []) {
+    const slug = slugById[s.channel_id];
+    if (!slug) continue;
+    (followerSeries[slug] ||= []).push({ date: s.snap_date, followers: s.followers });
+  }
+
+  return { channels, brands, rules, runs, oneoffs, plans, notifs, settings, profile, library: mediaByChannel, followerSeries };
 }
 
 // ============================================================

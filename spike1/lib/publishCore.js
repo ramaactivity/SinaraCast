@@ -295,6 +295,36 @@ export async function refreshTokensDue(svc) {
   return out;
 }
 
+// Daily follower snapshot (for the Ringkasan trend). One row per channel per WIB
+// day; cheap + self-guarding (skips channels already snapped today). IG follower
+// count is refreshed live via /me (same scope as connect, proven to work); other
+// platforms snapshot their last-known cached value until a fetch path is added.
+export async function snapshotFollowersDue(svc) {
+  const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+  const { data: chans = [] } = await svc.from("channel")
+    .select("id, platform, access_token, token_status, followers")
+    .eq("token_status", "connected").is("archived_at", null);
+  if (!chans.length) return { snapped: 0 };
+  const { data: done = [] } = await svc.from("follower_snapshot").select("channel_id").eq("snap_date", today);
+  const doneSet = new Set((done || []).map((d) => d.channel_id));
+  const todo = chans.filter((c) => !doneSet.has(c.id));
+  let snapped = 0;
+  for (const c of todo) {
+    let followers = c.followers ?? null;
+    if (c.platform === "instagram" && c.access_token) {
+      try {
+        const u = new URL(`https://graph.instagram.com/${V}/me`);
+        u.searchParams.set("fields", "followers_count"); u.searchParams.set("access_token", c.access_token);
+        const j = await (await fetch(u)).json().catch(() => ({}));
+        if (Number.isFinite(j.followers_count)) { followers = j.followers_count; await svc.from("channel").update({ followers }).eq("id", c.id); }
+      } catch (_) { /* keep cached value */ }
+    }
+    try { await svc.from("follower_snapshot").insert({ channel_id: c.id, snap_date: today, followers }); snapped++; }
+    catch (_) { /* unique clash = already snapped this tick; ignore */ }
+  }
+  return { snapped };
+}
+
 // Publish a one-off Feed post (single image or 2–10 carousel) + optional first
 // comment. Same claim/visibility/notify pattern as publishStoryOneoff.
 export async function publishFeedOneoff(svc, { channel, post }) {

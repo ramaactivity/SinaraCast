@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, resumeOneoffContainer, refreshTokensDue, refreshPlanMetricsDue } from "../../../lib/publishCore";
+import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, resumeOneoffContainer, refreshTokensDue, refreshPlanMetricsDue, snapshotFollowersDue } from "../../../lib/publishCore";
 import { publishTikTokVideoScheduled, resumeTikTokVideo } from "../../../lib/tiktokCore";
 
 export const dynamic = "force-dynamic";
@@ -219,7 +219,13 @@ export async function POST(request) {
     try { planMetrics = await refreshPlanMetricsDue(svc); } catch (e) { planMetrics = { enabled: true, error: String(e?.message || e) }; }
   }
 
-  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, resumed, oneoffs, tiktoks, planMetrics });
+  // ---- daily follower snapshot for the Ringkasan trend (self-guarding, cheap) ----
+  let followers = { snapped: 0 };
+  if (!overBudget()) {
+    try { followers = await snapshotFollowersDue(svc); } catch (e) { followers = { error: String(e?.message || e) }; }
+  }
+
+  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, resumed, oneoffs, tiktoks, planMetrics, followers });
 }
 
 // allow GET for a quick manual ping/health (still secret-gated)

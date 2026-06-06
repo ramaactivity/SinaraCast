@@ -19,6 +19,7 @@ import { ComposerView } from "./views/composer";
 import { MediaLibraryView } from "./views/library";
 import { ContentEditorView } from "./views/contentEditor";
 import { PlannerView } from "./views/planner";
+import { RingkasanView } from "./views/ringkasan";
 
 const { useState: uA, useCallback } = React;
 
@@ -38,6 +39,7 @@ export default function SinaraCast() {
   const [runs, setRuns] = uA([]);
   const [oneoffs, setOneoffs] = uA([]);
   const [plans, setPlans] = uA([]);
+  const [followerSeries, setFollowerSeries] = uA({});
   const [library, setLibrary] = uA({});
   const [notifs, setNotifs] = uA([]);
   const [channels, setChannels] = uA([]);
@@ -90,7 +92,7 @@ export default function SinaraCast() {
     setDataLoading(true);
     loadAll().then((d) => {
       if (!active) return;
-      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setLibrary(d.library || {}); setNotifs(d.notifs);
+      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setLibrary(d.library || {}); setNotifs(d.notifs); setFollowerSeries(d.followerSeries || {});
       setSettings(d.settings); setProfile(d.profile);
       applyScope(d.brands || [], d.channels);
       setDataLoading(false);
@@ -100,7 +102,7 @@ export default function SinaraCast() {
 
   const reload = useCallback(async () => {
     const d = await loadAll();
-    setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setLibrary(d.library || {}); setNotifs(d.notifs);
+    setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setLibrary(d.library || {}); setNotifs(d.notifs); setFollowerSeries(d.followerSeries || {});
     setSettings(d.settings); setProfile(d.profile);
     applyScope(d.brands || [], d.channels);
   }, [applyScope]);
@@ -353,7 +355,7 @@ export default function SinaraCast() {
     }
   };
 
-  const ctx = { view, params, go, channel, setChannel, brands, brand, activeBrand, brandAccounts, selectBrand, rules, setRules, runs, setRuns, oneoffs, plans, library, notifs, setNotifs,
+  const ctx = { view, params, go, channel, setChannel, brands, brand, activeBrand, brandAccounts, selectBrand, rules, setRules, runs, setRuns, oneoffs, plans, followerSeries, library, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
     toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, connectTikTokChannel, saveSettings,
@@ -373,7 +375,7 @@ export default function SinaraCast() {
     rules: RulesView, editor: EditorView, connections: ConnectionsView,
     activity: ActivityView, notifications: NotificationsView, settings: SettingsView,
     profile: ProfileView, onboarding: OnboardingView, calendar: CalendarView,
-    composer: ComposerView, library: MediaLibraryView, contentEditor: ContentEditorView, planner: PlannerView,
+    composer: ComposerView, library: MediaLibraryView, contentEditor: ContentEditorView, planner: PlannerView, ringkasan: RingkasanView,
   };
   const View = VIEWS[view];
 
