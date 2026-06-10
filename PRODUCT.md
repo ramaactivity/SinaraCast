@@ -1,5 +1,19 @@
 # PRODUCT.md — SinaraCast
 
+## North Star
+
+SinaraCast — social media that runs itself, for Indonesian businesses & agencies. Set it once, it keeps running, and it reports to you only when you need to know.
+
+**DNA (never dilute):** runs itself (automation + reliability) · local (WIB, Bahasa, Indonesian SMB/agency workflows & pricing) · calm (the user shouldn't have to watch it — it tells them).
+
+Every feature passes 3 filters before we build it:
+
+1. Does it make the product more "runs-itself"? (If it adds manual work for the user, be suspicious.)
+2. Does it strengthen our local / SMB-agency position — or just chase parity with global tools?
+3. Can a solo builder maintain it? (Needs a big support team or heavy compliance per release → defer.)
+
+Pass all three → build. Pass only one → likely a scope trap (DM/comment inbox, social listening, ads manager belong here).
+
 > Root context for the coding agent. **Read this first, then the linked docs.** Keep this file short; it orients — the detailed docs are the source of truth. If something here conflicts with a linked doc, the linked doc wins (and flag it).
 
 ## What this is
