@@ -131,9 +131,9 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
   }, [menu]);
   const total = r.mode === "schedule" ? (r.pools.weekday + r.pools.weekend) : r.pools.pool;
   return (
-    <Card pad={0} onClick={onSelect} style={{ borderColor: selected ? b.accent : "var(--line)", borderWidth: selected ? 1.5 : 1,
+    <Card pad={0} onClick={() => app.go("editor", { ch: r.ch, id: r.id })} style={{ borderColor: selected ? b.accent : "var(--line)", borderWidth: selected ? 1.5 : 1,
       boxShadow: selected ? "var(--shadow-md)" : "var(--shadow-sm)", overflow: "visible" }} hover>
-      <div style={{ display: "flex", alignItems: "center", gap: app.isMobile ? 11 : 14, padding: "16px 18px", flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
+      <div onMouseEnter={onSelect} style={{ display: "flex", alignItems: "center", gap: app.isMobile ? 11 : 14, padding: "16px 18px", flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
         <MediaThumb seed={r.lastImg} src={r.thumbUrl} w={46} label="" />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
@@ -149,16 +149,12 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
         </div>
         {/* shuffle cycle progress (hidden on mobile — also shown in the inspector) */}
         {!app.isMobile && (
-        <div style={{ textAlign: "right", marginRight: 4 }}>
+        <div style={{ textAlign: "right", marginRight: 4, flex: "0 0 auto" }}>
           <div style={{ fontFamily: FR, fontSize: 10.5, color: "var(--ink-400)", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}><Icons.shuffle size={13} />{r.cycle.used}/{r.cycle.total} sudah tampil</div>
-          <div style={{ display: "flex", gap: 3, justifyContent: "flex-end" }}>
-            {Array.from({ length: r.cycle.total }).map((_, i) => (
-              <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: i < r.cycle.used ? b.accent : "var(--line)" }} />
-            ))}
-          </div>
+          <CycleDots used={r.cycle.used} total={r.cycle.total} color={b.accent} />
         </div>
         )}
-        <Toggle on={r.active} onChange={(v) => app.toggleRuleActive(r, v)} />
+        <span onClick={e => e.stopPropagation()} style={{ display: "inline-flex", flex: "0 0 auto" }}><Toggle on={r.active} onChange={(v) => app.toggleRuleActive(r, v)} /></span>
         <div ref={menuRef} style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
           <IconButton icon={<Icons.more size={18} />} onClick={() => setMenu(m => !m)} active={menu} />
           {menu && (
@@ -188,6 +184,23 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
         </div>
       </div>
     </Card>
+  );
+}
+
+// Shuffle-cycle progress dots. Capped so a large pool (e.g. 64 images) can't push
+// the card layout out of shape — beyond the cap we show a proportional fill instead
+// of one dot per image. The exact "x/y sudah tampil" count is shown above this.
+function CycleDots({ used, total, color }) {
+  const MAXD = 12;
+  const t = total || 0;
+  const shown = Math.min(t, MAXD);
+  const filled = t ? Math.max(used > 0 ? 1 : 0, Math.round((used / t) * shown)) : 0;
+  return (
+    <div style={{ display: "flex", gap: 3, justifyContent: "flex-end", flexWrap: "nowrap" }}>
+      {Array.from({ length: shown }).map((_, i) => (
+        <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: i < filled ? color : "var(--line)" }} />
+      ))}
+    </div>
   );
 }
 
