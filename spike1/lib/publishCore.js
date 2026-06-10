@@ -109,38 +109,100 @@ export async function refreshPlanMetricsDue(svc, { limit = 4, staleHours = 24, w
   return { enabled: true, refreshed: out };
 }
 
-// Publish ONE Story for a rule. Idempotent via claimKey (unique post_run.claim_key):
-// if the claim already exists, returns { skipped:true } without posting.
+// Publish the Stories for a rule when it's due. A pool can be configured to post
+// several Stories in one run (pool.story_count, 1..5) — IG Stories have no carousel,
+// so N images publish as N separate Story frames, back-to-back. Idempotent via
+// claimKey (unique post_run.claim_key): the first frame claims the given key; a taken
+// key means the run already happened → { skipped:true }. Extra frames claim
+// `${claimKey}#2`, `${claimKey}#3`, … so each Story is its own post_run.
 // `role` = 'weekday' | 'weekend' | 'single'.
 export async function publishForRule(svc, { channel, rule, role, trigger, claimKey, scheduledAtISO, forceImageId }) {
-  // pick pool + no-repeat image
-  const { data: pool } = await svc.from("pool").select("id").eq("rule_id", rule.id).eq("role", role).single();
+  // pick pool + how many Stories to post this run
+  const { data: pool } = await svc.from("pool").select("id, story_count").eq("rule_id", rule.id).eq("role", role).single();
   if (!pool) return { ok: false, error: `Pool ${role} belum ada` };
   let { data: imgs = [] } = await svc.from("pool_image").select("id, storage_path, used_in_cycle, format").eq("pool_id", pool.id);
   if (!imgs.length) return { ok: false, error: `Pool ${role} kosong` };
-  let unused = imgs.filter((i) => !i.used_in_cycle);
-  if (!unused.length) { await svc.from("pool_image").update({ used_in_cycle: false }).eq("pool_id", pool.id); unused = imgs; }
-  // "swap today" forces a specific image; otherwise pick from the unused remainder (no-repeat).
-  const forced = forceImageId && imgs.find((i) => i.id === forceImageId);
-  const pick = forced || unused[Math.floor(Math.random() * unused.length)];
+  // Cap at the pool size so no frame repeats within a single run.
+  const want = Math.max(1, Math.min(pool.story_count || 1, imgs.length));
 
-  // claim (atomic idempotency)
-  const { data: run, error: claimErr } = await svc.from("post_run").insert({
-    channel_id: channel.id, rule_id: rule.id, pool_role: role, image_id: pick.id,
-    status: "publishing", trigger, scheduled_at: scheduledAtISO || new Date().toISOString(),
-    claim_key: claimKey, attempt_count: 1,
-  }).select("id").single();
-  if (claimErr) {
-    if (claimErr.code === "23505") return { skipped: true }; // already claimed/posted
-    return { ok: false, error: claimErr.message };
+  // Pick `want` distinct images via the no-repeat cycle. A "swap today" override seeds
+  // the chosen image as the first frame; the rest fill from the unused remainder.
+  const picks = [];
+  const pickedIds = new Set();
+  const forced = forceImageId && imgs.find((i) => i.id === forceImageId);
+  if (forced) { picks.push(forced); pickedIds.add(forced.id); }
+  while (picks.length < want) {
+    let unused = imgs.filter((i) => !i.used_in_cycle && !pickedIds.has(i.id));
+    if (!unused.length) {
+      // cycle exhausted mid-run → reset flags and keep going (still distinct via pickedIds)
+      await svc.from("pool_image").update({ used_in_cycle: false }).eq("pool_id", pool.id);
+      imgs = imgs.map((i) => ({ ...i, used_in_cycle: false }));
+      unused = imgs.filter((i) => !pickedIds.has(i.id));
+      if (!unused.length) break;
+    }
+    const pick = unused[Math.floor(Math.random() * unused.length)];
+    picks.push(pick); pickedIds.add(pick.id);
   }
+
   const chLabel = channel.handle || channel.slug || "channel";
+  const results = [];
+  for (let idx = 0; idx < picks.length; idx++) {
+    const pick = picks[idx];
+    const thisKey = idx === 0 ? claimKey : `${claimKey}#${idx + 1}`;
+    // claim (atomic idempotency) — the first frame guards the whole run for the day
+    const { data: run, error: claimErr } = await svc.from("post_run").insert({
+      channel_id: channel.id, rule_id: rule.id, pool_role: role, image_id: pick.id,
+      status: "publishing", trigger, scheduled_at: scheduledAtISO || new Date().toISOString(),
+      claim_key: thisKey, attempt_count: 1,
+    }).select("id").single();
+    if (claimErr) {
+      if (claimErr.code === "23505") { if (idx === 0) return { skipped: true }; continue; } // already done
+      results.push({ ok: false, error: claimErr.message });
+      continue;
+    }
+    results.push(await publishOneStory(svc, { channel, run, pick }));
+  }
+
+  const okRuns = results.filter((r) => r && r.ok);
+  const failRuns = results.filter((r) => r && !r.ok);
+  const first = okRuns[0];
+  const multi = picks.length > 1;
+
+  // recurring rule linked to a content_plan for today (WIB) → auto-fill the plan (once).
+  if (first) {
+    await fillLinkedPlan(svc, { ruleId: rule.id, runId: first.runId, permalink: first.permalink, wibDate: new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10) });
+  }
+  // One summary alert per run. Any failure always alerts; scheduled successes stay
+  // silent (no-news-is-good-news), manual/swap successes get a confirmation.
+  if (failRuns.length) {
+    await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "error",
+      title: `Publikasi gagal — ${chLabel}`,
+      body: multi
+        ? `“${rule.name}”: ${failRuns.length} dari ${picks.length} Story gagal terbit. ${failRuns[0].error || ""}`.trim()
+        : `“${rule.name}”: ${failRuns[0].error || "gagal terbit"}`,
+      runId: failRuns[0].runId });
+  } else if (trigger !== "scheduled") {
+    await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success",
+      title: `Berhasil terbit — ${chLabel}`,
+      body: multi ? `“${rule.name}” terbit ${okRuns.length} Story ke Instagram.` : `“${rule.name}” terbit ke Instagram.`,
+      runId: first?.runId });
+  }
+
+  return {
+    ok: okRuns.length > 0, posted: okRuns.length, total: picks.length,
+    error: okRuns.length ? undefined : (failRuns[0]?.error || "Gagal terbit"),
+    mediaId: first?.mediaId, permalink: first?.permalink, runId: first?.runId,
+  };
+}
+
+// Publish a single Story frame for an already-claimed post_run. Marks the image
+// used_in_cycle on success. Returns { ok, mediaId, permalink, runId } or
+// { ok:false, error, runId }. The caller handles plan auto-fill + notifications.
+async function publishOneStory(svc, { channel, run, pick }) {
   const log = (outcome, is_fail = false) => svc.from("post_attempt").insert({ run_id: run.id, outcome, is_fail });
   const fail = async (reason) => {
     await log(reason, true);
     await svc.from("post_run").update({ status: "failed", fail_reason: reason }).eq("id", run.id);
-    await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "error",
-      title: `Publikasi gagal — ${chLabel}`, body: `“${rule.name}”: ${reason}`, runId: run.id });
     return { ok: false, error: reason, runId: run.id };
   };
 
@@ -180,13 +242,6 @@ export async function publishForRule(svc, { channel, rule, role, trigger, claimK
   await log("Dipublikasikan ✓");
   await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
   await svc.from("pool_image").update({ used_in_cycle: true }).eq("id", pick.id);
-  // recurring rule linked to a content_plan for today (WIB) → auto-fill the plan.
-  await fillLinkedPlan(svc, { ruleId: rule.id, runId: run.id, permalink, wibDate: new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10) });
-  // Notify on manual/retry/swap successes (scheduled successes stay silent — no-news-is-good-news).
-  if (trigger !== "scheduled") {
-    await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success",
-      title: `Berhasil terbit — ${chLabel}`, body: `“${rule.name}” terbit ke Instagram.`, runId: run.id });
-  }
   return { ok: true, mediaId, permalink, runId: run.id };
 }
 

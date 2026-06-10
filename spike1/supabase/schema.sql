@@ -107,6 +107,7 @@ create table if not exists pool (
   id               uuid primary key default gen_random_uuid(),
   rule_id          uuid not null references recurring_rule(id) on delete cascade,
   role             pool_role not null,
+  story_count      int not null default 1 check (story_count between 1 and 5),
   cycle_started_at timestamptz not null default now(),
   unique (rule_id, role)
 );

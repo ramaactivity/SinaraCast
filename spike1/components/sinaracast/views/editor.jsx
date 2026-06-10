@@ -101,6 +101,9 @@ export function EditorView() {
   const [wdTime, setWdTime] = uEd("14:00");
   const [weTime, setWeTime] = uEd("09:00");
   const [grace, setGrace] = uEd(app.settings.defaultGrace || 30);
+  const [countSingle, setCountSingle] = uEd(1);
+  const [countWeekday, setCountWeekday] = uEd(1);
+  const [countWeekend, setCountWeekend] = uEd(1);
   const [holidays, setHolidays] = uEd([]);
   const [images, setImages] = uEd({ weekday: [], weekend: [], single: [] });
   const [poolIdByRole, setPoolIdByRole] = uEd({});
@@ -116,8 +119,13 @@ export function EditorView() {
   useEffect(() => {
     if (!existing) return;
     let active = true;
-    loadRuleDetail(id).then(({ rule, images: im, poolIdByRole: pr }) => {
+    loadRuleDetail(id).then(({ rule, images: im, poolIdByRole: pr, counts: cnt }) => {
       if (!active) return;
+      if (cnt) {
+        if (cnt.single) setCountSingle(cnt.single);
+        if (cnt.weekday) setCountWeekday(cnt.weekday);
+        if (cnt.weekend) setCountWeekend(cnt.weekend);
+      }
       if (rule) {
         setMode(rule.mode);
         setCadence(rule.cadence_type === "daily" ? "daily" : rule.cadence_type === "every_n_days" ? "everyN" : "weekdays");
@@ -216,6 +224,7 @@ export function EditorView() {
       intervalDays: cadence === "everyN" ? everyN : null,
       weekdaysDb: cadence === "weekdays" ? days.map(toDow).sort((a, z) => a - z) : null,
       postTime: time, weekdayTime: wdTime, weekendTime: weTime, grace,
+      counts: mode === "schedule" ? { weekday: countWeekday, weekend: countWeekend } : { single: countSingle },
       images: mode === "schedule" ? { weekday: images.weekday, weekend: images.weekend } : { single: images.single },
     };
     setSaving(true);
@@ -305,6 +314,26 @@ export function EditorView() {
                 <Field label="Jam posting"><TimeField value={time} onChange={setTime} /></Field>
               )}
             </div>
+            <div style={{ marginTop: 14 }}>
+              {mode === "schedule" ? (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <Field label="Jumlah Story (hari kerja)"><NumberField min={1} max={5} value={countWeekday} onChange={setCountWeekday} suffix="story" /></Field>
+                    <Field label="Jumlah Story (akhir pekan)"><NumberField min={1} max={5} value={countWeekend} onChange={setCountWeekend} suffix="story" /></Field>
+                  </div>
+                  {(countWeekday > images.weekday.length || countWeekend > images.weekend.length) && <CountNote />}
+                </>
+              ) : (
+                <>
+                  <Field label="Jumlah Story sekali jalan"><NumberField min={1} max={5} value={countSingle} onChange={setCountSingle} suffix="story" /></Field>
+                  {countSingle > images.single.length && <CountNote />}
+                </>
+              )}
+              <div style={{ display: "flex", gap: 7, marginTop: 9, fontFamily: FE, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.45 }}>
+                <Icons.shuffle size={14} style={{ color: b.accent, flex: "0 0 auto", marginTop: 1 }} />
+                <span>Lebih dari 1 akan diposting sebagai beberapa Story terpisah berurutan — Instagram Story tidak mendukung carousel.</span>
+              </div>
+            </div>
             <Field label={`Toleransi telat — ${grace} menit`} hint="Berapa lama masih boleh telat sebelum dianggap terlewat." style={{ marginTop: 14 }}>
               <Slider min={10} max={60} step={5} value={grace} onChange={setGrace} style={{ width: "100%" }} />
             </Field>
@@ -323,6 +352,17 @@ export function EditorView() {
           </Panel>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Shown when the requested Story count exceeds the images in that pool: the engine
+// caps at the pool size (no frame repeats), so only that many Stories will post.
+function CountNote() {
+  return (
+    <div style={{ display: "flex", gap: 7, marginTop: 9, background: "var(--st-publishing-bg)", borderRadius: 10, padding: "8px 11px", fontFamily: FE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>
+      <Icons.warn size={14} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
+      <span>Jumlah Story melebihi gambar yang tersedia. Tambah gambar, atau yang terbit hanya sebanyak gambar di kumpulan (tanpa pengulangan).</span>
     </div>
   );
 }

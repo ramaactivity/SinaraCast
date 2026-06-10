@@ -562,6 +562,10 @@ export async function deleteStoredImage(storage_path) {
 
 // Create a recurring_rule + its pool(s) + pool_image rows. `images` is
 // { weekday:[], weekend:[] } for schedule or { single:[] } for pool.
+// Stories posted per run, per pool role. 1..5 (IG Stories have no carousel, so >1
+// publishes as separate Story frames back-to-back). Default 1.
+const clampCount = (n) => Math.max(1, Math.min(5, Math.round(Number(n) || 1)));
+
 export async function createRuleWithPools(p) {
   const { data: rule, error: e1 } = await supabase.from("recurring_rule").insert({
     channel_id: p.channelDbId, name: p.name, mode: p.mode, active: true,
@@ -576,7 +580,7 @@ export async function createRuleWithPools(p) {
   const roles = p.mode === "schedule" ? ["weekday", "weekend"] : ["single"];
   for (const role of roles) {
     const { data: pool, error: e2 } = await supabase.from("pool")
-      .insert({ rule_id: rule.id, role }).select("id").single();
+      .insert({ rule_id: rule.id, role, story_count: clampCount(p.counts?.[role]) }).select("id").single();
     if (e2) throw e2;
     const imgs = (p.images?.[role] || []).map((im, i) => ({
       pool_id: pool.id, storage_path: im.storage_path, position: i,
@@ -679,12 +683,16 @@ export async function updateRuleFields(id, f) {
     grace_minutes: f.grace,
   }).eq("id", id);
   if (error) throw error;
+  // Stories-per-run lives on each pool (role-scoped). Update whatever pools exist.
+  for (const [role, n] of Object.entries(f.counts || {})) {
+    await supabase.from("pool").update({ story_count: clampCount(n) }).eq("rule_id", id).eq("role", role);
+  }
 }
 
 // Load an existing rule's pools + images (for the editor).
 export async function loadRuleDetail(ruleId) {
   const { data: rule } = await supabase.from("recurring_rule").select("*").eq("id", ruleId).single();
-  const { data: pools = [] } = await supabase.from("pool").select("id, role").eq("rule_id", ruleId);
+  const { data: pools = [] } = await supabase.from("pool").select("id, role, story_count").eq("rule_id", ruleId);
   const ids = (pools || []).map((p) => p.id);
   let imgs = [];
   if (ids.length) {
@@ -693,6 +701,7 @@ export async function loadRuleDetail(ruleId) {
   }
   const roleByPool = Object.fromEntries((pools || []).map((p) => [p.id, p.role]));
   const poolIdByRole = Object.fromEntries((pools || []).map((p) => [p.role, p.id]));
+  const counts = Object.fromEntries((pools || []).map((p) => [p.role, p.story_count || 1]));
   const images = { weekday: [], weekend: [], single: [] };
   for (const im of imgs) {
     const role = roleByPool[im.pool_id];
@@ -700,7 +709,7 @@ export async function loadRuleDetail(ruleId) {
     const isVideo = ["mp4", "mov"].includes(im.format) || /\.(mp4|mov)(\?|$)/i.test(im.storage_path || "");
     images[role]?.push({ id: im.id, poolId: im.pool_id, storage_path: im.storage_path, url, format: im.format, width: im.width, height: im.height, isVideo });
   }
-  return { rule, images, poolIdByRole };
+  return { rule, images, poolIdByRole, counts };
 }
 
 export async function addPoolImageRow(poolId, row, position) {
