@@ -464,8 +464,8 @@ export function ComposerView() {
               <QuickChip on={date === tomorrowWib()} onClick={() => setDate(tomorrowWib())}>Besok</QuickChip>
             </div>
             <Field label="Jam" style={{ marginTop: 14 }}><TimeField value={time} onChange={setTime} /></Field>
-            <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-              {["07:00", "09:00", "12:00", "17:00", "19:30"].map((t) => (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 8 }}>
+              {["07:00", "09:00", "12:00", "17:00", "19:30", "21:00"].map((t) => (
                 <QuickChip key={t} on={time === t} onClick={() => setTime(t)}>{t.replace(":", ".")}</QuickChip>
               ))}
             </div>
