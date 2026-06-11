@@ -314,24 +314,24 @@ export function EditorView() {
                 <Field label="Jam posting"><TimeField value={time} onChange={setTime} /></Field>
               )}
             </div>
-            <div style={{ marginTop: 14 }}>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontFamily: FE, fontWeight: 500, fontSize: 12.5, color: "var(--ink-700)", marginBottom: 2 }}>Jumlah Story per posting</div>
               {mode === "schedule" ? (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <Field label="Jumlah Story (hari kerja)"><NumberField min={1} max={5} value={countWeekday} onChange={setCountWeekday} suffix="story" /></Field>
-                    <Field label="Jumlah Story (akhir pekan)"><NumberField min={1} max={5} value={countWeekend} onChange={setCountWeekend} suffix="story" /></Field>
-                  </div>
+                  <CountRow label="Hari kerja" value={countWeekday} onChange={setCountWeekday} />
+                  <div style={{ height: 1, background: "var(--line)" }} />
+                  <CountRow label="Akhir pekan" value={countWeekend} onChange={setCountWeekend} />
                   {(countWeekday > images.weekday.length || countWeekend > images.weekend.length) && <CountNote />}
                 </>
               ) : (
                 <>
-                  <Field label="Jumlah Story sekali jalan"><NumberField min={1} max={5} value={countSingle} onChange={setCountSingle} suffix="story" /></Field>
+                  <CountRow label="Sekali jalan" value={countSingle} onChange={setCountSingle} />
                   {countSingle > images.single.length && <CountNote />}
                 </>
               )}
-              <div style={{ display: "flex", gap: 7, marginTop: 9, fontFamily: FE, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.45 }}>
+              <div style={{ display: "flex", gap: 7, marginTop: 10, fontFamily: FE, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.5 }}>
                 <Icons.shuffle size={14} style={{ color: b.accent, flex: "0 0 auto", marginTop: 1 }} />
-                <span>Lebih dari 1 akan diposting sebagai beberapa Story terpisah berurutan — Instagram Story tidak mendukung carousel.</span>
+                <span>Lebih dari 1 diposting jadi beberapa Story terpisah berurutan. Story tidak mendukung carousel.</span>
               </div>
             </div>
             <Field label={`Toleransi telat — ${grace} menit`} hint="Berapa lama masih boleh telat sebelum dianggap terlewat." style={{ marginTop: 14 }}>
@@ -352,6 +352,17 @@ export function EditorView() {
           </Panel>
         </div>
       </div>
+    </div>
+  );
+}
+
+// One Story-count row: text label on the left, compact stepper on the right. Rows
+// stack vertically so the pair fits the narrow side panel without label wrapping.
+function CountRow({ label, value, onChange }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "11px 0" }}>
+      <span style={{ fontFamily: FE, fontSize: 13, fontWeight: 500, color: "var(--ink-700)" }}>{label}</span>
+      <NumberField min={1} max={5} value={value} onChange={onChange} />
     </div>
   );
 }
