@@ -98,7 +98,8 @@ export function ComposerView() {
   const [media, setMedia] = uCo([]); // [{ storage_path, url, width, height, format, bytes, aspect_ok, assetId? }]
   const [caption, setCaption] = uCo("");
   const [firstComment, setFirstComment] = uCo("");
-  const [date, setDate] = uCo(todayWib());
+  // params.date (e.g. from the Hari Spesial page) pre-fills the schedule date.
+  const [date, setDate] = uCo(app.params.date || todayWib());
   const [time, setTime] = uCo("09:00");
   const [uploading, setUploading] = uCo(false);
   const [saving, setSaving] = uCo(false);

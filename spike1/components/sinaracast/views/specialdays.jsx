@@ -48,6 +48,19 @@ export function SpecialDaysView() {
   const past = days.filter((d) => d.date < today).sort((a, z) => z.date.localeCompare(a.date));
   const nextActive = upcoming.find((d) => d.active);
 
+  // Content already lined up per date: one-off scheduled posts + content plans.
+  // Plans linked to a scheduled post are skipped so a hybrid item isn't counted twice.
+  const scheduledByDate = {};
+  (app.oneoffs || []).forEach((o) => {
+    if (o.status === "Skipped" || o.status === "Failed") return;
+    const key = `${o.ym}-${String(o.day).padStart(2, "0")}`;
+    scheduledByDate[key] = (scheduledByDate[key] || 0) + 1;
+  });
+  (app.plans || []).forEach((p) => {
+    if (!p.plannedDate || p.scheduledPostId) return;
+    scheduledByDate[p.plannedDate] = (scheduledByDate[p.plannedDate] || 0) + 1;
+  });
+
   async function add() {
     if (!date || !name.trim()) { app.toast("Isi tanggal dan nama harinya dulu", "error"); return; }
     setBusy(true);
@@ -121,7 +134,7 @@ export function SpecialDaysView() {
                 action={<Button variant="amber" icon={<Icons.retry size={16} />} onClick={refresh}>Refresh sekarang</Button>} />
             ) : (
               <div>
-                {upcoming.map((d, i) => <DayRow key={d.id} d={d} last={i === upcoming.length - 1} onToggle={toggleActive} onEdit={() => setEditing(d)} onDelete={() => removeDay(d)} />)}
+                {upcoming.map((d, i) => <DayRow key={d.id} d={d} last={i === upcoming.length - 1} count={scheduledByDate[d.date] || 0} onToggle={toggleActive} onEdit={() => setEditing(d)} onDelete={() => removeDay(d)} onCreate={() => app.go("composer", { ch: app.channel, date: d.date })} />)}
               </div>
             )}
           </Panel>
@@ -154,7 +167,8 @@ export function SpecialDaysView() {
               <div style={{ fontFamily: FD, fontSize: 12, color: "var(--ink-500)", lineHeight: 1.55 }}>
                 Pengingat otomatis dikirim 7 hari dan 1 hari sebelumnya, lewat lonceng aplikasi dan Telegram.
               </div>
-              <div style={{ marginTop: 14 }}>
+              <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                <Button variant="primary" size="sm" full icon={<Icons.plus size={15} sw={2} />} onClick={() => app.go("composer", { ch: app.channel, date: nextActive.date })}>Buat postingan tanggal ini</Button>
                 <Button variant="secondary" size="sm" full icon={<Icons.rules size={15} />} onClick={() => app.go("rules")}>Atur perilaku jadwal</Button>
               </div>
             </div>
@@ -167,7 +181,7 @@ export function SpecialDaysView() {
   );
 }
 
-function DayRow({ d, past, last, onToggle, onEdit, onDelete }) {
+function DayRow({ d, past, last, count = 0, onToggle, onEdit, onDelete, onCreate }) {
   const n = daysUntil(d.date);
   const dim = past || !d.active;
   return (
@@ -176,11 +190,14 @@ function DayRow({ d, past, last, onToggle, onEdit, onDelete }) {
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontFamily: FD, fontWeight: 600, fontSize: 13.5, color: "var(--ink-900)" }}>{d.name}</span>
           <Chip tone={KAT_TONE[d.category] || "muted"}>{KAT_LABEL[d.category] || d.category}</Chip>
+          {count > 0 && <Chip tone="green" icon={<Icons.checkCircle size={12} />}>{count} konten terjadwal</Chip>}
         </div>
         <div style={{ fontFamily: FD, fontSize: 12, color: "var(--ink-500)", marginTop: 3 }}>
           {fmtID(d.date)}{!past && d.active && <span style={{ color: "var(--ink-400)" }}> · {countdownLabel(n)}</span>}
+          {!past && count === 0 && <span style={{ color: "var(--ink-300)" }}> · belum ada konten</span>}
         </div>
       </div>
+      {!past && onCreate && <IconButton icon={<Icons.plus size={16} sw={2} />} tone="amber" tip="Buat postingan untuk tanggal ini" size={32} onClick={onCreate} />}
       <Toggle on={d.active} onChange={(v) => onToggle(d, v)} size="sm" />
       <IconButton icon={<Icons.edit size={15} />} tip="Ubah" size={32} onClick={onEdit} />
       {d.source === "manual"
