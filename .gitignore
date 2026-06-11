@@ -10,3 +10,6 @@ spike1/.vercel
 
 # OS
 .DS_Store
+
+# Local Claude Code config (per-machine permissions; never commit)
+.claude/
