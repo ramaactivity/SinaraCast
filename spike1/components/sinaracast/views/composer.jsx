@@ -4,7 +4,7 @@ import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { uploadPoolImage, uploadReelVideo, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost, loadContentPlan, linkPlanToOneoff } from "../dataLayer";
-import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, DateField, Checkbox, Segmented, MediaThumb, SectionTitle, Spinner, Chip, Input, Select, Status } from "../ui";
+import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, DateField, Checkbox, MediaThumb, SectionTitle, Spinner, Select, Status } from "../ui";
 import { Lightbox } from "../lightbox";
 const { useState: uCo, useRef, useEffect } = React;
 const FCo = "var(--font)";
@@ -79,9 +79,48 @@ function prepareImage(file, cropRatio) {
 const isVid = (m) => !!(m && (m.isVideo || ["mp4", "mov"].includes(m.format) || /\.(mp4|mov)(\?|$)/i.test(m.url || "")));
 const pad = (n) => String(n).padStart(2, "0");
 const todayWib = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
+const tomorrowWib = () => { const d = new Date(Date.now() + 31 * 3600 * 1000); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
 const isoToWibParts = (iso) => { const d = new Date(new Date(iso).getTime() + 7 * 3600 * 1000); return { date: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`, time: `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}` }; };
 // content_plan.format → composer post type (Instagram one-off).
 const PLAN_FORMAT_TYPE = { story: "story", reels: "reels", video: "reels", feed: "feed", carousel: "feed", single_image: "feed", thread: "feed" };
+
+// Numbered step badge in panel titles — the page reads as a flow, not a pile of panels.
+function Step({ n, accent, soft }) {
+  return <span style={{ width: 22, height: 22, borderRadius: 8, background: soft, color: accent, display: "inline-grid", placeItems: "center", fontFamily: FCo, fontSize: 11.5, fontWeight: 700, flex: "0 0 auto" }}>{n}</span>;
+}
+const StepTitle = ({ n, accent, soft, children }) => (
+  <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}><Step n={n} accent={accent} soft={soft} />{children}</span>
+);
+
+// Post-type picker: one card per type with its format spec attached, replacing the
+// old plain segmented + repeated info banners.
+function TypeCards({ options, value, onChange, accent, soft }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${options.length}, 1fr)`, gap: 10 }}>
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <button key={o.value} onClick={() => onChange(o.value)}
+            style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, padding: "12px 14px", borderRadius: 13, cursor: "pointer", textAlign: "left", minWidth: 0,
+              border: on ? `1.5px solid ${accent}` : "1px solid var(--line)", background: on ? soft : "#fff",
+              boxShadow: on ? "var(--shadow-sm)" : "none", transition: "border-color .15s, background .15s, box-shadow .15s" }}>
+            <span style={{ color: on ? accent : "var(--ink-400)", display: "inline-flex" }}>{o.icon}</span>
+            <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13.5, color: on ? "var(--ink-900)" : "var(--ink-700)" }}>{o.label}</span>
+            <span style={{ fontFamily: FCo, fontSize: 10.5, color: "var(--ink-400)", lineHeight: 1.35 }}>{o.spec}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// One-tap presets for schedule date/time — the most repeated action on this page.
+function QuickChip({ on, children, onClick }) {
+  return (
+    <button onClick={onClick} style={{ border: on ? "1px solid var(--primary-300)" : "1px solid var(--line)", background: on ? "var(--primary-100)" : "#fff",
+      color: on ? "#E0922A" : "var(--ink-500)", fontFamily: FCo, fontSize: 11.5, fontWeight: 600, padding: "5px 11px", borderRadius: 999, cursor: "pointer", transition: "all .14s" }}>{children}</button>
+  );
+}
 
 export function ComposerView() {
   const app = useApp();
@@ -345,10 +384,10 @@ export function ComposerView() {
         <span style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Membuat postingan untuk konten yang kamu rencanakan. Setelah <b>Jadwalkan</b>, konten itu terhubung otomatis — status & link terisi sendiri saat terbit.</span>
       </div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 18, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr" : "minmax(0,1fr) 320px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel>
-            <SectionTitle sub="Pilih akun & jenis postingan">Akun & jenis</SectionTitle>
+            <SectionTitle sub="Pilih akun tujuan dan jenis postingan"><StepTitle n={1} accent={b.accent} soft={b.soft}>Akun & jenis</StepTitle></SectionTitle>
             {!postId && (app.brandAccounts || []).length > 1 && (
               <Field label="Posting ke akun" style={{ marginBottom: 14 }}>
                 <Select value={channel.id} onChange={(v) => { setChId(v); app.setChannel(v); setMedia([]); }}
@@ -356,24 +395,22 @@ export function ComposerView() {
               </Field>
             )}
             {isTikTok
-              ? <Segmented full options={[{ value: "tiktok_video", label: "Video TikTok" }]} value="tiktok_video" onChange={() => {}} />
-              : <Segmented full options={[{ value: "story", label: "Story" }, { value: "feed", label: "Feed" }, { value: "reels", label: "Reels" }]} value={type} onChange={(v) => { setType(v); setMedia([]); }} />}
-            {isFeed && <div style={{ display: "flex", gap: 9, marginTop: 12, background: "var(--st-publishing-bg)", borderRadius: 11, padding: "10px 12px" }}>
-              <Icons.info size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Feed terbit otomatis: 1 gambar atau carousel 2–10 gambar. Ukuran 4:5 sampai 1.91:1. Komentar pertama diposting otomatis setelah feed terbit.</span>
-            </div>}
-            {isReels && <div style={{ display: "flex", gap: 9, marginTop: 12, background: "var(--st-publishing-bg)", borderRadius: 11, padding: "10px 12px" }}>
-              <Icons.film size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Reels terbit otomatis: 1 video tegak 9:16, format MP4/MOV, maks {MAX_VIDEO_MB} MB, durasi ≤ 15 menit. Caption & komentar pertama opsional.</span>
-            </div>}
-            {isTikVid && <div style={{ display: "flex", gap: 9, marginTop: 12, background: "var(--st-publishing-bg)", borderRadius: 11, padding: "10px 12px" }}>
-              <Icons.film size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Video TikTok terbit otomatis ke feed: 1 video tegak 9:16, MP4/MOV, maks {MAX_VIDEO_MB} MB. {audited ? "Atur privasi & izin di bawah." : "Selama akun belum lolos audit TikTok, video terbit privat (Hanya saya) dan akun harus disetel Private."}</span>
+              ? <TypeCards accent={b.accent} soft={b.soft} value="tiktok_video" onChange={() => {}} options={[
+                  { value: "tiktok_video", label: "Video TikTok", spec: `Video 9:16 · MP4/MOV · maks ${MAX_VIDEO_MB} MB`, icon: <Icons.film size={18} /> },
+                ]} />
+              : <TypeCards accent={b.accent} soft={b.soft} value={type} onChange={(v) => { setType(v); setMedia([]); }} options={[
+                  { value: "story", label: "Story", spec: "Gambar atau video 9:16", icon: <Icons.image size={18} /> },
+                  { value: "feed", label: "Feed", spec: "1–10 gambar · 4:5 s.d. 1.91:1", icon: <Icons.grid size={18} /> },
+                  { value: "reels", label: "Reels", spec: "Video 9:16 · maks 15 menit", icon: <Icons.film size={18} /> },
+                ]} />}
+            {isTikVid && !audited && <div style={{ display: "flex", gap: 8, marginTop: 12, fontFamily: FCo, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.5 }}>
+              <Icons.info size={14} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
+              <span>Akun belum lolos audit TikTok: video terbit privat (Hanya saya) dan akun harus disetel Private.</span>
             </div>}
           </Panel>
           {isTikVid && <TikTokOptions tk={tk} setTkField={setTkField} info={tkInfo} audited={audited} valid={tkValid} />}
           <Panel>
-            <SectionTitle sub={isVideoType ? "Satu video tegak 9:16" : isFeed ? "Sampai 10 gambar (carousel)" : "Satu gambar atau video tegak 9:16"} right={<Button size="sm" variant="secondary" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={uploading} onClick={() => fileRef.current?.click()}>{(media.length >= 1 && (isVideoType || type === "story")) ? "Ganti" : "Unggah"}</Button>}>{isVideoType ? "Video" : isFeed ? "Gambar" : "Media"}</SectionTitle>
+            <SectionTitle sub={isVideoType ? "Satu video tegak 9:16" : isFeed ? "Sampai 10 gambar (carousel)" : "Satu gambar atau video tegak 9:16"} right={<Button size="sm" variant="secondary" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={uploading} onClick={() => fileRef.current?.click()}>{(media.length >= 1 && (isVideoType || type === "story")) ? "Ganti" : "Unggah"}</Button>}><StepTitle n={2} accent={b.accent} soft={b.soft}>{isVideoType ? "Video" : isFeed ? "Gambar" : "Media"}</StepTitle></SectionTitle>
             <input ref={fileRef} type="file" accept={isVideoType ? "video/mp4,video/quicktime" : isFeed ? "image/jpeg,image/png,image/webp" : "image/jpeg,image/png,image/webp,video/mp4,video/quicktime"} multiple={isFeed} onChange={onFiles} style={{ display: "none" }} />
             {media.length === 0 ? (
               <div onClick={() => !uploading && fileRef.current?.click()}
@@ -407,7 +444,7 @@ export function ComposerView() {
 
           {hasCaption && (
             <Panel>
-              <SectionTitle sub={`${caption.length} / ${capLimit} karakter${(isReels || isTikVid) ? " · opsional" : ""}`}>Tulisan (caption)</SectionTitle>
+              <SectionTitle sub={`${caption.length} / ${capLimit} karakter${(isReels || isTikVid) ? " · opsional" : ""}`}><StepTitle n={3} accent={b.accent} soft={b.soft}>Tulisan (caption)</StepTitle></SectionTitle>
               <Textarea placeholder={isTikVid ? "Tulis caption TikTok (opsional)…" : isReels ? "Tulis caption Reels (opsional)…" : "Tulis caption postingan…"} value={caption} invalid={overCap} onChange={e => setCaption(e.target.value)} style={{ minHeight: 120 }} />
               {overCap && <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--danger)", marginTop: 6 }}>Kepanjangan, maksimal {capLimit} karakter.</div>}
               {!isTikVid && <Field label="Komentar pertama (untuk hashtag)" hint="Diposting otomatis di kolom komentar setelah postingan terbit." style={{ marginTop: 16 }}>
@@ -418,29 +455,28 @@ export function ComposerView() {
         </div>
 
         {/* schedule + preview */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, position: app.isMobile ? "static" : "sticky", top: 8 }}>
           <Panel strong>
-            <SectionTitle sub="Waktu WIB">Kapan terbit</SectionTitle>
+            <SectionTitle sub="Waktu WIB"><StepTitle n={hasCaption ? 4 : 3} accent={b.accent} soft={b.soft}>Kapan terbit</StepTitle></SectionTitle>
             <Field label="Tanggal"><DateField value={date} min={todayWib()} onChange={setDate} /></Field>
+            <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+              <QuickChip on={date === todayWib()} onClick={() => setDate(todayWib())}>Hari ini</QuickChip>
+              <QuickChip on={date === tomorrowWib()} onClick={() => setDate(tomorrowWib())}>Besok</QuickChip>
+            </div>
             <Field label="Jam" style={{ marginTop: 14 }}><TimeField value={time} onChange={setTime} /></Field>
+            <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+              {["07:00", "09:00", "12:00", "17:00", "19:30"].map((t) => (
+                <QuickChip key={t} on={time === t} onClick={() => setTime(t)}>{t.replace(":", ".")}</QuickChip>
+              ))}
+            </div>
             <div style={{ display: "flex", gap: 9, marginTop: 14, background: "var(--green-100)", borderRadius: 11, padding: "10px 12px" }}>
               <Icons.info size={15} style={{ color: "var(--green-500)", flex: "0 0 auto", marginTop: 1 }} />
               <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Terbit otomatis sekali di waktu yang kamu pilih. Dijamin tidak terbit dua kali.</span>
             </div>
           </Panel>
           <Panel>
-            <SectionTitle sub="Perkiraan tampilan">Pratinjau</SectionTitle>
-            <div style={{ display: "flex", justifyContent: "center" }}>
-              {media.length === 0
-                ? <MediaThumb seed={0} w={140} ratio={isFeed ? 1 : 16 / 9} label={isTikVid ? "TikTok 9:16" : isReels ? "Reels 9:16" : isFeed ? "Feed" : "Story 9:16"} />
-                : isVid(media[0])
-                  ? <div onClick={() => setView(0)} title="Klik untuk pratinjau" style={{ position: "relative", cursor: "zoom-in", lineHeight: 0 }}>
-                      <video src={media[0].url} muted playsInline preload="metadata" style={{ width: 150, aspectRatio: "9/16", objectFit: "cover", borderRadius: 14, border: "1px solid var(--line)", background: "#000", display: "block" }} />
-                      <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.6)", pointerEvents: "none" }}><Icons.play size={30} /></span>
-                    </div>
-                  : <MediaThumb seed={0} src={media[0].url} w={140} ratio={isFeed ? 1 : 16 / 9} label={isTikVid ? "TikTok 9:16" : isReels ? "Reels 9:16" : isFeed ? "Feed" : "Story 9:16"} onClick={() => setView(0)} />}
-            </div>
-            {hasCaption && caption && <p style={{ fontFamily: FCo, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.5, marginTop: 12, maxHeight: 70, overflow: "hidden" }}><b style={{ color: "var(--ink-900)" }}>{channel.handle.replace(/^@/, "")}</b> {caption}</p>}
+            <SectionTitle sub={`Perkiraan tampilan di ${isTikTok ? "TikTok" : "Instagram"}`}>Pratinjau</SectionTitle>
+            <PhonePreview type={type} media={media} channel={channel} b={b} caption={caption} onView={() => media.length && setView(0)} onUpload={() => fileRef.current?.click()} />
           </Panel>
         </div>
       </div>
@@ -453,7 +489,9 @@ export function ComposerView() {
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {myPosts.map((o) => (
               <button key={o.id} onClick={() => app.go("composer", { ch: o.ch, postId: o.id })}
-                style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, cursor: "pointer", background: "#fff", textAlign: "left", width: "100%" }}>
+                onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.borderColor = "var(--primary-200)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "var(--line)"; }}
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, cursor: "pointer", background: "#fff", textAlign: "left", width: "100%", transition: "box-shadow .14s, border-color .14s" }}>
                 <BrandAvatar brand={b} src={channel.avatarUrl} size={32} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -474,6 +512,76 @@ export function ComposerView() {
         ratio={isFeed ? null : 16 / 9}
         onReplace={(idx) => { setView(null); startReplace(idx); }}
         onDelete={(idx) => { const remaining = media.length - 1; setMedia(ms => ms.filter((_, x) => x !== idx)); setView(remaining <= 0 ? null : Math.min(idx, remaining - 1)); }} />
+    </div>
+  );
+}
+
+// Phone-frame preview that mimics how the post will actually look: Story gets the
+// progress bars + handle overlay, Reels/TikTok the bottom caption overlay, Feed the
+// in-feed card with header and caption line. Empty state invites the upload.
+function PhonePreview({ type, media, channel, b, caption, onView, onUpload }) {
+  const m = media[0];
+  const isFeed = type === "feed";
+  const handle = (channel.handle || "").replace(/^@/, "");
+  const vid = isVid(m);
+  const mediaEl = m
+    ? (vid
+      ? <video src={m.url} muted playsInline preload="metadata" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      : <img src={m.url} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />)
+    : null;
+
+  if (isFeed) {
+    return (
+      <div onClick={m ? onView : onUpload} title={m ? "Klik untuk pratinjau besar" : "Unggah gambar"} style={{ width: 216, margin: "0 auto", border: "1px solid var(--line)", borderRadius: 16, overflow: "hidden", background: "#fff", boxShadow: "var(--shadow-sm)", cursor: "pointer" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 10px" }}>
+          <BrandAvatar brand={b} src={channel.avatarUrl} size={22} />
+          <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 11, color: "var(--ink-900)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{handle}</span>
+          <Icons.more size={14} style={{ color: "var(--ink-400)" }} />
+        </div>
+        <div style={{ position: "relative", aspectRatio: "1", background: "linear-gradient(150deg, rgba(140,144,158,.10), rgba(140,144,158,.18))" }}>
+          {mediaEl || <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "var(--ink-300)" }}><div style={{ textAlign: "center" }}><Icons.image size={26} /><div style={{ fontFamily: FCo, fontSize: 10.5, marginTop: 6 }}>Unggah gambar dulu</div></div></div>}
+          {media.length > 1 && <span style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,.55)", color: "#fff", fontFamily: FCo, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 999 }}>1/{media.length}</span>}
+        </div>
+        {media.length > 1 && <div style={{ display: "flex", gap: 3, justifyContent: "center", padding: "7px 0 0" }}>
+          {media.slice(0, 10).map((_, i) => <span key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: i === 0 ? b.accent : "var(--line)" }} />)}
+        </div>}
+        <div style={{ padding: "8px 10px 11px", fontFamily: FCo, fontSize: 10.5, color: "var(--ink-600)", lineHeight: 1.45, maxHeight: 46, overflow: "hidden" }}>
+          <b style={{ color: "var(--ink-900)" }}>{handle}</b> {caption ? caption.slice(0, 90) : <span style={{ color: "var(--ink-300)" }}>caption kamu…</span>}
+        </div>
+      </div>
+    );
+  }
+
+  // Story / Reels / TikTok — vertical 9:16 frame
+  const story = type === "story";
+  return (
+    <div onClick={m ? onView : onUpload} title={m ? "Klik untuk pratinjau besar" : "Unggah media"}
+      style={{ width: 184, aspectRatio: "9/16", margin: "0 auto", position: "relative", borderRadius: 20, overflow: "hidden", border: "1px solid var(--line)", background: "linear-gradient(160deg, #2c2d34, #43444e)", boxShadow: "var(--shadow-sm)", cursor: "pointer" }}>
+      {mediaEl}
+      {!m && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "rgba(255,255,255,.55)" }}>
+        <div style={{ textAlign: "center" }}>{type === "reels" || type === "tiktok_video" ? <Icons.film size={26} /> : <Icons.image size={26} />}<div style={{ fontFamily: FCo, fontSize: 10.5, marginTop: 6 }}>Unggah media dulu</div></div>
+      </div>}
+      {vid && m && <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.6)", pointerEvents: "none" }}><Icons.play size={28} /></span>}
+      {story ? (
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, padding: "8px 10px 18px", background: "linear-gradient(rgba(0,0,0,.42), transparent)", pointerEvents: "none" }}>
+          <div style={{ display: "flex", gap: 3, marginBottom: 8 }}>
+            {[1, 2, 3].map((i) => <span key={i} style={{ flex: 1, height: 2, borderRadius: 2, background: i === 1 ? "rgba(255,255,255,.95)" : "rgba(255,255,255,.35)" }} />)}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <BrandAvatar brand={b} src={channel.avatarUrl} size={20} />
+            <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 10.5, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,.4)" }}>{handle}</span>
+            <span style={{ fontFamily: FCo, fontSize: 9.5, color: "rgba(255,255,255,.75)" }}>baru saja</span>
+          </div>
+        </div>
+      ) : (
+        <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "26px 10px 12px", background: "linear-gradient(transparent, rgba(0,0,0,.55))", pointerEvents: "none" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <BrandAvatar brand={b} src={channel.avatarUrl} size={18} />
+            <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 10.5, color: "#fff" }}>{handle}</span>
+          </div>
+          {caption && <div style={{ fontFamily: FCo, fontSize: 9.5, color: "rgba(255,255,255,.92)", lineHeight: 1.4, maxHeight: 27, overflow: "hidden" }}>{caption.slice(0, 70)}</div>}
+        </div>
+      )}
     </div>
   );
 }
