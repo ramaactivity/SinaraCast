@@ -28,13 +28,19 @@ const DEFAULT_SETTINGS = { pauseAll: false, resumeDate: "", timezone: "Asia/Jaka
   storage: { used: 0, total: 1024 } };
 const DEFAULT_PROFILE = { name: "Rama", email: "", method: "Magic link", joined: "—" };
 
+// Remember the active brand + account across page refreshes (localStorage).
+const SCOPE_KEY = "sc.scope.v1";
+const readScope = () => { try { return JSON.parse(window.localStorage.getItem(SCOPE_KEY) || "{}"); } catch { return {}; } };
+const writeScope = (brand, channel) => { try { window.localStorage.setItem(SCOPE_KEY, JSON.stringify({ brand, channel })); } catch {} };
+
 export default function SinaraCast() {
   const [view, setView] = uA("rules");
   const [params, setParams] = uA({});
   const [channel, setChannel] = uA("");      // active account (channel) within the active brand
   const [brands, setBrands] = uA([]);
   const [brand, setBrand] = uA("");          // active brand (workspace) id
-  const brandRef = React.useRef("");          // survives reload() (useCallback []) so we keep the user's pick
+  const brandRef = React.useRef(typeof window !== "undefined" ? (readScope().brand || "") : "");  // seeded from localStorage so the pick survives a page refresh
+  const channelRef = React.useRef(typeof window !== "undefined" ? (readScope().channel || "") : "");
   const [rules, setRules] = uA([]);
   const [runs, setRuns] = uA([]);
   const [oneoffs, setOneoffs] = uA([]);
@@ -79,8 +85,18 @@ export default function SinaraCast() {
     const vb = brandsArr.some((b) => b.id === brandRef.current) ? brandRef.current : (brandsArr[0]?.id || "");
     brandRef.current = vb; setBrand(vb);
     const acct = brandsArr.find((b) => b.id === vb)?.accounts || [];
-    setChannel((cur) => acct.some((a) => a.id === cur) ? cur : (acct[0]?.id || channelsArr[0]?.id || ""));
+    setChannel((cur) => {
+      const pref = cur || channelRef.current; // keep current pick, else the one remembered across refresh
+      return acct.some((a) => a.id === pref) ? pref : (acct[0]?.id || channelsArr[0]?.id || "");
+    });
   }, []);
+
+  // Persist the active brand + account so a page refresh stays on the same scope.
+  React.useEffect(() => {
+    if (!brand) return;
+    brandRef.current = brand; channelRef.current = channel;
+    writeScope(brand, channel);
+  }, [brand, channel]);
 
   const loadedFor = React.useRef(null);
   React.useEffect(() => {
