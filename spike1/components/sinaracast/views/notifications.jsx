@@ -11,6 +11,7 @@ const NTYPE = {
   error: ["var(--danger)", "var(--danger-bg)", (p) => <Icons.alert {...p} />],
   warn: ["var(--st-publishing)", "var(--st-publishing-bg)", (p) => <Icons.warn {...p} />],
   success: ["var(--green-500)", "var(--green-100)", (p) => <Icons.checkCircle {...p} />],
+  info: ["#E0922A", "var(--primary-100)", (p) => <Icons.sun {...p} />], // Hari Spesial reminders
 };
 // Brand styling for a channel slug, with a neutral fallback for OAuth channels.
 const brandFor = (slug, channels) => slug ? (BRANDS[slug] || {

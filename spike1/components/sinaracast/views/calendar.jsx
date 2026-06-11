@@ -119,6 +119,13 @@ export function CalendarView() {
     runByRuleDay[`${r.ruleId}|${day}`] = { status: r.status, time, ch: r.ch, rule: r.rule, ruleId: r.ruleId };
   });
 
+  // Hari Spesial markers for this month (active only) — day → [{name, category}]
+  const specialByDay = {};
+  (app.specialDays || []).forEach((s) => {
+    if (!s.active || !s.date?.startsWith(ym)) return;
+    (specialByDay[parseInt(s.date.slice(8, 10), 10)] ||= []).push(s);
+  });
+
   const itemsFor = (day) => {
     const items = [];
     // recurring runs + projections (Instagram) — hidden when a planner-status filter is on, or platform≠IG
@@ -243,6 +250,7 @@ export function CalendarView() {
             <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
               <span style={{ width: 32, height: 32, borderRadius: 10, display: "grid", placeItems: "center", background: isToday ? "var(--primary-grad)" : "rgba(140,144,158,.12)", color: isToday ? "#fff" : "var(--ink-700)", fontFamily: FCa, fontWeight: 700, fontSize: 13 }}>{pad2(day)}</span>
               <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 600, color: "var(--ink-500)" }}>{DOW[(new Date(Date.UTC(Y, M, day)).getUTCDay() + 6) % 7]}{isToday ? " · Hari ini" : ""}</span>
+              {specialByDay[day] && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--primary-100)", color: "#E0922A", borderRadius: 999, padding: "2px 8px", fontFamily: FCa, fontSize: 10.5, fontWeight: 700 }}><Icons.sun size={11} />{specialByDay[day][0].name}</span>}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{items.map((it, i) => <AgendaRow key={i} it={it} />)}</div>
           </div>
@@ -270,10 +278,16 @@ export function CalendarView() {
               borderRadius: 14, padding: "8px 10px 9px", minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", gap: 6, transition: "box-shadow .14s, border-color .14s, transform .14s", position: "relative" }}
             onMouseEnter={e => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.transform = "translateY(-1px)"; if (!isToday) e.currentTarget.style.borderColor = "var(--primary-200)"; }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; if (!isToday) e.currentTarget.style.borderColor = "var(--line-soft)"; }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: "0 0 auto" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, flex: "0 0 auto", minWidth: 0 }}>
               {isToday
                 ? <span style={{ minWidth: 23, height: 23, padding: "0 6px", borderRadius: 8, background: "var(--primary-grad)", color: "#fff", display: "inline-grid", placeItems: "center", fontFamily: FCa, fontWeight: 700, fontSize: 12, boxShadow: "var(--shadow-primary)" }}>{pad2(day)}</span>
                 : <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 600, color: weekend ? "var(--ink-300)" : "var(--ink-500)" }}>{pad2(day)}</span>}
+              {specialByDay[day] && (
+                <span title={specialByDay[day].map((s) => s.name).join(" · ")} style={{ display: "inline-flex", alignItems: "center", gap: 4, minWidth: 0, background: "var(--primary-100)", color: "#E0922A", borderRadius: 999, padding: "2px 7px", fontFamily: FCa, fontSize: 9.5, fontWeight: 700 }}>
+                  <Icons.sun size={10} style={{ flex: "0 0 auto" }} />
+                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{specialByDay[day][0].name}</span>
+                </span>
+              )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 3, minHeight: 0, overflow: "hidden" }}>
               {items.slice(0, cap).map((it, i) => <Pill key={i} it={it} />)}

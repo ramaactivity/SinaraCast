@@ -8,7 +8,7 @@ import {
   Segmented, EmptyState, Chip, SectionTitle, Banner, Spinner, Slider, NumberField,
 } from "../ui";
 import {
-  uploadPoolImage, uploadReelVideo, createRuleWithPools, updateRuleFields, loadRuleDetail, addPoolImageRow, removePoolImageRow,
+  uploadPoolImage, uploadReelVideo, createRuleWithPools, updateRuleFields, loadRuleDetail, addPoolImageRow, removePoolImageRow, ensurePool,
 } from "../dataLayer";
 import { Lightbox } from "../lightbox";
 const MAX_VIDEO_MB = 50;
@@ -104,8 +104,9 @@ export function EditorView() {
   const [countSingle, setCountSingle] = uEd(1);
   const [countWeekday, setCountWeekday] = uEd(1);
   const [countWeekend, setCountWeekend] = uEd(1);
-  const [holidays, setHolidays] = uEd([]);
-  const [images, setImages] = uEd({ weekday: [], weekend: [], single: [] });
+  const [countSpecial, setCountSpecial] = uEd(1);
+  const [specialBehavior, setSpecialBehavior] = uEd("normal");
+  const [images, setImages] = uEd({ weekday: [], weekend: [], single: [], special: [] });
   const [poolIdByRole, setPoolIdByRole] = uEd({});
   const [tab, setTab] = uEd("weekday");
   const [touched, setTouched] = uEd(false);
@@ -125,9 +126,11 @@ export function EditorView() {
         if (cnt.single) setCountSingle(cnt.single);
         if (cnt.weekday) setCountWeekday(cnt.weekday);
         if (cnt.weekend) setCountWeekend(cnt.weekend);
+        if (cnt.special) setCountSpecial(cnt.special);
       }
       if (rule) {
         setMode(rule.mode);
+        setSpecialBehavior(rule.special_behavior || "normal");
         setCadence(rule.cadence_type === "daily" ? "daily" : rule.cadence_type === "every_n_days" ? "everyN" : "weekdays");
         if (rule.interval_days) setEveryN(rule.interval_days);
         if (rule.weekdays?.length) setDays(rule.weekdays.map(fromDow).sort((a, z) => a - z));
@@ -136,14 +139,20 @@ export function EditorView() {
         if (rule.weekend_time) setWeTime(rule.weekend_time.slice(0, 5));
         setGrace(rule.grace_minutes);
       }
-      setImages({ weekday: im.weekday, weekend: im.weekend, single: im.single });
+      setImages({ weekday: im.weekday, weekend: im.weekend, single: im.single, special: im.special || [] });
       setPoolIdByRole(pr);
       setLoading(false);
     }).catch(() => active && setLoading(false));
     return () => { active = false; };
   }, [id]);
 
-  const role = mode === "schedule" ? tab : "single";
+  // Pool tabs: the 'special' tab appears when the rule posts special content on
+  // special days. Pool mode normally has no tabs; with a special pool it gets two.
+  const wantSpecial = specialBehavior === "special_pool";
+  const tabRoles = mode === "schedule"
+    ? (wantSpecial ? ["weekday", "weekend", "special"] : ["weekday", "weekend"])
+    : (wantSpecial ? ["single", "special"] : ["single"]);
+  const role = tabRoles.includes(tab) ? tab : tabRoles[0];
   const curImgs = images[role] || [];
   const reqRoles = mode === "schedule" ? ["weekday", "weekend"] : ["single"];
   const emptyRole = reqRoles.find((r) => (images[r] || []).length === 0);
@@ -154,16 +163,28 @@ export function EditorView() {
   if (touched && !name.trim()) errors.name = "Beri nama jadwalnya dulu.";
   if (touched && emptyRole) errors.pool = `Kumpulan ${emptyRole === "weekday" ? "hari kerja " : emptyRole === "weekend" ? "akhir pekan " : ""}masih kosong, minimal 1 gambar.`;
 
+  // On an existing rule, every upload persists immediately — which needs the
+  // role's pool row. Older rules have no 'special' pool yet, so create it on
+  // first use and remember its id.
+  async function poolIdFor(r) {
+    if (isNew) return null;
+    if (poolIdByRole[r]) return poolIdByRole[r];
+    const pid = await ensurePool(id, r);
+    setPoolIdByRole((m) => ({ ...m, [r]: pid }));
+    return pid;
+  }
+
   // Add the uploaded row to the current role pool — or, when `rep` is an index,
   // replace that slot in place (and clean up the old DB row + stored file).
   async function commitRow(row, rep) {
+    const pid = await poolIdFor(role);
     if (rep != null) {
       const old = (images[role] || [])[rep];
-      if (!isNew && poolIdByRole[role]) { row.id = await addPoolImageRow(poolIdByRole[role], row, rep); row.poolId = poolIdByRole[role]; }
+      if (pid) { row.id = await addPoolImageRow(pid, row, rep); row.poolId = pid; }
       setImages((im) => ({ ...im, [role]: (im[role] || []).map((x, k) => (k === rep ? row : x)) }));
       if (old) { try { await removePoolImageRow(old.id, old.storage_path); } catch {} }
     } else {
-      if (!isNew && poolIdByRole[role]) { row.id = await addPoolImageRow(poolIdByRole[role], row, (images[role] || []).length); row.poolId = poolIdByRole[role]; }
+      if (pid) { row.id = await addPoolImageRow(pid, row, (images[role] || []).length); row.poolId = pid; }
       setImages((im) => ({ ...im, [role]: [...(im[role] || []), row] }));
     }
   }
@@ -224,8 +245,15 @@ export function EditorView() {
       intervalDays: cadence === "everyN" ? everyN : null,
       weekdaysDb: cadence === "weekdays" ? days.map(toDow).sort((a, z) => a - z) : null,
       postTime: time, weekdayTime: wdTime, weekendTime: weTime, grace,
-      counts: mode === "schedule" ? { weekday: countWeekday, weekend: countWeekend } : { single: countSingle },
-      images: mode === "schedule" ? { weekday: images.weekday, weekend: images.weekend } : { single: images.single },
+      specialBehavior,
+      counts: {
+        ...(mode === "schedule" ? { weekday: countWeekday, weekend: countWeekend } : { single: countSingle }),
+        ...(wantSpecial ? { special: countSpecial } : {}),
+      },
+      images: {
+        ...(mode === "schedule" ? { weekday: images.weekday, weekend: images.weekend } : { single: images.single }),
+        ...(images.special?.length ? { special: images.special } : {}),
+      },
     };
     setSaving(true);
     try {
@@ -276,9 +304,12 @@ export function EditorView() {
             <SectionTitle sub={`Unggah gambar (otomatis dipotong 9:16) atau video MP4 (maks ${MAX_VIDEO_MB} MB, ≤60 dtk).`}
               right={<Button size="sm" variant="secondary" disabled={uploading} icon={uploading ? <Spinner size={15} /> : <Icons.upload size={16} />} onClick={() => fileRef.current?.click()}>{uploading ? "Mengunggah…" : "Unggah gambar"}</Button>}>Kumpulan gambar</SectionTitle>
             {errors.pool && <Banner tone="warn" icon={<Icons.warn size={17} />} title="Gambar tidak boleh kosong" body={errors.pool} />}
-            {mode === "schedule" && (
+            {tabRoles.length > 1 && (
               <div style={{ marginBottom: 14 }}>
-                <Segmented options={[{ value: "weekday", label: `Hari kerja · ${images.weekday.length}` }, { value: "weekend", label: `Akhir pekan · ${images.weekend.length}` }]} value={tab} onChange={setTab} />
+                <Segmented options={tabRoles.map((r) => ({
+                  value: r,
+                  label: `${r === "weekday" ? "Hari kerja" : r === "weekend" ? "Akhir pekan" : r === "special" ? "Hari spesial" : "Kumpulan"} · ${(images[r] || []).length}`,
+                }))} value={role} onChange={setTab} />
               </div>
             )}
             <PoolGrid imgs={curImgs} onAdd={() => fileRef.current?.click()} onRemove={removeImg} onReplace={startReplace} />
@@ -321,12 +352,20 @@ export function EditorView() {
                   <CountRow label="Hari kerja" value={countWeekday} onChange={setCountWeekday} />
                   <div style={{ height: 1, background: "var(--line)" }} />
                   <CountRow label="Akhir pekan" value={countWeekend} onChange={setCountWeekend} />
-                  {(countWeekday > images.weekday.length || countWeekend > images.weekend.length) && <CountNote />}
+                  {wantSpecial && <>
+                    <div style={{ height: 1, background: "var(--line)" }} />
+                    <CountRow label="Hari spesial" value={countSpecial} onChange={setCountSpecial} />
+                  </>}
+                  {(countWeekday > images.weekday.length || countWeekend > images.weekend.length || (wantSpecial && images.special.length > 0 && countSpecial > images.special.length)) && <CountNote />}
                 </>
               ) : (
                 <>
                   <CountRow label="Sekali jalan" value={countSingle} onChange={setCountSingle} />
-                  {countSingle > images.single.length && <CountNote />}
+                  {wantSpecial && <>
+                    <div style={{ height: 1, background: "var(--line)" }} />
+                    <CountRow label="Hari spesial" value={countSpecial} onChange={setCountSpecial} />
+                  </>}
+                  {(countSingle > images.single.length || (wantSpecial && images.special.length > 0 && countSpecial > images.special.length)) && <CountNote />}
                 </>
               )}
               <div style={{ display: "flex", gap: 7, marginTop: 10, fontFamily: FE, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.5 }}>
@@ -344,11 +383,27 @@ export function EditorView() {
           </Panel>
 
           <Panel>
-            <SectionTitle sub="Jadwal otomatis dilewati pada tanggal ini">Hari libur</SectionTitle>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-              {holidays.length === 0 && <span style={{ fontFamily: FE, fontSize: 12.5, color: "var(--ink-400)" }}>Belum ada tanggal libur.</span>}
-              {holidays.map((h, i) => <Chip key={h + i} tone="lilac" icon={<Icons.calendar size={13} />} onRemove={() => setHolidays((hs) => hs.filter((_, x) => x !== i))}>{h}</Chip>)}
-            </div>
+            <SectionTitle sub="Apa yang jadwal ini lakukan saat hari besar atau tanggal spesialmu">Hari spesial</SectionTitle>
+            <Select value={specialBehavior} onChange={(v) => { setSpecialBehavior(v); if (v === "special_pool") setTab("special"); }} options={[
+              { value: "normal", label: "Posting seperti biasa" },
+              { value: "skip", label: "Lewati hari spesial" },
+              { value: "special_pool", label: "Pakai kumpulan khusus" },
+            ]} />
+            {specialBehavior === "special_pool" && (
+              <div style={{ display: "flex", gap: 7, marginTop: 10, fontFamily: FE, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.5 }}>
+                <Icons.image size={14} style={{ color: b.accent, flex: "0 0 auto", marginTop: 1 }} />
+                <span>Isi tab “Hari spesial” di Kumpulan gambar. Kalau kosong, jadwal memakai gambar biasa.</span>
+              </div>
+            )}
+            {specialBehavior === "skip" && (
+              <div style={{ display: "flex", gap: 7, marginTop: 10, fontFamily: FE, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.5 }}>
+                <Icons.skip size={14} style={{ color: b.accent, flex: "0 0 auto", marginTop: 1 }} />
+                <span>Jadwal ini istirahat pada tanggal yang aktif di daftar hari spesial.</span>
+              </div>
+            )}
+            <button onClick={() => app.go("specialdays")} style={{ marginTop: 12, background: "transparent", border: "none", cursor: "pointer", padding: 0, fontFamily: FE, fontSize: 12.5, fontWeight: 600, color: b.accent, display: "flex", alignItems: "center", gap: 5 }}>
+              Kelola daftar hari spesial <Icons.chevRight size={14} />
+            </button>
           </Panel>
         </div>
       </div>

@@ -118,6 +118,7 @@ export async function loadAll() {
     supabase.from("content_plan").select("id, brand_id, channel_id, platform, planned_date, planned_time, title, content_type, pillar, format, goal, status, source, scheduled_post_id, recurring_rule_id, auto_managed, post_link, posted_at, m_views, m_likes, m_comments, m_shares, m_saves, m_reach, metrics_source, metrics_updated_at").order("planned_date", { ascending: true }),
     supabase.from("brand").select("id, name, avatar_emoji, color_token, created_at").order("created_at", { ascending: true }),
     supabase.from("follower_snapshot").select("channel_id, snap_date, followers").order("snap_date", { ascending: true }).limit(2000),
+    supabase.from("special_day").select("id, on_date, name, category, is_active, source, user_touched").order("on_date", { ascending: true }),
   ]);
   const at = (i) => (results[i].status === "fulfilled" ? results[i].value?.data : null);
   const channelsRaw = at(0) || [];
@@ -133,6 +134,7 @@ export async function loadAll() {
   const plansRaw = at(10) || [];
   const brandsRaw = at(11) || [];
   const snapsRaw = at(12) || [];
+  const specialRaw = at(13) || [];
 
   const slugById = Object.fromEntries((channelsRaw || []).map((c) => [c.id, c.slug]));
   const channels = (channelsRaw || []).map(mapChannel);
@@ -164,6 +166,7 @@ export async function loadAll() {
 
   const rules = (rulesRaw || []).map((r) => {
     const base = mapRule(r, slugById);
+    base.specialBehavior = r.special_behavior || "normal";
     const rp = poolsByRule[r.id] || [];
     const byRole = Object.fromEntries(rp.map((p) => [p.role, p]));
     if (r.mode === "schedule") base.pools = { weekday: byRole.weekday?.total || 0, weekend: byRole.weekend?.total || 0 };
@@ -335,7 +338,13 @@ export async function loadAll() {
     (followerSeries[slug] ||= []).push({ date: s.snap_date, followers: s.followers });
   }
 
-  return { channels, brands, rules, runs, oneoffs, plans, notifs, settings, profile, library: mediaByChannel, followerSeries };
+  // ---- Hari Spesial calendar (special_day) ----
+  const specialDays = (specialRaw || []).map((s) => ({
+    id: s.id, date: s.on_date, name: s.name, category: s.category,
+    active: s.is_active, source: s.source, touched: s.user_touched,
+  }));
+
+  return { channels, brands, rules, runs, oneoffs, plans, notifs, settings, profile, library: mediaByChannel, followerSeries, specialDays };
 }
 
 // ============================================================
@@ -574,10 +583,14 @@ export async function createRuleWithPools(p) {
     weekday_time: p.mode === "schedule" ? p.weekdayTime : null,
     weekend_time: p.mode === "schedule" ? p.weekendTime : null,
     grace_minutes: p.grace,
+    special_behavior: p.specialBehavior || "normal",
   }).select("id").single();
   if (e1) throw e1;
 
   const roles = p.mode === "schedule" ? ["weekday", "weekend"] : ["single"];
+  // 'special' pool exists when the rule posts special content on special days
+  // (or when special images were already uploaded before the behavior switch).
+  if (p.specialBehavior === "special_pool" || (p.images?.special || []).length) roles.push("special");
   for (const role of roles) {
     const { data: pool, error: e2 } = await supabase.from("pool")
       .insert({ rule_id: rule.id, role, story_count: clampCount(p.counts?.[role]) }).select("id").single();
@@ -681,12 +694,23 @@ export async function updateRuleFields(id, f) {
     weekday_time: f.mode === "schedule" ? f.weekdayTime : null,
     weekend_time: f.mode === "schedule" ? f.weekendTime : null,
     grace_minutes: f.grace,
+    special_behavior: f.specialBehavior || "normal",
   }).eq("id", id);
   if (error) throw error;
   // Stories-per-run lives on each pool (role-scoped). Update whatever pools exist.
   for (const [role, n] of Object.entries(f.counts || {})) {
     await supabase.from("pool").update({ story_count: clampCount(n) }).eq("rule_id", id).eq("role", role);
   }
+}
+
+// Get-or-create a pool for (rule, role). Older rules have no 'special' pool row;
+// the editor calls this before the first image upload into a new role.
+export async function ensurePool(ruleId, role) {
+  const { data: existing } = await supabase.from("pool").select("id").eq("rule_id", ruleId).eq("role", role).maybeSingle();
+  if (existing) return existing.id;
+  const { data, error } = await supabase.from("pool").insert({ rule_id: ruleId, role }).select("id").single();
+  if (error) throw error;
+  return data.id;
 }
 
 // Load an existing rule's pools + images (for the editor).
@@ -702,7 +726,7 @@ export async function loadRuleDetail(ruleId) {
   const roleByPool = Object.fromEntries((pools || []).map((p) => [p.id, p.role]));
   const poolIdByRole = Object.fromEntries((pools || []).map((p) => [p.role, p.id]));
   const counts = Object.fromEntries((pools || []).map((p) => [p.role, p.story_count || 1]));
-  const images = { weekday: [], weekend: [], single: [] };
+  const images = { weekday: [], weekend: [], single: [], special: [] };
   for (const im of imgs) {
     const role = roleByPool[im.pool_id];
     const url = supabase.storage.from(BUCKET).getPublicUrl(im.storage_path).data.publicUrl;
@@ -761,6 +785,55 @@ export async function saveSettingsFields(patch) {
   }
   const { error } = await supabase.from("app_settings").upsert(row, { onConflict: "owner_id" });
   if (error) throw error;
+}
+
+// ============================================================
+// Hari Spesial (special_day) — CRUD + manual sync.
+// API/seed rows are deactivated rather than deleted so a later sync can't
+// resurrect them; any manual change marks the row user_touched (permanent
+// protection against the daily refresh).
+// ============================================================
+export async function addSpecialDay({ date, name, category }) {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u?.user?.id;
+  if (!uid) throw new Error("Not signed in");
+  const { data, error } = await supabase.from("special_day").insert({
+    owner_id: uid, on_date: date, name: name.trim(), category: category || "custom",
+    source: "manual", user_touched: true,
+  }).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+
+export async function updateSpecialDay(id, { date, name, category }) {
+  const patch = { user_touched: true };
+  if (date) patch.on_date = date;
+  if (name != null) patch.name = name.trim();
+  if (category) patch.category = category;
+  const { error } = await supabase.from("special_day").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+export async function setSpecialDayActive(id, active) {
+  const { error } = await supabase.from("special_day").update({ is_active: active, user_touched: true }).eq("id", id);
+  if (error) throw error;
+}
+
+// Hard delete is for manual rows only; the UI deactivates api/seed rows instead.
+export async function deleteSpecialDay(id) {
+  const { error } = await supabase.from("special_day").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// "Refresh sekarang": server route forces an API sync (insert-only).
+export async function syncSpecialDaysNow() {
+  const { data: sess } = await supabase.auth.getSession();
+  const token = sess?.session?.access_token;
+  if (!token) throw new Error("Not signed in");
+  const res = await fetch("/api/specialdays/sync", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+  const j = await res.json().catch(() => ({}));
+  if (!j.ok) throw new Error(j.error || "Gagal menyegarkan");
+  return j;
 }
 
 // Global "vacation" switch — stops posting on every channel at once.

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, resumeOneoffContainer, refreshTokensDue, refreshPlanMetricsDue, snapshotFollowersDue } from "../../../lib/publishCore";
 import { publishTikTokVideoScheduled, resumeTikTokVideo } from "../../../lib/tiktokCore";
+import { syncSpecialDaysDue, specialDayRemindersDue, specialTodayByOwner } from "../../../lib/specialDays";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -80,8 +81,12 @@ export async function POST(request) {
   const ttById = Object.fromEntries(ttChannels.filter((c) => !pausedOwners.has(c.owner_id)).map((c) => [c.id, c]));
 
   const { data: rules = [] } = await svc.from("recurring_rule")
-    .select("id, channel_id, name, mode, active, cadence_type, interval_days, weekdays, post_time, weekday_time, weekend_time, grace_minutes, created_at")
+    .select("id, channel_id, name, mode, active, cadence_type, interval_days, weekdays, post_time, weekday_time, weekend_time, grace_minutes, special_behavior, created_at")
     .eq("active", true).is("archived_at", null).in("channel_id", Object.keys(chById).length ? Object.keys(chById) : ["00000000-0000-0000-0000-000000000000"]);
+
+  // Hari Spesial: today's active special day per owner (Map ownerId → name).
+  let specialByOwner = new Map();
+  try { specialByOwner = await specialTodayByOwner(svc, today); } catch (_) { /* best-effort */ }
 
   // per-day overrides for today (skip / swap)
   const ruleIds = rules.map((r) => r.id);
@@ -105,6 +110,18 @@ export async function POST(request) {
         fail_reason: "Dilewati manual hari ini",
       }).select("id").maybeSingle();
       if (sk) { await svc.from("post_attempt").insert({ run_id: sk.id, outcome: "Dilewati manual (lewati hari ini)", is_fail: false }); fired.push({ rule: rule.name, channel: channel.slug, skipped: "manual" }); }
+      continue;
+    }
+    // Hari Spesial 'skip': rule rests on special days. A manual swap for today wins
+    // (the user explicitly picked an image), matching day_override precedence.
+    const specialName = specialByOwner.get(channel.owner_id);
+    if (specialName && rule.special_behavior === "skip" && ov?.type !== "swap") {
+      const { data: sk } = await svc.from("post_run").insert({
+        channel_id: channel.id, rule_id: rule.id, status: "skipped", trigger: "scheduled",
+        scheduled_at: nowWib.toISOString(), claim_key: `auto:${rule.id}:${today}`, attempt_count: 0,
+        fail_reason: `Hari spesial (${specialName}) — dilewati otomatis`,
+      }).select("id").maybeSingle();
+      if (sk) { await svc.from("post_attempt").insert({ run_id: sk.id, outcome: `Dilewati otomatis — hari spesial: ${specialName}`, is_fail: false }); fired.push({ rule: rule.name, channel: channel.slug, skipped: "special" }); }
       continue;
     }
     const isWeekend = dow === 0 || dow === 6;
@@ -132,7 +149,16 @@ export async function POST(request) {
     }
 
     if (overBudget()) break; // out of budget this tick; due rules retry next minute (still within grace)
-    const role = roleForNow(rule.mode, dow);
+    let role = roleForNow(rule.mode, dow);
+    // Hari Spesial 'special_pool': use the rule's special pool when it has images;
+    // an empty/missing special pool falls back to the normal pool (never fail the run).
+    if (specialName && rule.special_behavior === "special_pool" && ov?.type !== "swap") {
+      const { data: sp } = await svc.from("pool").select("id").eq("rule_id", rule.id).eq("role", "special").maybeSingle();
+      if (sp) {
+        const { count } = await svc.from("pool_image").select("id", { count: "exact", head: true }).eq("pool_id", sp.id);
+        if (count > 0) role = "special";
+      }
+    }
     const claimKey = `auto:${rule.id}:${today}`;
     try {
       const res = await publishForRule(svc, { channel, rule, role, trigger: ov?.type === "swap" ? "swap" : "scheduled", claimKey, scheduledAtISO: new Date().toISOString(), forceImageId: ov?.type === "swap" ? ov.swap_image_id : undefined });
@@ -225,7 +251,17 @@ export async function POST(request) {
     try { followers = await snapshotFollowersDue(svc); } catch (e) { followers = { error: String(e?.message || e) }; }
   }
 
-  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, resumed, oneoffs, tiktoks, planMetrics, followers });
+  // ---- Hari Spesial: daily API sync + H-7/H-1 reminders (self-guarding) ----
+  // Reminders wait until 08:00 WIB so the Telegram ping lands at a humane hour.
+  let specialDays = {};
+  if (!overBudget()) {
+    try { specialDays.sync = await syncSpecialDaysDue(svc); } catch (e) { specialDays.sync = { error: String(e?.message || e) }; }
+  }
+  if (!overBudget() && nowWib.getUTCHours() >= 8) {
+    try { specialDays.reminders = await specialDayRemindersDue(svc); } catch (e) { specialDays.reminders = { error: String(e?.message || e) }; }
+  }
+
+  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, resumed, oneoffs, tiktoks, planMetrics, followers, specialDays });
 }
 
 // allow GET for a quick manual ping/health (still secret-gated)

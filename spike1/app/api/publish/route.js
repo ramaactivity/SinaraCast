@@ -22,15 +22,31 @@ export async function POST(request) {
     if (!user) return NextResponse.json({ ok: false, error: "Invalid session" }, { status: 401 });
 
     const svc = svcClient();
-    const { data: rule } = await svc.from("recurring_rule").select("id, channel_id, mode, name").eq("id", ruleId).single();
+    const { data: rule } = await svc.from("recurring_rule").select("id, channel_id, mode, name, special_behavior").eq("id", ruleId).single();
     if (!rule) return NextResponse.json({ ok: false, error: "Rule not found" }, { status: 404 });
     const { data: channel } = await svc.from("channel")
       .select("id, owner_id, ig_user_id, access_token, token_status, handle").eq("id", rule.channel_id).single();
     if (!channel || channel.owner_id !== user.id) return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     if (!channel.ig_user_id || !channel.access_token) return NextResponse.json({ ok: false, error: "Channel belum tersambung" }, { status: 400 });
 
-    const dow = new Date(Date.now() + 7 * 3600 * 1000).getUTCDay();
-    const role = roleForNow(rule.mode, dow);
+    const nowWib = new Date(Date.now() + 7 * 3600 * 1000);
+    const dow = nowWib.getUTCDay();
+    let role = roleForNow(rule.mode, dow);
+    // Hari Spesial: manual post-now matches the cron's pool choice — on a special
+    // day a 'special_pool' rule posts from its special pool (if it has images).
+    // 'skip' never blocks an explicit button press.
+    if (rule.special_behavior === "special_pool") {
+      const today = nowWib.toISOString().slice(0, 10);
+      const { data: sd } = await svc.from("special_day").select("id")
+        .eq("owner_id", channel.owner_id).eq("on_date", today).eq("is_active", true).limit(1);
+      if (sd?.length) {
+        const { data: sp } = await svc.from("pool").select("id").eq("rule_id", rule.id).eq("role", "special").maybeSingle();
+        if (sp) {
+          const { count } = await svc.from("pool_image").select("id", { count: "exact", head: true }).eq("pool_id", sp.id);
+          if (count > 0) role = "special";
+        }
+      }
+    }
     const result = await publishForRule(svc, {
       channel, rule, role, trigger: "manual", claimKey: `manual:${ruleId}:${Date.now()}`,
     });

@@ -11,7 +11,7 @@ do $$ begin
   create type rule_mode      as enum ('schedule','pool');
 exception when duplicate_object then null; end $$;
 do $$ begin
-  create type pool_role      as enum ('single','weekday','weekend');
+  create type pool_role      as enum ('single','weekday','weekend','special');
 exception when duplicate_object then null; end $$;
 do $$ begin
   create type cadence_type   as enum ('daily','every_n_days','weekdays');
@@ -29,7 +29,7 @@ do $$ begin
   create type override_type  as enum ('skip','swap');
 exception when duplicate_object then null; end $$;
 do $$ begin
-  create type notif_type     as enum ('error','warn','success');
+  create type notif_type     as enum ('error','warn','success','info');
 exception when duplicate_object then null; end $$;
 do $$ begin
   create type post_type      as enum ('story','feed');
@@ -60,6 +60,8 @@ create table if not exists app_settings (
   telegram_connected boolean not null default false,
   fail_alerts        boolean not null default true,
   daily_ping         boolean not null default true,
+  special_sync_on    date,  -- guard: special-day API sync ran this WIB day
+  special_reminder_on date, -- guard: special-day H-7/H-1 reminders ran this WIB day
   updated_at         timestamptz not null default now()
 );
 
@@ -97,6 +99,7 @@ create table if not exists recurring_rule (
   weekday_time  time,
   weekend_time  time,
   grace_minutes int not null default 30,
+  special_behavior text not null default 'normal', -- 'normal' | 'skip' | 'special_pool' on special days
   end_date      date,
   archived_at   timestamptz,
   created_at    timestamptz not null default now()
@@ -168,6 +171,22 @@ create table if not exists day_override (
   unique (rule_id, on_date)
 );
 
+-- Hari Spesial: per-owner calendar of national/religious/custom dates. API-synced
+-- rows never overwrite rows the user touched (user_touched=true is permanent).
+create table if not exists special_day (
+  id           uuid primary key default gen_random_uuid(),
+  owner_id     uuid not null references app_user(id) on delete cascade,
+  on_date      date not null,
+  name         text not null,
+  category     text not null default 'national',   -- 'national' | 'religious' | 'custom'
+  is_active    boolean not null default true,
+  source       text not null default 'manual',     -- 'api' | 'seed' | 'manual'
+  user_touched boolean not null default false,
+  created_at   timestamptz not null default now(),
+  unique (owner_id, on_date, name)
+);
+create index if not exists special_day_owner_date_idx on special_day (owner_id, on_date);
+
 create table if not exists notification (
   id         uuid primary key default gen_random_uuid(),
   owner_id   uuid not null references app_user(id) on delete cascade,
@@ -235,6 +254,7 @@ alter table post_run             enable row level security;
 alter table post_attempt         enable row level security;
 alter table day_override         enable row level security;
 alter table notification         enable row level security;
+alter table special_day          enable row level security;
 alter table media_asset          enable row level security;
 alter table campaign             enable row level security;
 alter table scheduled_post       enable row level security;
@@ -255,6 +275,10 @@ create policy owner_rw on channel for all
 
 drop policy if exists owner_rw on notification;
 create policy owner_rw on notification for all
+  using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+
+drop policy if exists owner_rw on special_day;
+create policy owner_rw on special_day for all
   using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 
 drop policy if exists owner_rw on campaign;
