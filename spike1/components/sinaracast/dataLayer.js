@@ -110,7 +110,7 @@ export async function loadAll() {
     supabase.from("pool").select("id, rule_id, role"),
     supabase.from("pool_image").select("id, pool_id, used_in_cycle, storage_path, position, bytes").order("position"),
     supabase.from("media_asset").select("id, channel_id, storage_path, tag, created_at").order("created_at", { ascending: false }),
-    supabase.from("post_run").select("id, channel_id, rule_id, scheduled_post_id, pool_role, image_id, status, trigger, scheduled_at, published_at, permalink, fail_reason, created_at").order("created_at", { ascending: false }).limit(150),
+    supabase.from("post_run").select("id, channel_id, rule_id, scheduled_post_id, pool_role, image_id, status, trigger, scheduled_at, published_at, permalink, fail_reason, created_at, m_views, m_reach, m_likes, m_comments, m_shares, m_saves, m_replies, metrics_pulled_at").order("created_at", { ascending: false }).limit(150),
     supabase.from("scheduled_post").select("id, channel_id, post_type, caption, scheduled_at, status").not("scheduled_at", "is", null),
     supabase.from("notification").select("id, channel_id, type, title, body, run_id, read, created_at").order("created_at", { ascending: false }).limit(50),
     supabase.from("app_settings").select("*").maybeSingle(),
@@ -265,6 +265,11 @@ export async function loadAll() {
     fail: r.fail_reason || (r.status === "failed" ? "Gagal menerbitkan" : null),
     link: r.permalink ? r.permalink.replace(/^https?:\/\//, "") : null,
     attempts: attemptsByRun[r.id] || [{ t: fmtTimeWib(r.created_at), o: "Menunggu…" }],
+    // content kind + auto-pulled IG metrics (Ringkasan "Performa per konten")
+    kind: r.rule_id ? "story" : (schedById[r.scheduled_post_id]?.post_type || "story"),
+    m: { views: r.m_views, reach: r.m_reach, likes: r.m_likes, comments: r.m_comments, shares: r.m_shares, saves: r.m_saves, replies: r.m_replies },
+    hasMetrics: [r.m_views, r.m_reach, r.m_likes, r.m_comments, r.m_shares, r.m_saves, r.m_replies].some((v) => v != null),
+    metricsPulledAt: r.metrics_pulled_at || null,
   }));
 
   // ---- calendar: real one-off scheduled posts ----

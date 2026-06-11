@@ -109,6 +109,104 @@ export async function refreshPlanMetricsDue(svc, { limit = 4, staleHours = 24, w
   return { enabled: true, refreshed: out };
 }
 
+// Per-post metrics auto-pull (Ringkasan "Performa per konten") — Instagram only,
+// free-tier-cheap, stored on post_run itself. Two regimes:
+//   • Story: IG deletes story insights when the story expires (~24h), so we pull
+//     ONCE inside the 20–26h window after publish, then freeze (metrics_final).
+//     A story that slipped past the window unpulled is frozen empty — its data
+//     is gone upstream, retrying would just burn quota.
+//   • Feed/Reels: refreshed at most once a day until ~30 days old, then frozen.
+// TikTok runs are frozen immediately (no IG insights). Kill with RUN_METRICS_AUTOPULL=0.
+const RUN_METRICS_ENABLED = process.env.RUN_METRICS_AUTOPULL !== "0";
+const STORY_METRIC_SETS = ["views,reach,replies,shares", "views,reach,replies", "reach,replies"];
+const MEDIA_METRIC_SETS = ["reach,likes,comments,saved,shares,views", "reach,likes,comments,saved,shares"];
+
+async function igInsights(mediaId, token, sets) {
+  for (const metric of sets) {
+    const r = await igCall("GET", `/${mediaId}/insights`, { metric, access_token: token });
+    if (r.json.data) {
+      const v = {};
+      r.json.data.forEach((d) => { v[d.name] = d.values?.[0]?.value ?? null; });
+      return v;
+    }
+    if (!/does not support|invalid metric/i.test(r.json.error?.message || "")) {
+      return { _error: r.json.error?.message || "no data" };
+    }
+  }
+  return { _error: "unsupported metrics" };
+}
+
+export async function refreshRunMetricsDue(svc, { limit = 4 } = {}) {
+  if (!RUN_METRICS_ENABLED) return { enabled: false };
+  const now = Date.now();
+  const { data: runs = [] } = await svc.from("post_run")
+    .select("id, channel_id, rule_id, scheduled_post_id, ig_media_id, published_at, metrics_pulled_at")
+    .eq("status", "published").eq("metrics_final", false).not("ig_media_id", "is", null)
+    .order("published_at", { ascending: false }).limit(80);
+  if (!runs?.length) return { enabled: true, pulled: 0 };
+
+  // resolve post types (rule runs are Stories; one-offs carry scheduled_post.post_type)
+  const spIds = [...new Set(runs.map((r) => r.scheduled_post_id).filter(Boolean))];
+  let typeBySp = {};
+  if (spIds.length) {
+    const { data: sps = [] } = await svc.from("scheduled_post").select("id, post_type").in("id", spIds);
+    typeBySp = Object.fromEntries((sps || []).map((s) => [s.id, s.post_type]));
+  }
+  const chIds = [...new Set(runs.map((r) => r.channel_id))];
+  const { data: chans = [] } = await svc.from("channel").select("id, platform, access_token").in("id", chIds);
+  const chById = Object.fromEntries((chans || []).map((c) => [c.id, c]));
+
+  const out = [];
+  let pulled = 0;
+  for (const run of runs) {
+    if (pulled >= limit) break;
+    const ch = chById[run.channel_id];
+    const type = run.rule_id ? "story" : (typeBySp[run.scheduled_post_id] || "story");
+    // non-IG content can't be pulled here — freeze so it stops being a candidate
+    if (!ch || ch.platform !== "instagram" || type === "tiktok_video") {
+      await svc.from("post_run").update({ metrics_final: true }).eq("id", run.id);
+      continue;
+    }
+    const ageH = (now - new Date(run.published_at).getTime()) / 3600e3;
+    try {
+      if (type === "story") {
+        if (ageH < 20) continue;             // window not open yet
+        if (ageH > 26 && !run.metrics_pulled_at) { // window missed — data gone upstream
+          await svc.from("post_run").update({ metrics_final: true, metrics_pulled_at: new Date().toISOString() }).eq("id", run.id);
+          out.push({ run: run.id, type, missed: true });
+          continue;
+        }
+        const v = await igInsights(run.ig_media_id, ch.access_token, STORY_METRIC_SETS);
+        pulled++;
+        await svc.from("post_run").update({
+          m_views: v.views ?? null, m_reach: v.reach ?? null, m_replies: v.replies ?? null, m_shares: v.shares ?? null,
+          metrics_pulled_at: new Date().toISOString(), metrics_final: true, // one shot — story data is final
+        }).eq("id", run.id);
+        out.push({ run: run.id, type, ok: !v._error, error: v._error });
+      } else {
+        // feed / reels: daily refresh until ~30 days old
+        if (run.metrics_pulled_at && now - new Date(run.metrics_pulled_at).getTime() < 24 * 3600e3) continue;
+        const v = await igInsights(run.ig_media_id, ch.access_token, MEDIA_METRIC_SETS);
+        pulled++;
+        const final = ageH > 30 * 24;
+        if (v._error) {
+          // back off; freeze if it keeps failing past the window
+          await svc.from("post_run").update({ metrics_pulled_at: new Date().toISOString(), ...(final ? { metrics_final: true } : {}) }).eq("id", run.id);
+          out.push({ run: run.id, type, ok: false, error: v._error });
+        } else {
+          await svc.from("post_run").update({
+            m_views: v.views ?? null, m_reach: v.reach ?? null, m_likes: v.likes ?? null,
+            m_comments: v.comments ?? null, m_shares: v.shares ?? null, m_saves: v.saved ?? null,
+            metrics_pulled_at: new Date().toISOString(), metrics_final: final,
+          }).eq("id", run.id);
+          out.push({ run: run.id, type, ok: true });
+        }
+      }
+    } catch (e) { out.push({ run: run.id, type, ok: false, error: String(e?.message || e) }); }
+  }
+  return { enabled: true, pulled, results: out };
+}
+
 // Publish the Stories for a rule when it's due. A pool can be configured to post
 // several Stories in one run (pool.story_count, 1..5) — IG Stories have no carousel,
 // so N images publish as N separate Story frames, back-to-back. Idempotent via

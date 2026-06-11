@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, resumeOneoffContainer, refreshTokensDue, refreshPlanMetricsDue, snapshotFollowersDue } from "../../../lib/publishCore";
+import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, resumeOneoffContainer, refreshTokensDue, refreshPlanMetricsDue, refreshRunMetricsDue, snapshotFollowersDue } from "../../../lib/publishCore";
 import { publishTikTokVideoScheduled, resumeTikTokVideo } from "../../../lib/tiktokCore";
 import { syncSpecialDaysDue, specialDayRemindersDue, specialTodayByOwner } from "../../../lib/specialDays";
 
@@ -251,6 +251,13 @@ export async function POST(request) {
     try { followers = await snapshotFollowersDue(svc); } catch (e) { followers = { error: String(e?.message || e) }; }
   }
 
+  // ---- per-post metrics auto-pull (post_run) — small cap per tick; Stories have
+  // a 20–26h pull window so this runs every tick, not once a day ----
+  let runMetrics = { enabled: false };
+  if (!overBudget()) {
+    try { runMetrics = await refreshRunMetricsDue(svc, { limit: 4 }); } catch (e) { runMetrics = { enabled: true, error: String(e?.message || e) }; }
+  }
+
   // ---- Hari Spesial: daily API sync + H-7/H-1 reminders (self-guarding) ----
   // Reminders wait until 08:00 WIB so the Telegram ping lands at a humane hour.
   let specialDays = {};
@@ -261,7 +268,7 @@ export async function POST(request) {
     try { specialDays.reminders = await specialDayRemindersDue(svc); } catch (e) { specialDays.reminders = { error: String(e?.message || e) }; }
   }
 
-  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, resumed, oneoffs, tiktoks, planMetrics, followers, specialDays });
+  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, resumed, oneoffs, tiktoks, planMetrics, runMetrics, followers, specialDays });
 }
 
 // allow GET for a quick manual ping/health (still secret-gated)

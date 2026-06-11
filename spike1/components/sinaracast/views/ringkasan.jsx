@@ -54,17 +54,29 @@ export function RingkasanView() {
   const postedCt = scoped.filter(p => p.status === "posted").length;
   const inProgress = scoped.filter(p => !["posted"].includes(p.status)).length;
 
-  // aggregate performance from entries that have metrics filled (manual now, auto when IG insights unlocks)
+  // ---- per-post performance: published runs in this brand + time scope ----
+  const acctIds = new Set(accounts.map(a => a.id));
+  const pubRuns = (app.runs || []).filter(r => r.status === "Published" && acctIds.has(r.ch) && (month === "all" || (r.dateWib || "").startsWith(month)));
+  const runsWithM = pubRuns.filter(r => r.hasMetrics);
+
+  // aggregate = auto-pulled run metrics + manually-filled planner metrics.
+  // Plans whose metrics came from auto_ig mirror a run's media — skip to avoid double count.
   const withMetrics = scoped.filter(p => p.status === "posted" && p.m && Object.values(p.m).some(v => v != null));
-  const sum = (k) => withMetrics.reduce((a, p) => a + (Number(p.m?.[k]) || 0), 0);
+  const manualPlans = withMetrics.filter(p => p.metricsSource === "manual");
+  const sum = (k) =>
+    runsWithM.reduce((a, r) => a + (Number(r.m?.[k]) || 0), 0) +
+    manualPlans.reduce((a, p) => a + (Number(p.m?.[k]) || 0), 0);
+  const sumComments = sum("comments") + runsWithM.reduce((a, r) => a + (Number(r.m?.replies) || 0), 0);
+  const metricCt = runsWithM.length + manualPlans.length;
   const perf = [
-    { k: "views", label: "Dilihat", icon: <Icons.activity size={15} /> },
-    { k: "reach", label: "Jangkauan", icon: <Icons.storage size={15} /> },
-    { k: "likes", label: "Suka", icon: <Icons.checkCircle size={15} /> },
-    { k: "comments", label: "Komentar", icon: <Icons.bell size={15} /> },
-    { k: "shares", label: "Dibagikan", icon: <Icons.external size={15} /> },
-    { k: "saves", label: "Disimpan", icon: <Icons.pin size={15} /> },
+    { k: "views", label: "Dilihat", icon: <Icons.eye size={15} /> },
+    { k: "reach", label: "Jangkauan", icon: <Icons.user size={15} /> },
+    { k: "likes", label: "Suka", icon: <Icons.heart size={15} /> },
+    { k: "comments", label: "Komentar & balasan", icon: <Icons.comment size={15} />, value: sumComments },
+    { k: "shares", label: "Dibagikan", icon: <Icons.send size={15} /> },
+    { k: "saves", label: "Disimpan", icon: <Icons.bookmark size={15} /> },
   ];
+  const topRun = [...runsWithM].sort((a, z) => (z.m?.views ?? z.m?.reach ?? 0) - (a.m?.views ?? a.m?.reach ?? 0))[0];
 
   if (phase === "ready" && !brand) {
     return <div><Topbar title="Ringkasan" /><Panel pad={0}><EmptyState icon={<Icons.sparkle size={28} />} title="Belum ada brand" body="Tambahkan akun sosial media dulu untuk melihat ringkasannya." action={<Button variant="amber" onClick={() => app.go("connections")}>Buka Manajemen Akun</Button>} /></Panel></div>;
@@ -130,29 +142,40 @@ export function RingkasanView() {
             </div>
           )}
 
-          {/* performance (from entries with metrics) */}
+          {/* performance totals (auto-pulled run metrics + manual planner metrics) */}
           <Panel>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
               <div>
                 <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>Performa konten</div>
-                <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", marginTop: 2 }}>Dijumlahkan dari {withMetrics.length} konten yang metriknya terisi</div>
+                <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", marginTop: 2 }}>Dijumlahkan dari {metricCt} konten yang metriknya terisi</div>
               </div>
             </div>
-            {withMetrics.length === 0 ? (
+            {metricCt === 0 ? (
               <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", lineHeight: 1.5, background: "rgba(140,144,158,.07)", borderRadius: 12, padding: "14px 16px" }}>
-                Belum ada metrik. Tandai konten <b>Posted</b> lalu isi performanya di editor (Instagram bisa terisi otomatis setelah izin insight aktif).
+                Belum ada metrik. Angka tertarik otomatis setelah konten terbit: Story diambil menjelang 24 jam tayang, Feed & Reels diperbarui tiap hari.
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 12 }}>
-                {perf.map(({ k, label, icon }) => (
-                  <div key={k} style={{ border: "1px solid var(--line)", borderRadius: 14, padding: "13px 15px", background: "#fff" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7, fontFamily: FRk, fontSize: 11.5, color: "var(--ink-400)", fontWeight: 500 }}><span style={{ color: "var(--ink-300)" }}>{icon}</span>{label}</div>
-                    <div style={{ fontFamily: FRk, fontSize: 24, fontWeight: 700, color: "var(--ink-900)", marginTop: 5, letterSpacing: "-.02em" }}>{fmtCompact(sum(k))}</div>
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 12 }}>
+                  {perf.map(({ k, label, icon, value }) => (
+                    <div key={k} style={{ border: "1px solid var(--line)", borderRadius: 14, padding: "13px 15px", background: "#fff" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, fontFamily: FRk, fontSize: 11.5, color: "var(--ink-400)", fontWeight: 500 }}><span style={{ color: "var(--ink-300)" }}>{icon}</span>{label}</div>
+                      <div style={{ fontFamily: FRk, fontSize: 24, fontWeight: 700, color: "var(--ink-900)", marginTop: 5, letterSpacing: "-.02em" }}>{fmtCompact(value ?? sum(k))}</div>
+                    </div>
+                  ))}
+                </div>
+                {topRun && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontFamily: FRk, fontSize: 12, color: "var(--ink-500)" }}>
+                    <Icons.sparkle size={14} style={{ color: "#E0922A", flex: "0 0 auto" }} />
+                    <span>Paling banyak dilihat: <b style={{ color: "var(--ink-800)" }}>{topRun.rule}</b> · {fmtCompact(topRun.m?.views ?? topRun.m?.reach)} {topRun.m?.views != null ? "dilihat" : "jangkauan"} · {topRun.dateWib}</span>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </Panel>
+
+          {/* per-post performance list */}
+          <PerContent runs={pubRuns} isMobile={app.isMobile} />
 
           {/* follower trend per account */}
           <Panel>
@@ -198,3 +221,106 @@ export function RingkasanView() {
   );
 }
 const subhead = { fontFamily: FRk, fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--ink-400)" };
+
+/* ---------- Performa per konten ---------- */
+const KIND_META = {
+  story: { label: "Story", c: "#9579C4", bg: "var(--card-lilac)" },
+  feed: { label: "Feed", c: "#E0922A", bg: "var(--primary-100)" },
+  reels: { label: "Reels", c: "var(--green-500)", bg: "var(--green-100)" },
+  tiktok_video: { label: "TikTok", c: "var(--ink-500)", bg: "rgba(140,144,158,.13)" },
+};
+const SORTS = [
+  { value: "recent", label: "Terbaru" },
+  { value: "views", label: "Paling dilihat" },
+  { value: "reach", label: "Jangkauan terbesar" },
+];
+
+function MetricInline({ icon, v, title }) {
+  if (v == null) return null;
+  return (
+    <span title={title} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <span style={{ color: "var(--ink-300)", display: "inline-flex" }}>{icon}</span>
+      <span style={{ fontFamily: FRk, fontSize: 12, fontWeight: 700, color: "var(--ink-800)", fontVariantNumeric: "tabular-nums" }}>{fmtCompact(v)}</span>
+    </span>
+  );
+}
+
+function PerContent({ runs, isMobile }) {
+  const [sort, setSort] = uRk("recent");
+  const [showAll, setShowAll] = uRk(false);
+  const sorted = sort === "recent" ? runs
+    : [...runs].sort((a, z) => ((z.m?.[sort] ?? -1) - (a.m?.[sort] ?? -1)));
+  const rows = showAll ? sorted : sorted.slice(0, 10);
+
+  return (
+    <Panel>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>Performa per konten</div>
+          <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", marginTop: 2 }}>Metrik tertarik otomatis dari Instagram per postingan</div>
+        </div>
+        {runs.length > 1 && <div style={{ width: 178 }}><Select size="sm" value={sort} onChange={setSort} options={SORTS} /></div>}
+      </div>
+
+      {runs.length === 0 ? (
+        <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", lineHeight: 1.5, background: "rgba(140,144,158,.07)", borderRadius: 12, padding: "14px 16px" }}>
+          Belum ada konten terbit pada rentang waktu ini.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+          {rows.map((r) => {
+            const km = KIND_META[r.kind] || KIND_META.story;
+            const isStory = r.kind === "story";
+            const square = r.kind === "feed";
+            const inner = (
+              <>
+                {r.thumbUrl
+                  ? <img src={r.thumbUrl} alt="" style={{ width: square ? 46 : 36, height: square ? 46 : 54, objectFit: "cover", borderRadius: 9, border: "1px solid var(--line)", flex: "0 0 auto" }} />
+                  : <div style={{ width: square ? 46 : 36, height: square ? 46 : 54, borderRadius: 9, border: "1px solid var(--line)", background: "rgba(140,144,158,.08)", display: "grid", placeItems: "center", color: "var(--ink-300)", flex: "0 0 auto" }}><Icons.image size={15} /></div>}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    <span style={{ fontFamily: FRk, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.rule}</span>
+                    <span style={{ fontFamily: FRk, fontSize: 9.5, fontWeight: 700, color: km.c, background: km.bg, padding: "1px 8px", borderRadius: 999, flex: "0 0 auto" }}>{km.label}</span>
+                    {r.link && <Icons.external size={12} style={{ color: "var(--ink-300)", flex: "0 0 auto" }} />}
+                  </div>
+                  <div style={{ fontFamily: FRk, fontSize: 11.5, color: "var(--ink-400)", marginTop: 3 }}>{r.actual !== "—" ? r.actual : r.sched} WIB</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 14, flexWrap: "wrap", justifyContent: "flex-end", flex: isMobile ? "1 1 100%" : "0 0 auto" }}>
+                  {r.hasMetrics ? (
+                    <>
+                      <MetricInline icon={<Icons.eye size={13} />} v={r.m.views} title="Dilihat" />
+                      <MetricInline icon={<Icons.user size={13} />} v={r.m.reach} title="Jangkauan" />
+                      <MetricInline icon={<Icons.heart size={13} />} v={r.m.likes} title="Suka" />
+                      <MetricInline icon={<Icons.comment size={13} />} v={isStory ? r.m.replies : r.m.comments} title={isStory ? "Balasan" : "Komentar"} />
+                      <MetricInline icon={<Icons.send size={13} />} v={r.m.shares} title="Dibagikan" />
+                      <MetricInline icon={<Icons.bookmark size={13} />} v={r.m.saves} title="Disimpan" />
+                    </>
+                  ) : (
+                    <span style={{ fontFamily: FRk, fontSize: 11.5, color: "var(--ink-300)", fontStyle: "normal" }}>
+                      {r.metricsPulledAt ? "metrik tidak tersedia" : isStory ? "metrik diambil menjelang 24 jam tayang" : "metrik menyusul, diperbarui harian"}
+                    </span>
+                  )}
+                </div>
+              </>
+            );
+            const rowStyle = { display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, background: "#fff", flexWrap: isMobile ? "wrap" : "nowrap", transition: "box-shadow .14s, border-color .14s" };
+            return r.link ? (
+              <a key={r.id} href={`https://${r.link}`} target="_blank" rel="noreferrer" title="Buka di Instagram"
+                onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.borderColor = "var(--primary-200)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "var(--line)"; }}
+                style={{ ...rowStyle, textDecoration: "none", cursor: "pointer" }}>{inner}</a>
+            ) : (
+              <div key={r.id} style={rowStyle}>{inner}</div>
+            );
+          })}
+          {sorted.length > 10 && (
+            <button onClick={() => setShowAll(v => !v)} style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: FRk, fontSize: 12.5, fontWeight: 600, color: "var(--ink-400)", padding: "6px 0", display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
+              {showAll ? "Tampilkan lebih sedikit" : `Tampilkan semua (${sorted.length})`}
+              <Icons.chevDown size={14} style={{ transform: showAll ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
+            </button>
+          )}
+        </div>
+      )}
+    </Panel>
+  );
+}

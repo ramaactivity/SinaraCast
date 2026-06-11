@@ -146,8 +146,19 @@ create table if not exists post_run (
   fail_reason       text,
   attempt_count     int not null default 0,
   claim_key         text unique,
+  m_views           int,  -- auto-pulled IG insights (story: frozen at ~24h; feed/reels: refreshed daily ≤30d)
+  m_reach           int,
+  m_likes           int,
+  m_comments        int,
+  m_shares          int,
+  m_saves           int,
+  m_replies         int,  -- story-only (DM replies)
+  metrics_pulled_at timestamptz,
+  metrics_final     boolean not null default false,
   created_at        timestamptz not null default now()
 );
+create index if not exists post_run_metrics_due_idx on post_run (published_at desc)
+  where status = 'published' and metrics_final = false;
 create index if not exists post_run_activity_idx on post_run (channel_id, created_at desc);
 create index if not exists post_run_pending_idx  on post_run (scheduled_at) where status = 'pending';
 create index if not exists post_run_rule_idx      on post_run (rule_id, scheduled_at desc);
