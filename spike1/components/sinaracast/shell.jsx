@@ -211,9 +211,11 @@ export function Topbar({ title, sub, right }) {
   // and dissolves at its bottom edge via a masked feather strip — no hard line,
   // content fades out smoothly as it slides underneath.
   const surface = "linear-gradient(rgba(255,255,255,.34), rgba(255,255,255,.34)), var(--app-bg)";
+  // Bottom margin must exceed the 18px feather strip, otherwise the feather
+  // overlaps the first card when the page opens unscrolled.
   const stickyBase = {
     position: "sticky", top: 0, zIndex: 25,
-    margin: "-24px calc(var(--content-pad) * -1) 14px",
+    margin: "-24px calc(var(--content-pad) * -1) 24px",
     background: surface,
   };
   const feather = (
@@ -240,7 +242,7 @@ export function Topbar({ title, sub, right }) {
   }
 
   return (
-    <header style={{ ...stickyBase, display: "flex", alignItems: "center", gap: 16, padding: "16px var(--content-pad) 12px" }}>
+    <header style={{ ...stickyBase, display: "flex", alignItems: "center", gap: 16, padding: "18px var(--content-pad) 12px" }}>
       {feather}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 23, color: "var(--ink-900)", letterSpacing: "-.01em" }}>{title}</div>
