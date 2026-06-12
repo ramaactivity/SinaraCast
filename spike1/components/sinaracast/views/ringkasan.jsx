@@ -24,6 +24,39 @@ const fmtCompact = (n) => {
   return String(n);
 };
 
+// Follower change over the last N days: latest snapshot minus the newest snapshot
+// at least N days older. Falls back to the oldest snapshot when history is shorter,
+// so early days still show a meaningful number instead of nothing.
+function deltaLastDays(series, n) {
+  if (!series || series.length < 2) return null;
+  const last = series[series.length - 1];
+  const target = new Date(new Date(`${last.date}T00:00:00Z`).getTime() - n * 86400e3).toISOString().slice(0, 10);
+  let base = series[0];
+  for (const s of series) { if (s.date <= target) base = s; else break; }
+  return last.followers - base.followers;
+}
+
+function DeltaText({ delta, sub }) {
+  if (delta == null) return <div style={{ fontFamily: FRk, fontSize: 11, color: "var(--ink-400)" }}>followers</div>;
+  if (delta === 0) return <div style={{ fontFamily: FRk, fontSize: 11, color: "var(--ink-400)" }}>stabil · {sub}</div>;
+  const up = delta > 0;
+  return <div style={{ fontFamily: FRk, fontSize: 11.5, fontWeight: 600, color: up ? "var(--st-success)" : "var(--st-failed)" }}>{up ? "↑ +" : "↓ -"}{fmtCompact(Math.abs(delta))} <span style={{ fontWeight: 500, color: "var(--ink-400)" }}>{sub}</span></div>;
+}
+
+function DeltaChip({ label, delta }) {
+  const up = delta != null && delta > 0, down = delta != null && delta < 0;
+  const c = up ? "var(--st-success)" : down ? "var(--st-failed)" : "var(--ink-400)";
+  const bg = up ? "var(--green-100)" : down ? "var(--danger-bg)" : "rgba(140,144,158,.09)";
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: bg, borderRadius: 999, padding: "4px 11px" }}>
+      <span style={{ fontFamily: FRk, fontSize: 10.5, fontWeight: 500, color: "var(--ink-500)" }}>{label}</span>
+      <span style={{ fontFamily: FRk, fontSize: 11.5, fontWeight: 700, color: c, fontVariantNumeric: "tabular-nums" }}>
+        {delta == null ? "—" : delta === 0 ? "0" : `${up ? "+" : "-"}${fmtCompact(Math.abs(delta))}`}
+      </span>
+    </span>
+  );
+}
+
 function Stat({ label, value, sub, color }) {
   return (
     <div style={{ minWidth: 0 }}>
@@ -186,29 +219,38 @@ export function RingkasanView() {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {accounts.map(a => {
-                  const series = (app.followerSeries?.[a.id] || []).filter(s => s.followers != null);
-                  const cur = series.length ? series[series.length - 1].followers : null;
-                  const first = series.length ? series[0].followers : null;
-                  const delta = cur != null && first != null ? cur - first : null;
+                  const all = (app.followerSeries?.[a.id] || []).filter(s => s.followers != null);
+                  // the chart + main delta follow the page's time filter; the period
+                  // chips always read from the full history
+                  const series = month === "all" ? all : all.filter(s => (s.date || "").startsWith(month));
+                  const cur = all.length ? all[all.length - 1].followers : null;
+                  const scopeDelta = series.length >= 2 ? series[series.length - 1].followers - series[0].followers : null;
                   const m = platMeta(a.platform);
                   return (
-                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 14, border: "1px solid var(--line)", borderRadius: 14, padding: "13px 16px", background: "#fff", flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
-                      <PlatIcon p={a.platform} size={20} />
-                      <div style={{ minWidth: 0, flex: app.isMobile ? "1 1 60%" : "0 0 auto", width: app.isMobile ? "auto" : 150 }}>
-                        <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.handle}</div>
-                        <div style={{ fontFamily: FRk, fontSize: 11, color: "var(--ink-400)" }}>{m.label}</div>
+                    <div key={a.id} style={{ border: "1px solid var(--line)", borderRadius: 14, padding: "13px 16px", background: "#fff" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
+                        <PlatIcon p={a.platform} size={20} />
+                        <div style={{ minWidth: 0, flex: app.isMobile ? "1 1 60%" : "0 0 auto", width: app.isMobile ? "auto" : 150 }}>
+                          <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.handle}</div>
+                          <div style={{ fontFamily: FRk, fontSize: 11, color: "var(--ink-400)" }}>{m.label}</div>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: app.isMobile ? "flex-start" : "center" }}>
+                          {series.length >= 2
+                            ? <Sparkline data={series.map(s => s.followers)} w={app.isMobile ? 140 : 200} h={34} color={m.accent} />
+                            : <span style={{ fontFamily: FRk, fontSize: 11.5, color: "var(--ink-300)" }}>Tren mulai terkumpul…</span>}
+                        </div>
+                        <div style={{ textAlign: "right", flex: "0 0 auto" }}>
+                          <div style={{ fontFamily: FRk, fontSize: 18, fontWeight: 700, color: "var(--ink-900)", letterSpacing: "-.01em" }}>{cur != null ? fmtCompact(cur) : a.followers}</div>
+                          <DeltaText delta={scopeDelta} sub={month === "all" ? "sejak tercatat" : "bulan ini"} />
+                        </div>
                       </div>
-                      <div style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: app.isMobile ? "flex-start" : "center" }}>
-                        {series.length >= 2
-                          ? <Sparkline data={series.map(s => s.followers)} w={app.isMobile ? 140 : 200} h={34} color={m.accent} />
-                          : <span style={{ fontFamily: FRk, fontSize: 11.5, color: "var(--ink-300)" }}>Tren mulai terkumpul…</span>}
-                      </div>
-                      <div style={{ textAlign: "right", flex: "0 0 auto" }}>
-                        <div style={{ fontFamily: FRk, fontSize: 18, fontWeight: 700, color: "var(--ink-900)", letterSpacing: "-.01em" }}>{cur != null ? fmtCompact(cur) : a.followers}</div>
-                        {delta != null && delta !== 0
-                          ? <div style={{ fontFamily: FRk, fontSize: 11.5, fontWeight: 600, color: delta > 0 ? "var(--st-success)" : "var(--st-failed)" }}>{delta > 0 ? "↑ +" : "↓ "}{fmtCompact(Math.abs(delta))}</div>
-                          : <div style={{ fontFamily: FRk, fontSize: 11, color: "var(--ink-400)" }}>followers</div>}
-                      </div>
+                      {all.length >= 2 && (
+                        <div style={{ display: "flex", gap: 8, marginTop: 11, paddingTop: 11, borderTop: "1px solid var(--line-soft, var(--line))", flexWrap: "wrap" }}>
+                          <DeltaChip label="Kemarin" delta={deltaLastDays(all, 1)} />
+                          <DeltaChip label="7 hari" delta={deltaLastDays(all, 7)} />
+                          <DeltaChip label="30 hari" delta={deltaLastDays(all, 30)} />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
