@@ -5,7 +5,7 @@ import { useApp, useFetchState } from "../store";
 import { Topbar } from "../shell";
 import {
   BRANDS, BrandAvatar, Panel, Button, IconButton, Status, MediaThumb,
-  EmptyState, Skeleton, Progress, SectionTitle, Modal, Segmented,
+  EmptyState, Skeleton, Progress, SectionTitle, Modal, Segmented, Sparkline,
 } from "../ui";
 const { useState: uAc } = React;
 const FA = "var(--font)";
@@ -48,15 +48,16 @@ export function ActivityView() {
           {phase === "ready" && runs.length > 0 && (
             <div>
               {!app.isMobile && (
-              <div style={{ display: "grid", gridTemplateColumns: "48px 1fr 130px 120px", gap: 12, padding: "14px 20px", borderBottom: "1px solid var(--line)", fontFamily: FA, fontSize: 10.5, fontWeight: 600, letterSpacing: ".06em", color: "var(--ink-400)" }}>
-                <span></span><span>JADWAL · AKUN</span><span>WAKTU (WIB)</span><span style={{ textAlign: "right" }}>STATUS</span>
+              <div style={{ display: "grid", gridTemplateColumns: "48px minmax(0,1fr) 150px 140px 110px", gap: 12, padding: "14px 20px", borderBottom: "1px solid var(--line)", fontFamily: FA, fontSize: 10.5, fontWeight: 600, letterSpacing: ".06em", color: "var(--ink-400)" }}>
+                <span></span><span>JADWAL · AKUN</span><span>WAKTU (WIB)</span><span>METRIK</span><span style={{ textAlign: "right" }}>STATUS</span>
               </div>
               )}
               {runs.map(r => {
                 const b = brandFor(r.ch, app.channels);
-                const tstr = r.actual !== "—" ? r.actual.split(", ")[1] || r.actual : r.sched.split(", ")[1] || r.sched;
+                const tfull = r.actual !== "—" ? r.actual : r.sched;
+                const tstr = tfull.split(", ")[1] || tfull;
                 return (
-                  <div key={r.id} onClick={() => setOpen(r.id)} style={{ display: "grid", gridTemplateColumns: app.isMobile ? "40px minmax(0,1fr) auto" : "48px 1fr 130px 120px", gap: 12, padding: app.isMobile ? "12px 16px" : "13px 20px", borderBottom: "1px solid var(--line)", cursor: "pointer", alignItems: "center", transition: "background .12s" }}
+                  <div key={r.id} onClick={() => setOpen(r.id)} style={{ display: "grid", gridTemplateColumns: app.isMobile ? "40px minmax(0,1fr) auto" : "48px minmax(0,1fr) 150px 140px 110px", gap: 12, padding: app.isMobile ? "12px 16px" : "13px 20px", borderBottom: "1px solid var(--line)", cursor: "pointer", alignItems: "center", transition: "background .12s" }}
                     onMouseEnter={e => e.currentTarget.style.background = "rgba(140,144,158,.06)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                     <MediaThumb seed={r.img} src={r.thumbUrl} w={34} />
                     <div style={{ minWidth: 0 }}>
@@ -68,7 +69,8 @@ export function ActivityView() {
                         <BrandAvatar brand={b} size={14} />{b.name}{app.isMobile && <span>· {tstr} WIB</span>}{r.fail ? <span style={{ color: "var(--danger)" }}>· {r.fail}</span> : null}
                       </div>
                     </div>
-                    {!app.isMobile && <span style={{ fontFamily: FA, fontSize: 12, color: "var(--ink-500)" }}>{tstr}</span>}
+                    {!app.isMobile && <span style={{ fontFamily: FA, fontSize: 12, color: "var(--ink-500)", fontVariantNumeric: "tabular-nums" }}>{tfull}</span>}
+                    {!app.isMobile && <RunMetrics r={r} />}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
                       {r.status === "Failed" && <IconButton size={30} icon={<Icons.retry size={15} />} tone="green" tip="Coba lagi" onClick={e => { e.stopPropagation(); const rule = app.rules.find(x => x.id === r.ruleId); rule ? app.postNow(rule) : app.toast("Jadwal untuk postingan ini sudah tidak ada", "error"); }} />}
                       <Status s={r.status} pulse={r.status === "Publishing"} />
@@ -80,11 +82,86 @@ export function ActivityView() {
           )}
         </Panel>
 
-        <StorageCard />
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <WeekCard runs={runs} />
+          <StorageCard />
+        </div>
       </div>
 
       <RunDetail run={openRun} onClose={() => setOpen(null)} />
     </div>
+  );
+}
+
+// Inline views/reach for a published run — the data the table's width was wasted on.
+const fmtC = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(".0", "") + "jt" : n >= 1e3 ? (n / 1e3).toFixed(1).replace(".0", "") + "rb" : String(n);
+function RunMetrics({ r }) {
+  if (r.status !== "Published") return <span style={{ fontFamily: FA, fontSize: 11.5, color: "var(--ink-200)" }}>—</span>;
+  if (!r.hasMetrics) return <span style={{ fontFamily: FA, fontSize: 11, color: "var(--ink-300)" }}>{r.metricsPulledAt ? "tidak tersedia" : "±24 jam"}</span>;
+  const cell = (icon, v, tip) => v == null ? null : (
+    <span title={tip} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <span style={{ color: "var(--ink-300)", display: "inline-flex" }}>{icon}</span>
+      <span style={{ fontFamily: FA, fontSize: 12, fontWeight: 700, color: "var(--ink-700)", fontVariantNumeric: "tabular-nums" }}>{fmtC(v)}</span>
+    </span>
+  );
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      {cell(<Icons.eye size={13} />, r.m?.views, "Dilihat")}
+      {cell(<Icons.user size={13} />, r.m?.reach, "Jangkauan")}
+    </div>
+  );
+}
+
+// Right-rail digest: the brand's last 7 days at a glance + failures you can act on.
+function WeekCard({ runs }) {
+  const app = useApp();
+  const wibNow = new Date(Date.now() + 7 * 3600 * 1000);
+  const last7 = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(Date.UTC(wibNow.getUTCFullYear(), wibNow.getUTCMonth(), wibNow.getUTCDate() - (6 - i)));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  });
+  const inWeek = runs.filter(r => last7.includes(r.dateWib));
+  const ct = (s) => inWeek.filter(r => r.status === s).length;
+  const perDay = last7.map(k => inWeek.filter(r => r.dateWib === k && r.status === "Published").length);
+  const fails = runs.filter(r => r.status === "Failed").slice(0, 3);
+  const rows = [
+    { label: "Terbit", n: ct("Published"), c: "var(--st-success)" },
+    { label: "Gagal", n: ct("Failed"), c: "var(--st-failed)" },
+    { label: "Dilewati", n: ct("Skipped"), c: "var(--st-skipped)" },
+  ];
+  return (
+    <Panel strong>
+      <SectionTitle sub="Aktivitas brand ini">7 hari terakhir</SectionTitle>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <span style={{ fontFamily: FA, fontWeight: 600, fontSize: 26, color: "var(--ink-900)", letterSpacing: "-.02em" }}>{ct("Published")}</span>
+        <Sparkline data={perDay} w={120} h={32} color="var(--st-success)" />
+      </div>
+      <div style={{ fontFamily: FA, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2, marginBottom: 12 }}>postingan terbit minggu ini</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {rows.map(r => (
+          <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: r.c, flex: "0 0 auto" }} />
+            <span style={{ flex: 1, fontFamily: FA, fontSize: 12.5, color: "var(--ink-600)" }}>{r.label}</span>
+            <span style={{ fontFamily: FA, fontSize: 12.5, fontWeight: 700, color: "var(--ink-700)", fontVariantNumeric: "tabular-nums" }}>{r.n}</span>
+          </div>
+        ))}
+      </div>
+      {fails.length > 0 && (
+        <>
+          <div style={{ height: 1, background: "var(--line)", margin: "14px 0" }} />
+          <div style={{ fontFamily: FA, fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--danger)", marginBottom: 8 }}>Perlu perhatian</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {fails.map(f => (
+              <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <span style={{ flex: 1, fontFamily: FA, fontSize: 12, color: "var(--ink-700)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.rule}</span>
+                <IconButton size={26} icon={<Icons.retry size={13} />} tone="green" tip="Coba lagi"
+                  onClick={() => { const rule = app.rules.find(x => x.id === f.ruleId); rule ? app.postNow(rule) : app.toast("Jadwal untuk postingan ini sudah tidak ada", "error"); }} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Panel>
   );
 }
 
@@ -151,6 +228,24 @@ function RunDetail({ run, onClose }) {
         {run.fail && <div style={{ marginTop: 16, background: "var(--danger-bg)", borderRadius: 12, padding: "12px 14px", display: "flex", gap: 9 }}><Icons.alert size={17} style={{ color: "var(--danger)", flex: "0 0 auto" }} /><span style={{ fontFamily: FA, fontSize: 12.5, color: "var(--danger)", lineHeight: 1.45 }}>{run.fail}</span></div>}
 
         {run.link && <a href={"https://" + run.link} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 16, textDecoration: "none", background: "var(--green-100)", borderRadius: 12, padding: "12px 14px", fontFamily: FA, fontSize: 12.5, fontWeight: 500, color: "var(--green-500)" }}><Icons.external size={16} />{run.link}</a>}
+
+        {run.hasMetrics && (
+          <div style={{ display: "flex", gap: 16, marginTop: 16, background: "rgba(140,144,158,.07)", borderRadius: 12, padding: "12px 14px", flexWrap: "wrap" }}>
+            {[
+              [<Icons.eye size={14} key="i" />, run.m?.views, "Dilihat"],
+              [<Icons.user size={14} key="i" />, run.m?.reach, "Jangkauan"],
+              [<Icons.heart size={14} key="i" />, run.m?.likes, "Suka"],
+              [<Icons.comment size={14} key="i" />, run.kind === "story" ? run.m?.replies : run.m?.comments, run.kind === "story" ? "Balasan" : "Komentar"],
+              [<Icons.send size={14} key="i" />, run.m?.shares, "Dibagikan"],
+              [<Icons.bookmark size={14} key="i" />, run.m?.saves, "Disimpan"],
+            ].map(([icon, v, label]) => v == null ? null : (
+              <span key={label} title={label} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span style={{ color: "var(--ink-300)", display: "inline-flex" }}>{icon}</span>
+                <span style={{ fontFamily: FA, fontSize: 13, fontWeight: 700, color: "var(--ink-800)", fontVariantNumeric: "tabular-nums" }}>{fmtC(v)}</span>
+              </span>
+            ))}
+          </div>
+        )}
 
         <div style={{ fontFamily: FA, fontWeight: 600, fontSize: 12.5, color: "var(--ink-500)", margin: "20px 0 10px" }}>Riwayat proses</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
