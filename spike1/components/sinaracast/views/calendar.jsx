@@ -166,7 +166,18 @@ export function CalendarView() {
   const platOpts = [{ value: "all", label: "Semua platform" }, ...Object.entries(PLATFORM).map(([v, m]) => ({ value: v, label: m.label }))];
   const statOpts = [{ value: "all", label: "Semua status" }, ...PLAN_ORDER.map(s => ({ value: s, label: PLAN_LABEL[s] }))];
 
-  const totalItems = Array.from({ length: DAYS }, (_, i) => itemsFor(i + 1)).flat().length;
+  const allItems = Array.from({ length: DAYS }, (_, i) => itemsFor(i + 1)).flat();
+  const totalItems = allItems.length;
+  // month digest for the right rail: what the grid actually contains
+  const digest = { pub: 0, sched: 0, once: 0, failed: 0 };
+  allItems.forEach((it) => {
+    if (it.kind === "plan") return;
+    if (it.kind === "oneoff") { digest.once++; return; }
+    if (it.status === "Published") digest.pub++;
+    else if (it.status === "Failed") digest.failed++;
+    else digest.sched++;
+  });
+  const specialsMonth = (app.specialDays || []).filter(s => s.active && (s.date || "").startsWith(ym));
 
   // summary: count by status + by platform across the month (filter-aware).
   const byStatus = {}; PLAN_ORDER.forEach(s => { const n = plansSummary.filter(p => p.status === s).length; if (n) byStatus[s] = n; });
@@ -190,26 +201,34 @@ export function CalendarView() {
   const useAgenda = app.isMobile || mode === "list";
 
   // ---- in-cell event pill (compact) ----
+  // Month view: TITLE first, no time — a recurring rule repeats the same hour 30×,
+  // so the hour is noise while the truncated title was the only meaningful part.
+  // Week view has room, so the time returns. Future projections render as quiet
+  // "ghost" pills (outline only); things that actually happened keep a solid tint,
+  // giving the grid a real past-vs-planned hierarchy. Times live in the day modal.
+  const showTime = mode === "week";
   const Pill = ({ it }) => {
+    const pillText = (color, weight = 500) => ({ fontFamily: FCa, fontSize: 10.5, fontWeight: weight, color, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 });
     if (it.kind === "plan") {
       const pm = platMeta(it.platform);
       return (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, background: tint(pm.accent, 9), borderRadius: 7, padding: "2px 7px 2px 6px", borderLeft: `2.5px solid ${pm.accent}`, overflow: "hidden", flex: "0 0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: tint(pm.accent, 8), borderRadius: 7, padding: "2.5px 7px", overflow: "hidden", flex: "0 0 auto" }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: PLAN_ST_COLOR[it.statusKey] || "var(--st-scheduled)", flex: "0 0 auto" }} />
-          <span style={{ fontFamily: FCa, fontSize: 10.5, color: "var(--ink-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
-            {it.time !== "—" && <b style={{ fontWeight: 700, color: "var(--ink-700)" }}>{it.time} </b>}{it.title}
+          <span style={pillText("var(--ink-600)")}>
+            {showTime && it.time !== "—" && <b style={{ fontWeight: 700, color: "var(--ink-700)" }}>{it.time} </b>}{it.title}
           </span>
         </div>
       );
     }
-    const b = brandFor(it.ch, app.channels);
     const sc = stColor(it.status);
     const oneoff = it.kind === "oneoff";
+    const ghost = it.status === "Scheduled"; // projection — hasn't happened yet
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 6, background: sc.bg, borderRadius: 7, padding: "2px 7px 2px 6px", borderLeft: oneoff ? `2.5px solid ${b.accent}` : "none", overflow: "hidden", flex: "0 0 auto" }}>
-        <span style={{ width: 6, height: 6, borderRadius: oneoff ? 1.5 : "50%", background: sc.dot, flex: "0 0 auto" }} />
-        <span style={{ fontFamily: FCa, fontSize: 10.5, color: "var(--ink-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
-          <b style={{ fontWeight: 700, color: "var(--ink-700)" }}>{it.time}</b> {it.title}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, borderRadius: 7, padding: ghost ? "1.5px 6px" : "2.5px 7px", overflow: "hidden", flex: "0 0 auto",
+        background: ghost ? "transparent" : sc.bg, border: ghost ? "1px solid var(--line)" : "none" }}>
+        <span style={{ width: 6, height: 6, borderRadius: oneoff ? 1.5 : "50%", background: sc.dot, opacity: ghost ? 0.55 : 1, flex: "0 0 auto" }} />
+        <span style={pillText(ghost ? "var(--ink-400)" : "var(--ink-600)", it.status === "Failed" ? 600 : 500)}>
+          {showTime && it.time !== "—" && <b style={{ fontWeight: 700, color: ghost ? "var(--ink-500)" : "var(--ink-700)" }}>{it.time} </b>}{it.title}
         </span>
       </div>
     );
@@ -338,6 +357,7 @@ export function CalendarView() {
 
   const summaryRail = (
     <SummaryRail compact={app.isMobile} monthLabel={MONTH} total={plansSummary.length} byStatus={byStatus} byPlatform={byPlatform}
+      digest={digest} specials={specialsMonth}
       statFilter={statFilter} onPickStatus={(s) => setStatFilter(cur => cur === s ? "all" : s)} onClear={() => { setStatFilter("all"); setPlatFilter("all"); }}
       onCreate={() => app.go("contentEditor", { brand: app.brand })} />
   );
@@ -364,19 +384,57 @@ export function CalendarView() {
 
 function Legend({ c, t, sq }) { return <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: sq ? 2 : "50%", background: c, boxShadow: `0 0 0 3px color-mix(in srgb, ${c} 16%, transparent)` }} />{t}</span>; }
 
-// Right-rail (desktop) / top strip (mobile): "Konten bulan ini" + status & platform breakdowns.
-function SummaryRail({ compact, monthLabel, total, byStatus, byPlatform, statFilter, onPickStatus, onClear, onCreate }) {
+// Right-rail (desktop) / top strip (mobile): month digest (what the grid actually
+// holds), special days this month, then plan status & platform breakdowns.
+function SummaryRail({ compact, monthLabel, total, byStatus, byPlatform, digest, specials, statFilter, onPickStatus, onClear, onCreate }) {
   const hasFilter = statFilter !== "all";
+  const digestRows = [
+    { label: "Terbit", n: digest.pub, c: "var(--st-success)" },
+    { label: "Terjadwal", n: digest.sched, c: "var(--st-scheduled)" },
+    { label: "Sekali", n: digest.once, c: "var(--st-scheduled)", sq: true },
+    ...(digest.failed ? [{ label: "Gagal", n: digest.failed, c: "var(--st-failed)" }] : []),
+  ].filter(r => r.n > 0);
   return (
     <Panel strong pad={compact ? 14 : 18} style={compact ? undefined : { position: "sticky", top: 0 }}>
-      <div style={{ fontFamily: FCa, fontSize: 12, fontWeight: 600, color: "var(--ink-500)", letterSpacing: ".02em" }}>Konten bulan ini</div>
+      <div style={{ fontFamily: FCa, fontSize: 12, fontWeight: 600, color: "var(--ink-500)", letterSpacing: ".02em" }}>Bulan ini</div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 2 }}>
-        <span style={{ fontFamily: FCa, fontWeight: 800, fontSize: 30, color: "var(--ink-900)", letterSpacing: "-.02em" }}>{total}</span>
-        <span style={{ fontFamily: FCa, fontSize: 12.5, color: "var(--ink-400)" }}>direncanakan · {monthLabel}</span>
+        <span style={{ fontFamily: FCa, fontWeight: 800, fontSize: 30, color: "var(--ink-900)", letterSpacing: "-.02em" }}>{digest.pub + digest.sched + digest.once + total}</span>
+        <span style={{ fontFamily: FCa, fontSize: 12.5, color: "var(--ink-400)" }}>postingan & rencana · {monthLabel}</span>
       </div>
 
+      {digestRows.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 12 }}>
+          {digestRows.map((r) => (
+            <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 2px" }}>
+              <span style={{ width: 8, height: 8, borderRadius: r.sq ? 2 : "50%", background: r.c, flex: "0 0 auto" }} />
+              <span style={{ flex: 1, fontFamily: FCa, fontSize: 12.5, color: "var(--ink-600)" }}>{r.label}</span>
+              <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 700, color: "var(--ink-700)", fontVariantNumeric: "tabular-nums" }}>{r.n}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {specials.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div style={subhead}>Hari spesial</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+            {specials.slice(0, 4).map((s) => (
+              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 2px", minWidth: 0 }}>
+                <Icons.sun size={13} style={{ color: "#E0922A", flex: "0 0 auto" }} />
+                <span style={{ flex: 1, fontFamily: FCa, fontSize: 12, color: "var(--ink-600)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</span>
+                <span style={{ fontFamily: FCa, fontSize: 11.5, fontWeight: 700, color: "var(--ink-500)", fontVariantNumeric: "tabular-nums" }}>{s.date.slice(8, 10)}</span>
+              </div>
+            ))}
+            {specials.length > 4 && <span style={{ fontFamily: FCa, fontSize: 11, color: "var(--ink-400)", paddingLeft: 21 }}>+{specials.length - 4} lagi</span>}
+          </div>
+        </div>
+      )}
+
       {total === 0 ? (
-        <div style={{ fontFamily: FCa, fontSize: 12.5, color: "var(--ink-400)", marginTop: 12, lineHeight: 1.5 }}>Belum ada konten terencana. Mulai dengan satu ide.</div>
+        <div style={{ fontFamily: FCa, fontSize: 12.5, color: "var(--ink-400)", marginTop: 14, lineHeight: 1.5 }}>
+          Belum ada konten terencana.
+          <Button size="sm" variant="amber" full style={{ marginTop: 10 }} icon={<Icons.plus size={15} sw={2} />} onClick={onCreate}>Buat konten</Button>
+        </div>
       ) : (
         <>
           <div style={{ marginTop: 16 }}>
@@ -415,7 +473,6 @@ function SummaryRail({ compact, monthLabel, total, byStatus, byPlatform, statFil
       )}
 
       {hasFilter && <Button size="sm" variant="ghost" full style={{ marginTop: 14 }} onClick={onClear}>Hapus filter</Button>}
-      {!compact && <Button size="sm" variant="amber" full style={{ marginTop: 8 }} icon={<Icons.plus size={15} sw={2} />} onClick={onCreate}>Buat konten</Button>}
     </Panel>
   );
 }
