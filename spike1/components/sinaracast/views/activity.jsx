@@ -82,7 +82,7 @@ export function ActivityView() {
           )}
         </Panel>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, position: app.isMobile ? "static" : "sticky", top: 92 }}>
           <WeekCard runs={runs} />
           <StorageCard />
         </div>
