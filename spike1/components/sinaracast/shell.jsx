@@ -204,9 +204,20 @@ export function Topbar({ title, sub, right }) {
     </button>
   );
 
+  // Sticky on scroll (all pages): pins to the top of the content scroller with a
+  // blurred translucent backdrop so content glides underneath. Full-bleed via
+  // negative margins so nothing peeks through the content gutters.
+  const stickyBase = {
+    position: "sticky", top: 0, zIndex: 25,
+    margin: "-24px calc(var(--content-pad) * -1) 18px",
+    background: "rgba(252,251,253,.72)",
+    backdropFilter: "blur(14px) saturate(1.15)", WebkitBackdropFilter: "blur(14px) saturate(1.15)",
+    borderBottom: "1px solid rgba(140,144,158,.10)",
+  };
+
   if (mobile) {
     return (
-      <header style={{ display: "flex", flexDirection: "column", gap: 12, padding: "2px 0 16px" }}>
+      <header style={{ ...stickyBase, display: "flex", flexDirection: "column", gap: 12, padding: "14px var(--content-pad) 14px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button onClick={app.openMenu} aria-label="Menu" style={{ width: 46, height: 46, borderRadius: 14, border: "1px solid var(--line)", background: "#fff", color: "var(--ink-700)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)", flex: "0 0 auto", cursor: "pointer" }}><MenuIcon /></button>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -221,7 +232,7 @@ export function Topbar({ title, sub, right }) {
   }
 
   return (
-    <header style={{ display: "flex", alignItems: "center", gap: 16, padding: "4px 2px 22px" }}>
+    <header style={{ ...stickyBase, display: "flex", alignItems: "center", gap: 16, padding: "16px var(--content-pad) 14px" }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 23, color: "var(--ink-900)", letterSpacing: "-.01em" }}>{title}</div>
         {sub && <div style={{ fontFamily: FS, fontSize: 13, color: "var(--ink-400)", marginTop: 2 }}>{sub}</div>}
