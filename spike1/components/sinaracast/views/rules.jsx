@@ -221,7 +221,7 @@ function NextInspector({ r, b, ch }) {
   const total = r.mode === "schedule" ? r.pools.weekday : r.pools.pool;
   const paused = ch.paused || ch.status === "Needs reconnect";
   return (
-    <Panel strong style={{ position: "sticky", top: 8 }}>
+    <Panel strong style={{ position: "sticky", top: 92 }}>
       <SectionTitle sub={r.name}>Terbit berikutnya</SectionTitle>
       <div style={{ display: "flex", gap: 14 }}>
         <MediaThumb seed={r.lastImg} src={r.thumbUrl} w={92} label="9:16" />

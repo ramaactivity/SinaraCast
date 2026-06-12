@@ -423,7 +423,10 @@ export default function SinaraCast() {
                 {isMobile && drawerOpen && (
                   <div onClick={() => setDrawerOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(62,67,81,.42)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)", zIndex: 65, animation: "scFade .15s" }} />
                 )}
-                <main id="content" className="sc-scroll" style={{ flex: 1, minWidth: 0, overflowY: "auto", overflowX: "hidden", padding: "24px var(--content-pad) 40px" }}>
+                {/* No top padding here: the sticky Topbar owns the top spacing.
+                    (A negative-margin counter to scroller padding displaces sticky
+                    elements from their resting position — see shell.jsx Topbar.) */}
+                <main id="content" className="sc-scroll" style={{ flex: 1, minWidth: 0, overflowY: "auto", overflowX: "hidden", padding: "0 var(--content-pad) 40px" }}>
                   {View ? <View key={view + (params.id || params.ch || "")} /> : <Stub name={view} />}
                 </main>
               </div>

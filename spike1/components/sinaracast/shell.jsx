@@ -211,11 +211,16 @@ export function Topbar({ title, sub, right }) {
   // and dissolves at its bottom edge via a masked feather strip — no hard line,
   // content fades out smoothly as it slides underneath.
   const surface = "linear-gradient(rgba(255,255,255,.34), rgba(255,255,255,.34)), var(--app-bg)";
-  // Bottom margin must exceed the 18px feather strip, otherwise the feather
-  // overlaps the first card when the page opens unscrolled.
+  // Geometry contract (keep all three in sync):
+  //   • main#content has NO top padding — this header owns the page's top space,
+  //     so its resting flow position equals its sticky position (top: 0) and it
+  //     can never displace/overlap content on first paint.
+  //   • Horizontal: full-bleed via negative side margins (cancels --content-pad).
+  //   • Bottom: marginBottom (24) > feather height (18), so at rest the fade
+  //     covers empty gap only; content dissolves under it only while scrolling.
   const stickyBase = {
     position: "sticky", top: 0, zIndex: 25,
-    margin: "-24px calc(var(--content-pad) * -1) 24px",
+    margin: "0 calc(var(--content-pad) * -1) 24px",
     background: surface,
   };
   const feather = (

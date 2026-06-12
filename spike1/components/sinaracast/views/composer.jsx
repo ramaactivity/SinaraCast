@@ -455,7 +455,7 @@ export function ComposerView() {
         </div>
 
         {/* schedule + preview */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, position: app.isMobile ? "static" : "sticky", top: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, position: app.isMobile ? "static" : "sticky", top: 92 }}>
           <Panel strong>
             <SectionTitle sub="Waktu WIB"><StepTitle n={hasCaption ? 4 : 3} accent={b.accent} soft={b.soft}>Kapan terbit</StepTitle></SectionTitle>
             <Field label="Tanggal"><DateField value={date} min={todayWib()} onChange={setDate} /></Field>

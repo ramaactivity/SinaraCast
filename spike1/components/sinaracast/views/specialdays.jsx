@@ -154,7 +154,7 @@ export function SpecialDaysView() {
         </div>
 
         {/* countdown inspector */}
-        <Panel strong style={{ position: app.isMobile ? "static" : "sticky", top: 8 }}>
+        <Panel strong style={{ position: app.isMobile ? "static" : "sticky", top: 92 }}>
           <SectionTitle sub="Hari spesial aktif terdekat">Hitung mundur</SectionTitle>
           {!nextActive ? (
             <div style={{ fontFamily: FD, fontSize: 13, color: "var(--ink-400)", lineHeight: 1.5 }}>Tidak ada hari spesial aktif di depan.</div>
