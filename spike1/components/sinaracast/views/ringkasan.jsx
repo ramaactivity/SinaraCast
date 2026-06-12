@@ -287,12 +287,46 @@ function MetricInline({ icon, v, title }) {
   );
 }
 
+const METRIC_COLS = [
+  { k: "views", label: "Dilihat", icon: (s) => <Icons.eye size={s} /> },
+  { k: "reach", label: "Jangkauan", icon: (s) => <Icons.user size={s} /> },
+  { k: "likes", label: "Suka", icon: (s) => <Icons.heart size={s} /> },
+  { k: "comments", label: "Komentar", icon: (s) => <Icons.comment size={s} /> },
+  { k: "shares", label: "Share", icon: (s) => <Icons.send size={s} /> },
+  { k: "saves", label: "Simpan", icon: (s) => <Icons.bookmark size={s} /> },
+];
+
 function PerContent({ runs, isMobile }) {
   const [sort, setSort] = uRk("recent");
   const [showAll, setShowAll] = uRk(false);
   const sorted = sort === "recent" ? runs
     : [...runs].sort((a, z) => ((z.m?.[sort] ?? -1) - (a.m?.[sort] ?? -1)));
   const rows = showAll ? sorted : sorted.slice(0, 10);
+  // desktop: fixed metric columns so numbers align between rows (a real report
+  // table); mobile: stacked rows with inline metrics
+  const gridCols = "minmax(0,1fr) repeat(6, 76px)";
+  const metricOf = (r, k) => (k === "comments" && r.kind === "story") ? r.m.replies : r.m[k];
+
+  const ContentCell = ({ r }) => {
+    const km = KIND_META[r.kind] || KIND_META.story;
+    const square = r.kind === "feed";
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        {r.thumbUrl
+          ? <img src={r.thumbUrl} alt="" style={{ width: square ? 44 : 34, height: square ? 44 : 50, objectFit: "cover", borderRadius: 9, border: "1px solid var(--line)", flex: "0 0 auto" }} />
+          : <div style={{ width: square ? 44 : 34, height: square ? 44 : 50, borderRadius: 9, border: "1px solid var(--line)", background: "rgba(140,144,158,.08)", display: "grid", placeItems: "center", color: "var(--ink-300)", flex: "0 0 auto" }}><Icons.image size={14} /></div>}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            <span style={{ fontFamily: FRk, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.rule}</span>
+            <span style={{ fontFamily: FRk, fontSize: 9.5, fontWeight: 700, color: km.c, background: km.bg, padding: "1px 8px", borderRadius: 999, flex: "0 0 auto" }}>{km.label}</span>
+            {r.link && <Icons.external size={12} style={{ color: "var(--ink-300)", flex: "0 0 auto" }} />}
+          </div>
+          <div style={{ fontFamily: FRk, fontSize: 11.5, color: "var(--ink-400)", marginTop: 3 }}>{r.actual !== "—" ? r.actual : r.sched} WIB</div>
+        </div>
+      </div>
+    );
+  };
+  const pendingText = (r) => r.metricsPulledAt ? "metrik tidak tersedia" : r.kind === "story" ? "metrik diambil menjelang 24 jam tayang" : "metrik menyusul, diperbarui harian";
 
   return (
     <Panel>
@@ -308,61 +342,75 @@ function PerContent({ runs, isMobile }) {
         <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", lineHeight: 1.5, background: "rgba(140,144,158,.07)", borderRadius: 12, padding: "14px 16px" }}>
           Belum ada konten terbit pada rentang waktu ini.
         </div>
-      ) : (
+      ) : isMobile ? (
+        /* mobile: stacked rows, metrics inline below the title */
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-          {rows.map((r) => {
-            const km = KIND_META[r.kind] || KIND_META.story;
-            const isStory = r.kind === "story";
-            const square = r.kind === "feed";
-            const inner = (
-              <>
-                {r.thumbUrl
-                  ? <img src={r.thumbUrl} alt="" style={{ width: square ? 46 : 36, height: square ? 46 : 54, objectFit: "cover", borderRadius: 9, border: "1px solid var(--line)", flex: "0 0 auto" }} />
-                  : <div style={{ width: square ? 46 : 36, height: square ? 46 : 54, borderRadius: 9, border: "1px solid var(--line)", background: "rgba(140,144,158,.08)", display: "grid", placeItems: "center", color: "var(--ink-300)", flex: "0 0 auto" }}><Icons.image size={15} /></div>}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                    <span style={{ fontFamily: FRk, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.rule}</span>
-                    <span style={{ fontFamily: FRk, fontSize: 9.5, fontWeight: 700, color: km.c, background: km.bg, padding: "1px 8px", borderRadius: 999, flex: "0 0 auto" }}>{km.label}</span>
-                    {r.link && <Icons.external size={12} style={{ color: "var(--ink-300)", flex: "0 0 auto" }} />}
-                  </div>
-                  <div style={{ fontFamily: FRk, fontSize: 11.5, color: "var(--ink-400)", marginTop: 3 }}>{r.actual !== "—" ? r.actual : r.sched} WIB</div>
+          {rows.map((r) => (
+            <RowShell key={r.id} r={r}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+                <ContentCell r={r} />
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", paddingLeft: 46 }}>
+                  {r.hasMetrics
+                    ? METRIC_COLS.map(({ k, label, icon }) => <MetricInline key={k} icon={icon(13)} v={metricOf(r, k)} title={label} />)
+                    : <span style={{ fontFamily: FRk, fontSize: 11.5, color: "var(--ink-300)" }}>{pendingText(r)}</span>}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 14, flexWrap: "wrap", justifyContent: "flex-end", flex: isMobile ? "1 1 100%" : "0 0 auto" }}>
-                  {r.hasMetrics ? (
-                    <>
-                      <MetricInline icon={<Icons.eye size={13} />} v={r.m.views} title="Dilihat" />
-                      <MetricInline icon={<Icons.user size={13} />} v={r.m.reach} title="Jangkauan" />
-                      <MetricInline icon={<Icons.heart size={13} />} v={r.m.likes} title="Suka" />
-                      <MetricInline icon={<Icons.comment size={13} />} v={isStory ? r.m.replies : r.m.comments} title={isStory ? "Balasan" : "Komentar"} />
-                      <MetricInline icon={<Icons.send size={13} />} v={r.m.shares} title="Dibagikan" />
-                      <MetricInline icon={<Icons.bookmark size={13} />} v={r.m.saves} title="Disimpan" />
-                    </>
-                  ) : (
-                    <span style={{ fontFamily: FRk, fontSize: 11.5, color: "var(--ink-300)", fontStyle: "normal" }}>
-                      {r.metricsPulledAt ? "metrik tidak tersedia" : isStory ? "metrik diambil menjelang 24 jam tayang" : "metrik menyusul, diperbarui harian"}
-                    </span>
-                  )}
-                </div>
-              </>
-            );
-            const rowStyle = { display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, background: "#fff", flexWrap: isMobile ? "wrap" : "nowrap", transition: "box-shadow .14s, border-color .14s" };
-            return r.link ? (
-              <a key={r.id} href={`https://${r.link}`} target="_blank" rel="noreferrer" title="Buka di Instagram"
-                onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.borderColor = "var(--primary-200)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "var(--line)"; }}
-                style={{ ...rowStyle, textDecoration: "none", cursor: "pointer" }}>{inner}</a>
-            ) : (
-              <div key={r.id} style={rowStyle}>{inner}</div>
-            );
-          })}
-          {sorted.length > 10 && (
-            <button onClick={() => setShowAll(v => !v)} style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: FRk, fontSize: 12.5, fontWeight: 600, color: "var(--ink-400)", padding: "6px 0", display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
-              {showAll ? "Tampilkan lebih sedikit" : `Tampilkan semua (${sorted.length})`}
-              <Icons.chevDown size={14} style={{ transform: showAll ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
-            </button>
-          )}
+              </div>
+            </RowShell>
+          ))}
+          <ShowAllBtn sorted={sorted} showAll={showAll} setShowAll={setShowAll} />
+        </div>
+      ) : (
+        /* desktop: report table with aligned metric columns */
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: gridCols, gap: 0, padding: "0 13px 9px", alignItems: "end" }}>
+            <span style={{ fontFamily: FRk, fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--ink-400)" }}>Konten</span>
+            {METRIC_COLS.map(({ k, label, icon }) => (
+              <span key={k} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, color: "var(--ink-300)" }}>
+                {icon(14)}
+                <span style={{ fontFamily: FRk, fontSize: 9.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--ink-400)" }}>{label}</span>
+              </span>
+            ))}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {rows.map((r) => (
+              <RowShell key={r.id} r={r} grid={gridCols}>
+                <ContentCell r={r} />
+                {r.hasMetrics
+                  ? METRIC_COLS.map(({ k }) => {
+                      const v = metricOf(r, k);
+                      return <span key={k} style={{ textAlign: "center", fontFamily: FRk, fontSize: 13, fontWeight: 700, color: v == null ? "var(--ink-200)" : "var(--ink-800)", fontVariantNumeric: "tabular-nums", alignSelf: "center" }}>{v == null ? "·" : fmtCompact(v)}</span>;
+                    })
+                  : <span style={{ gridColumn: "2 / span 6", textAlign: "center", alignSelf: "center", fontFamily: FRk, fontSize: 11.5, color: "var(--ink-300)" }}>{pendingText(r)}</span>}
+              </RowShell>
+            ))}
+          </div>
+          <ShowAllBtn sorted={sorted} showAll={showAll} setShowAll={setShowAll} />
         </div>
       )}
     </Panel>
+  );
+}
+
+// Row container: link to the IG post when available, hover affordance either way.
+function RowShell({ r, grid, children }) {
+  const base = grid
+    ? { display: "grid", gridTemplateColumns: grid, gap: 0, alignItems: "center", padding: "10px 13px", border: "1px solid var(--line)", borderRadius: 13, background: "#fff", transition: "box-shadow .14s, border-color .14s" }
+    : { display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, background: "#fff", transition: "box-shadow .14s, border-color .14s" };
+  const hover = {
+    onMouseEnter: (e) => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.borderColor = "var(--primary-200)"; },
+    onMouseLeave: (e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "var(--line)"; },
+  };
+  return r.link
+    ? <a href={`https://${r.link}`} target="_blank" rel="noreferrer" title="Buka di Instagram" {...hover} style={{ ...base, textDecoration: "none", cursor: "pointer" }}>{children}</a>
+    : <div {...hover} style={base}>{children}</div>;
+}
+
+function ShowAllBtn({ sorted, showAll, setShowAll }) {
+  if (sorted.length <= 10) return null;
+  return (
+    <button onClick={() => setShowAll(v => !v)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", fontFamily: FRk, fontSize: 12.5, fontWeight: 600, color: "var(--ink-400)", padding: "10px 0 2px", display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
+      {showAll ? "Tampilkan lebih sedikit" : `Tampilkan semua (${sorted.length})`}
+      <Icons.chevDown size={14} style={{ transform: showAll ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
+    </button>
   );
 }
