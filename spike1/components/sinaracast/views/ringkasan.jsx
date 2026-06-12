@@ -137,6 +137,54 @@ export function RingkasanView() {
             </div>
           </Panel>
 
+          {/* follower trend per account */}
+          <Panel>
+            <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>Pertumbuhan followers</div>
+            <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", marginTop: 2, marginBottom: 14 }}>Tercatat otomatis tiap hari per akun</div>
+            {accounts.length === 0 ? (
+              <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)" }}>Belum ada akun terhubung di brand ini.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {accounts.map(a => {
+                  const all = (app.followerSeries?.[a.id] || []).filter(s => s.followers != null);
+                  // the chart + main delta follow the page's time filter; the period
+                  // chips always read from the full history
+                  const series = month === "all" ? all : all.filter(s => (s.date || "").startsWith(month));
+                  const cur = all.length ? all[all.length - 1].followers : null;
+                  const scopeDelta = series.length >= 2 ? series[series.length - 1].followers - series[0].followers : null;
+                  const m = platMeta(a.platform);
+                  return (
+                    <div key={a.id} style={{ border: "1px solid var(--line)", borderRadius: 14, padding: "13px 16px", background: "#fff" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
+                        <PlatIcon p={a.platform} size={20} />
+                        <div style={{ minWidth: 0, flex: app.isMobile ? "1 1 60%" : "0 0 auto", width: app.isMobile ? "auto" : 150 }}>
+                          <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.handle}</div>
+                          <div style={{ fontFamily: FRk, fontSize: 11, color: "var(--ink-400)" }}>{m.label}</div>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: app.isMobile ? "flex-start" : "center" }}>
+                          {series.length >= 2
+                            ? <Sparkline data={series.map(s => s.followers)} w={app.isMobile ? 140 : 200} h={34} color={m.accent} />
+                            : <span style={{ fontFamily: FRk, fontSize: 11.5, color: "var(--ink-300)" }}>Tren mulai terkumpul…</span>}
+                        </div>
+                        <div style={{ textAlign: "right", flex: "0 0 auto" }}>
+                          <div style={{ fontFamily: FRk, fontSize: 18, fontWeight: 700, color: "var(--ink-900)", letterSpacing: "-.01em" }}>{cur != null ? fmtCompact(cur) : a.followers}</div>
+                          <DeltaText delta={scopeDelta} sub={month === "all" ? "sejak tercatat" : "bulan ini"} />
+                        </div>
+                      </div>
+                      {all.length >= 2 && (
+                        <div style={{ display: "flex", gap: 8, marginTop: 11, paddingTop: 11, borderTop: "1px solid var(--line-soft, var(--line))", flexWrap: "wrap" }}>
+                          <DeltaChip label="Kemarin" delta={deltaLastDays(all, 1)} />
+                          <DeltaChip label="7 hari" delta={deltaLastDays(all, 7)} />
+                          <DeltaChip label="30 hari" delta={deltaLastDays(all, 30)} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Panel>
+
           {/* by status + by platform */}
           {scoped.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
@@ -210,53 +258,6 @@ export function RingkasanView() {
           {/* per-post performance list */}
           <PerContent runs={pubRuns} isMobile={app.isMobile} />
 
-          {/* follower trend per account */}
-          <Panel>
-            <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>Pertumbuhan followers</div>
-            <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", marginTop: 2, marginBottom: 14 }}>Tercatat otomatis tiap hari per akun</div>
-            {accounts.length === 0 ? (
-              <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)" }}>Belum ada akun terhubung di brand ini.</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {accounts.map(a => {
-                  const all = (app.followerSeries?.[a.id] || []).filter(s => s.followers != null);
-                  // the chart + main delta follow the page's time filter; the period
-                  // chips always read from the full history
-                  const series = month === "all" ? all : all.filter(s => (s.date || "").startsWith(month));
-                  const cur = all.length ? all[all.length - 1].followers : null;
-                  const scopeDelta = series.length >= 2 ? series[series.length - 1].followers - series[0].followers : null;
-                  const m = platMeta(a.platform);
-                  return (
-                    <div key={a.id} style={{ border: "1px solid var(--line)", borderRadius: 14, padding: "13px 16px", background: "#fff" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
-                        <PlatIcon p={a.platform} size={20} />
-                        <div style={{ minWidth: 0, flex: app.isMobile ? "1 1 60%" : "0 0 auto", width: app.isMobile ? "auto" : 150 }}>
-                          <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.handle}</div>
-                          <div style={{ fontFamily: FRk, fontSize: 11, color: "var(--ink-400)" }}>{m.label}</div>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: app.isMobile ? "flex-start" : "center" }}>
-                          {series.length >= 2
-                            ? <Sparkline data={series.map(s => s.followers)} w={app.isMobile ? 140 : 200} h={34} color={m.accent} />
-                            : <span style={{ fontFamily: FRk, fontSize: 11.5, color: "var(--ink-300)" }}>Tren mulai terkumpul…</span>}
-                        </div>
-                        <div style={{ textAlign: "right", flex: "0 0 auto" }}>
-                          <div style={{ fontFamily: FRk, fontSize: 18, fontWeight: 700, color: "var(--ink-900)", letterSpacing: "-.01em" }}>{cur != null ? fmtCompact(cur) : a.followers}</div>
-                          <DeltaText delta={scopeDelta} sub={month === "all" ? "sejak tercatat" : "bulan ini"} />
-                        </div>
-                      </div>
-                      {all.length >= 2 && (
-                        <div style={{ display: "flex", gap: 8, marginTop: 11, paddingTop: 11, borderTop: "1px solid var(--line-soft, var(--line))", flexWrap: "wrap" }}>
-                          <DeltaChip label="Kemarin" delta={deltaLastDays(all, 1)} />
-                          <DeltaChip label="7 hari" delta={deltaLastDays(all, 7)} />
-                          <DeltaChip label="30 hari" delta={deltaLastDays(all, 30)} />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Panel>
         </div>
       )}
     </div>
