@@ -204,20 +204,28 @@ export function Topbar({ title, sub, right }) {
     </button>
   );
 
-  // Sticky on scroll (all pages): pins to the top of the content scroller with a
-  // blurred translucent backdrop so content glides underneath. Full-bleed via
-  // negative margins so nothing peeks through the content gutters.
+  // Sticky on scroll (all pages). No backdrop-filter here: .app-shell already
+  // blurs (40px) and #sc-root is scale-transformed, so a nested backdrop-filter
+  // doesn't render in Chromium and content ghosts through. Instead the header
+  // paints an OPAQUE copy of the shell surface (app gradient + milky white),
+  // and dissolves at its bottom edge via a masked feather strip — no hard line,
+  // content fades out smoothly as it slides underneath.
+  const surface = "linear-gradient(rgba(255,255,255,.34), rgba(255,255,255,.34)), var(--app-bg)";
   const stickyBase = {
     position: "sticky", top: 0, zIndex: 25,
-    margin: "-24px calc(var(--content-pad) * -1) 18px",
-    background: "rgba(252,251,253,.72)",
-    backdropFilter: "blur(14px) saturate(1.15)", WebkitBackdropFilter: "blur(14px) saturate(1.15)",
-    borderBottom: "1px solid rgba(140,144,158,.10)",
+    margin: "-24px calc(var(--content-pad) * -1) 14px",
+    background: surface,
   };
+  const feather = (
+    <span aria-hidden style={{ position: "absolute", left: 0, right: 0, top: "100%", height: 18, pointerEvents: "none",
+      background: surface,
+      WebkitMaskImage: "linear-gradient(to bottom, black, transparent)", maskImage: "linear-gradient(to bottom, black, transparent)" }} />
+  );
 
   if (mobile) {
     return (
-      <header style={{ ...stickyBase, display: "flex", flexDirection: "column", gap: 12, padding: "14px var(--content-pad) 14px" }}>
+      <header style={{ ...stickyBase, display: "flex", flexDirection: "column", gap: 12, padding: "14px var(--content-pad) 10px" }}>
+        {feather}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button onClick={app.openMenu} aria-label="Menu" style={{ width: 46, height: 46, borderRadius: 14, border: "1px solid var(--line)", background: "#fff", color: "var(--ink-700)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)", flex: "0 0 auto", cursor: "pointer" }}><MenuIcon /></button>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -232,7 +240,8 @@ export function Topbar({ title, sub, right }) {
   }
 
   return (
-    <header style={{ ...stickyBase, display: "flex", alignItems: "center", gap: 16, padding: "16px var(--content-pad) 14px" }}>
+    <header style={{ ...stickyBase, display: "flex", alignItems: "center", gap: 16, padding: "16px var(--content-pad) 12px" }}>
+      {feather}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 23, color: "var(--ink-900)", letterSpacing: "-.01em" }}>{title}</div>
         {sub && <div style={{ fontFamily: FS, fontSize: 13, color: "var(--ink-400)", marginTop: 2 }}>{sub}</div>}
