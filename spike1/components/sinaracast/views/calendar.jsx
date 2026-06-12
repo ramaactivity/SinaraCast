@@ -65,7 +65,9 @@ const oneoffPlatform = (o) => o.type === "TikTok" ? "tiktok" : "instagram";
 export function CalendarView() {
   const app = useApp();
   const phase = app.dataLoading ? "loading" : "ready";
-  const [filter, setFilter] = uCa("all");          // brand/account
+  // Account filter defaults to the sidebar's ACTIVE account (not "Semua akun"),
+  // so multi-account brands don't open onto a piled-up grid.
+  const [filter, setFilter] = uCa(app.channel || "all"); // brand/account
   const [platFilter, setPlatFilter] = uCa("all");  // platform
   const [statFilter, setStatFilter] = uCa("all");  // planner status
   const [mode, setMode] = uCa("month");            // month | week | list
@@ -73,7 +75,9 @@ export function CalendarView() {
   const [monthOffset, setMonthOffset] = uCa(0);    // 0 = current month
   // Reset filters when the brand changes — an account/status filter from another
   // brand is meaningless here and would blank the calendar.
-  React.useEffect(() => { setFilter("all"); setPlatFilter("all"); setStatFilter("all"); }, [app.brand]);
+  React.useEffect(() => { setFilter(app.channel || "all"); setPlatFilter("all"); setStatFilter("all"); }, [app.brand]);
+  // Follow the sidebar's account switch (same pattern as the composer/editor).
+  React.useEffect(() => { if (app.channel) setFilter(app.channel); }, [app.channel]);
 
   // target month in WIB (shiftable via the prev/next nav)
   const nowWib = new Date(Date.now() + 7 * 3600 * 1000);
@@ -339,7 +343,7 @@ export function CalendarView() {
         <div style={{ width: app.isMobile ? "30%" : 172, flex: app.isMobile ? "1 1 30%" : "0 0 auto" }}><Select size="sm" value={filter} onChange={setFilter} options={brandOpts} /></div>
         <div style={{ width: app.isMobile ? "30%" : 172, flex: app.isMobile ? "1 1 30%" : "0 0 auto" }}><Select size="sm" value={platFilter} onChange={setPlatFilter} options={platOpts} /></div>
         <div style={{ width: app.isMobile ? "30%" : 172, flex: app.isMobile ? "1 1 30%" : "0 0 auto" }}><Select size="sm" value={statFilter} onChange={setStatFilter} options={statOpts} /></div>
-        {(platFilter !== "all" || statFilter !== "all" || filter !== "all") && <button onClick={() => { setFilter("all"); setPlatFilter("all"); setStatFilter("all"); }} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: FCa, fontSize: 12, fontWeight: 600, color: "var(--ink-400)", padding: "0 4px" }}>Reset</button>}
+        {(platFilter !== "all" || statFilter !== "all" || filter !== (app.channel || "all")) && <button onClick={() => { setFilter(app.channel || "all"); setPlatFilter("all"); setStatFilter("all"); }} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: FCa, fontSize: 12, fontWeight: 600, color: "var(--ink-400)", padding: "0 4px" }}>Reset</button>}
       </div>
 
       {totalItems === 0 && (
