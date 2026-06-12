@@ -129,12 +129,17 @@ export async function specialDayRemindersDue(svc) {
   if (!owners?.length) return { reminded: 0 };
 
   const { data: settings = [] } = await svc.from("app_settings")
-    .select("owner_id, special_reminder_on").in("owner_id", owners.map((o) => o.id));
+    .select("owner_id, special_reminder_on, special_reminders").in("owner_id", owners.map((o) => o.id));
   const done = new Set((settings || []).filter((s) => s.special_reminder_on === today).map((s) => s.owner_id));
+  const off = new Set((settings || []).filter((s) => s.special_reminders === false).map((s) => s.owner_id));
 
   let reminded = 0;
   for (const o of owners) {
     if (done.has(o.id)) continue;
+    if (off.has(o.id)) { // reminders disabled in Pengaturan — mark today done, send nothing
+      await svc.from("app_settings").upsert({ owner_id: o.id, special_reminder_on: today }, { onConflict: "owner_id" });
+      continue;
+    }
     const { data: days = [] } = await svc.from("special_day")
       .select("on_date, name").eq("owner_id", o.id).eq("is_active", true)
       .in("on_date", targets.map((t) => t.date));

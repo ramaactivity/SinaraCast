@@ -62,6 +62,7 @@ create table if not exists app_settings (
   daily_ping         boolean not null default true,
   special_sync_on    date,  -- guard: special-day API sync ran this WIB day
   special_reminder_on date, -- guard: special-day H-7/H-1 reminders ran this WIB day
+  special_reminders  boolean not null default true, -- H-7/H-1 reminders on/off (Pengaturan)
   updated_at         timestamptz not null default now()
 );
 

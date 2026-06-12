@@ -81,6 +81,35 @@ export function SettingsView() {
             </div>
           </Panel>
 
+          {/* special days */}
+          <Panel>
+            <SectionTitle sub="Hari besar nasional, keagamaan, dan tanggalmu sendiri">Hari Spesial</SectionTitle>
+            <div style={{ marginTop: -4 }}>
+              <Row title="Pengingat hari spesial" body="Diingatkan 7 hari dan 1 hari sebelum tiap hari spesial aktif, lewat lonceng aplikasi & Telegram.">
+                <Toggle on={s.specialReminders} onChange={v => { set({ specialReminders: v }); app.saveSettings({ specialReminders: v }); }} />
+              </Row>
+              <Row title="Daftar hari spesial" body="Kalender hari besar tersinkron otomatis tiap hari; tambah, ubah, atau nonaktifkan tanggal di halamannya.">
+                <Button size="sm" variant="secondary" icon={<Icons.sun size={15} />} onClick={() => app.go("specialdays")}>Kelola</Button>
+              </Row>
+            </div>
+          </Panel>
+
+          {/* reports & metrics */}
+          <Panel>
+            <SectionTitle sub="Berjalan otomatis di latar belakang">Laporan & metrik</SectionTitle>
+            <div style={{ marginTop: -4 }}>
+              <Row title="Metrik konten otomatis" body="Story diambil menjelang 24 jam tayang (Instagram menghapusnya setelah itu); Feed & Reels diperbarui harian sampai 30 hari.">
+                <span style={{ fontFamily: FSe, fontSize: 12, fontWeight: 600, color: "var(--ink-400)" }}>Selalu aktif</span>
+              </Row>
+              <Row title="Pencatatan followers harian" body="Jumlah followers tiap akun dicatat sekali sehari untuk grafik pertumbuhan.">
+                <span style={{ fontFamily: FSe, fontSize: 12, fontWeight: 600, color: "var(--ink-400)" }}>Selalu aktif</span>
+              </Row>
+              <Row title="Ringkasan" body="Performa per konten, total metrik, dan naik-turun followers.">
+                <Button size="sm" variant="secondary" icon={<Icons.sparkle size={15} />} onClick={() => app.go("ringkasan")}>Buka</Button>
+              </Row>
+            </div>
+          </Panel>
+
           {/* data */}
           <Panel>
             <SectionTitle sub="Ekspor & hapus">Data</SectionTitle>
@@ -102,8 +131,8 @@ export function SettingsView() {
           </Panel>
         </div>
 
-        {/* right: storage + profile quick */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* right: storage + profile quick (pinned while the left column scrolls) */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, position: app.isMobile ? "static" : "sticky", top: 92 }}>
           <Panel strong>
             <SectionTitle sub="Media tersimpan">Penyimpanan</SectionTitle>
             <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 10 }}>
@@ -112,6 +141,17 @@ export function SettingsView() {
             </div>
             <Progress value={Math.round(s.storage.used / s.storage.total * 100)} showWarn h={9} />
             <div style={{ fontFamily: FSe, fontSize: 11.5, color: "var(--ink-400)", marginTop: 9 }}>{Math.round(s.storage.used / s.storage.total * 100)}% terpakai</div>
+            {(app.channels || []).length > 0 && <>
+              <div style={{ height: 1, background: "var(--line)", margin: "14px 0" }} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(app.channels || []).map(c => (
+                  <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                    <span style={{ flex: 1, fontFamily: FSe, fontSize: 12, color: "var(--ink-600)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.handle || c.name}</span>
+                    <span style={{ fontFamily: FSe, fontSize: 11.5, color: "var(--ink-400)", fontVariantNumeric: "tabular-nums" }}>{s.storage.perChannel?.[c.id] ?? 0} MB</span>
+                  </div>
+                ))}
+              </div>
+            </>}
           </Panel>
           <ProfileCard compact />
         </div>

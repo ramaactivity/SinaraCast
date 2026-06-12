@@ -321,6 +321,7 @@ export async function loadAll() {
     telegram: { connected: settingsRaw?.telegram_connected ?? false, handle: settingsRaw?.telegram_handle || "" },
     failAlerts: settingsRaw?.fail_alerts ?? true,
     dailyPing: settingsRaw?.daily_ping ?? true,
+    specialReminders: settingsRaw?.special_reminders ?? true,
     storage,
   };
 
@@ -784,6 +785,7 @@ export async function saveSettingsFields(patch) {
   if (patch.defaultGrace != null) row.default_grace = patch.defaultGrace;
   if (patch.dailyPing != null) row.daily_ping = patch.dailyPing;
   if (patch.failAlerts != null) row.fail_alerts = patch.failAlerts;
+  if (patch.specialReminders != null) row.special_reminders = patch.specialReminders;
   if (patch.telegram) {
     row.telegram_connected = !!patch.telegram.connected;
     row.telegram_handle = patch.telegram.handle || null;

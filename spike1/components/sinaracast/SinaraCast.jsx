@@ -26,7 +26,7 @@ const { useState: uA, useCallback } = React;
 
 const DEFAULT_SETTINGS = { pauseAll: false, resumeDate: "", timezone: "Asia/Jakarta (WIB, UTC+7)",
   defaultGrace: 30, telegram: { connected: false, handle: "" }, failAlerts: true, dailyPing: true,
-  storage: { used: 0, total: 1024 } };
+  specialReminders: true, storage: { used: 0, total: 1024 } };
 const DEFAULT_PROFILE = { name: "Rama", email: "", method: "Magic link", joined: "—" };
 
 // Remember the active brand + account across page refreshes (localStorage).
