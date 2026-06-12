@@ -8,7 +8,8 @@ import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, DateFie
 import { Lightbox } from "../lightbox";
 const { useState: uCo, useRef, useEffect } = React;
 const FCo = "var(--font)";
-const MAX_VIDEO_MB = 50;
+const MAX_VIDEO_MB = 300; // IG video; >48 MB detours to R2 (Supabase free caps at 50)
+const TIKTOK_MAX_MB = 50;  // TikTok pulls from URL — unverified domains are gated, keep on Supabase
 function readVideoMeta(file) {
   return new Promise((res, rej) => {
     const v = document.createElement("video");
@@ -249,7 +250,8 @@ export function ComposerView() {
     for (const file of files) {
       if (isVideoType) {
         if (!["video/mp4", "video/quicktime"].includes(file.type)) { app.toast("Video harus MP4/MOV", "error"); continue; }
-        if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(`Video maksimal ${MAX_VIDEO_MB} MB`, "error"); continue; }
+        const maxMB = isTikVid ? TIKTOK_MAX_MB : MAX_VIDEO_MB;
+        if (file.size > maxMB * 1024 * 1024) { app.toast(`Video maksimal ${maxMB} MB`, "error"); continue; }
         let meta; try { meta = await readVideoMeta(file); } catch { app.toast("Gagal membaca video", "error"); continue; }
         const vr = meta.width / meta.height;
         if (Math.abs(vr - 9 / 16) > 0.06) app.toast(isTikVid ? "Video bukan 9:16 — TikTok mungkin menyesuaikan" : "Video bukan 9:16 — Instagram akan menyesuaikan (tambah bilah hitam)", "info");
@@ -396,7 +398,7 @@ export function ComposerView() {
             )}
             {isTikTok
               ? <TypeCards accent={b.accent} soft={b.soft} value="tiktok_video" onChange={() => {}} options={[
-                  { value: "tiktok_video", label: "Video TikTok", spec: `Video 9:16 · MP4/MOV · maks ${MAX_VIDEO_MB} MB`, icon: <Icons.film size={18} /> },
+                  { value: "tiktok_video", label: "Video TikTok", spec: `Video 9:16 · MP4/MOV · maks ${TIKTOK_MAX_MB} MB`, icon: <Icons.film size={18} /> },
                 ]} />
               : <TypeCards accent={b.accent} soft={b.soft} value={type} onChange={(v) => { setType(v); setMedia([]); }} options={[
                   { value: "story", label: "Story", spec: "Gambar atau video 9:16", icon: <Icons.image size={18} /> },
@@ -420,7 +422,7 @@ export function ComposerView() {
                 style={{ border: `1.5px dashed ${dragOver ? "var(--primary-400)" : "var(--line)"}`, background: dragOver ? "var(--primary-100)" : "rgba(140,144,158,.045)", borderRadius: 14, padding: "26px 20px", textAlign: "center", cursor: uploading ? "default" : "pointer", transition: "background .15s, border-color .15s" }}>
                 <div style={{ width: 44, height: 44, borderRadius: 13, margin: "0 auto 10px", display: "grid", placeItems: "center", background: "var(--primary-100)", color: "var(--primary-500)" }}>{uploading ? <Spinner size={20} /> : <Icons.upload size={20} />}</div>
                 <div style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13.5, color: "var(--ink-800)" }}>{uploading ? "Mengunggah…" : "Tarik & lepas, atau klik untuk unggah"}</div>
-                <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 4 }}>{isVideoType ? `Video tegak 9:16 · MP4/MOV · maks ${MAX_VIDEO_MB} MB` : isFeed ? "Gambar JPG / PNG · sampai 10 (carousel)" : "Gambar atau video tegak 9:16"}</div>
+                <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 4 }}>{isVideoType ? `Video tegak 9:16 · MP4/MOV · maks ${isTikVid ? TIKTOK_MAX_MB : MAX_VIDEO_MB} MB` : isFeed ? "Gambar JPG / PNG · sampai 10 (carousel)" : "Gambar atau video tegak 9:16"}</div>
               </div>
             ) : (
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>

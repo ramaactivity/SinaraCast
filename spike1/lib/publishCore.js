@@ -29,8 +29,23 @@ async function igCall(method, path, params) {
   return { status: res.status, json };
 }
 
+// Absolute URLs (large videos hosted on Cloudflare R2) pass through untouched;
+// everything else is a Supabase Storage path.
 export const publicImageUrl = (storagePath) =>
-  `${URL_}/storage/v1/object/public/pool-images/${storagePath}`;
+  /^https?:\/\//i.test(storagePath || "") ? storagePath : `${URL_}/storage/v1/object/public/pool-images/${storagePath}`;
+
+// Best-effort post-publish cleanup for transit video files, wherever they live.
+async function removeStoredMedia(svc, storagePath) {
+  if (!storagePath) return;
+  try {
+    if (/^https?:\/\//i.test(storagePath)) {
+      const { isR2Url, r2Delete } = await import("./r2");
+      if (isR2Url(storagePath)) await r2Delete(storagePath);
+      return;
+    }
+    await svc.storage.from("pool-images").remove([storagePath]);
+  } catch (_) { /* cleanup must never break publishing */ }
+}
 
 // Write an in-app notification row (best-effort; never throws into the publish path).
 // Also fans out to Telegram if the owner has it connected.
@@ -413,7 +428,7 @@ export async function publishStoryOneoff(svc, { channel, post }) {
   await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
   await fillLinkedPlan(svc, { scheduledPostId: post.id, runId: run.id, permalink });
   await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `Story terbit — ${chLabel}`, body: "Story berhasil terbit ke Instagram.", runId: run.id });
-  if (isVideo) await svc.storage.from("pool-images").remove([storagePath]).catch(() => {}); // free the video file (free-tier storage)
+  if (isVideo) await removeStoredMedia(svc, storagePath); // free the transit video file
   return { ok: true, permalink, runId: run.id };
 }
 
@@ -640,7 +655,7 @@ export async function publishReelsOneoff(svc, { channel, post }) {
   await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
   await fillLinkedPlan(svc, { scheduledPostId: post.id, runId: run.id, permalink });
   await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `Reels terbit — ${chLabel}`, body: "Reels berhasil terbit ke Instagram.", runId: run.id });
-  await svc.storage.from("pool-images").remove([storagePath]).catch(() => {}); // free the video file (free-tier storage)
+  await removeStoredMedia(svc, storagePath); // free the transit video file
   return { ok: true, permalink, runId: run.id };
 }
 
@@ -697,7 +712,7 @@ export async function resumeOneoffContainer(svc, { channel, post, run }) {
     const { data: links = [] } = await svc.from("scheduled_post_media").select("asset_id").eq("post_id", post.id).order("position").limit(1);
     if (links[0]?.asset_id) {
       const { data: a } = await svc.from("media_asset").select("storage_path").eq("id", links[0].asset_id).single();
-      if (a?.storage_path) await svc.storage.from("pool-images").remove([a.storage_path]).catch(() => {});
+      if (a?.storage_path) await removeStoredMedia(svc, a.storage_path);
     }
   } catch (_) { /* cleanup is best-effort */ }
   return { ok: true, permalink, runId: run.id };

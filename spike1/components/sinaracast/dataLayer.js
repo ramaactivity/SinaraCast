@@ -160,7 +160,7 @@ export async function loadAll() {
     bytesByPool[im.pool_id] = (bytesByPool[im.pool_id] || 0) + (im.bytes || 0);
     pathById[im.id] = im.storage_path;
   }
-  const pubUrl = (sp) => supabase.storage.from(BUCKET).getPublicUrl(sp).data.publicUrl;
+  const pubUrl = (sp) => /^https?:\/\//i.test(sp || "") ? sp : supabase.storage.from(BUCKET).getPublicUrl(sp).data.publicUrl;
   const poolsByRule = {};
   for (const p of pools || []) (poolsByRule[p.rule_id] ||= []).push({ ...p, ...(imgByPool[p.id] || { total: 0, used: 0 }) });
 
@@ -559,20 +559,44 @@ export async function uploadPoolImage(file, channelSlug, meta) {
 
 // Upload a Reels video (mp4/mov) to the same public bucket; returns row data
 // shaped like uploadPoolImage so createScheduledPost can make the media_asset.
+// Supabase free tier caps a file at 50 MB. Bigger videos detour to Cloudflare R2
+// via a presigned direct upload; their storage_path is then the absolute R2 URL
+// (every consumer passes absolute URLs through untouched).
+const SUPA_MAX_BYTES = 48 * 1024 * 1024;
+
 export async function uploadReelVideo(file, channelSlug, meta) {
   const { data: u } = await supabase.auth.getUser();
   const uid = u?.user?.id;
   if (!uid) throw new Error("Not signed in");
   const ext = file.type === "video/quicktime" ? "mov" : "mp4";
+  const base = { bytes: file.size, format: ext, width: meta?.width, height: meta?.height, aspect_ok: true, isVideo: true };
+
+  if (file.size > SUPA_MAX_BYTES) {
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess?.session?.access_token;
+    const res = await fetch("/api/r2/presign", {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ext }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!j.ok) throw new Error(j.error || "Penyimpanan video besar belum siap");
+    const up = await fetch(j.uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+    if (!up.ok) throw new Error("Gagal mengunggah video besar (cek konfigurasi CORS bucket R2)");
+    return { ...base, storage_path: j.publicUrl, url: j.publicUrl };
+  }
+
   const path = `${uid}/${channelSlug}/${crypto.randomUUID()}.${ext}`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
   if (error) throw error;
   const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-  return { storage_path: path, url, bytes: file.size, format: ext, width: meta?.width, height: meta?.height, aspect_ok: true, isVideo: true };
+  return { ...base, storage_path: path, url };
 }
 
 export async function deleteStoredImage(storage_path) {
-  if (storage_path) await supabase.storage.from(BUCKET).remove([storage_path]);
+  if (!storage_path) return;
+  // R2-hosted media (absolute URL) is cleaned up server-side after publish.
+  if (/^https?:\/\//i.test(storage_path)) return;
+  await supabase.storage.from(BUCKET).remove([storage_path]);
 }
 
 // Create a recurring_rule + its pool(s) + pool_image rows. `images` is
@@ -653,7 +677,7 @@ export async function loadScheduledPost(id) {
   const byId = Object.fromEntries(assets.map((a) => [a.id, a]));
   const media = (links || []).map((l) => {
     const a = byId[l.asset_id];
-    return a ? { assetId: a.id, storage_path: a.storage_path, url: supabase.storage.from(BUCKET).getPublicUrl(a.storage_path).data.publicUrl, width: a.width, height: a.height, format: a.format, bytes: a.bytes } : null;
+    return a ? { assetId: a.id, storage_path: a.storage_path, url: /^https?:\/\//i.test(a.storage_path || "") ? a.storage_path : supabase.storage.from(BUCKET).getPublicUrl(a.storage_path).data.publicUrl, width: a.width, height: a.height, format: a.format, bytes: a.bytes } : null;
   }).filter(Boolean);
   return { post, media };
 }
@@ -735,7 +759,7 @@ export async function loadRuleDetail(ruleId) {
   const images = { weekday: [], weekend: [], single: [], special: [] };
   for (const im of imgs) {
     const role = roleByPool[im.pool_id];
-    const url = supabase.storage.from(BUCKET).getPublicUrl(im.storage_path).data.publicUrl;
+    const url = /^https?:\/\//i.test(im.storage_path || "") ? im.storage_path : supabase.storage.from(BUCKET).getPublicUrl(im.storage_path).data.publicUrl;
     const isVideo = ["mp4", "mov"].includes(im.format) || /\.(mp4|mov)(\?|$)/i.test(im.storage_path || "");
     images[role]?.push({ id: im.id, poolId: im.pool_id, storage_path: im.storage_path, url, format: im.format, width: im.width, height: im.height, isVideo });
   }

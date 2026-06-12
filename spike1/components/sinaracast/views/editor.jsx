@@ -11,7 +11,7 @@ import {
   uploadPoolImage, uploadReelVideo, createRuleWithPools, updateRuleFields, loadRuleDetail, addPoolImageRow, removePoolImageRow, ensurePool,
 } from "../dataLayer";
 import { Lightbox } from "../lightbox";
-const MAX_VIDEO_MB = 50;
+const MAX_VIDEO_MB = 300; // >48 MB detours to R2 (Supabase free caps files at 50 MB)
 const isVideoUrl = (u) => /\.(mp4|mov)(\?|$)/i.test(u || "");
 function readVideoMeta(file) {
   return new Promise((res, rej) => {
