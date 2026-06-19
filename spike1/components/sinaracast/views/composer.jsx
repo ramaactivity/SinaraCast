@@ -259,11 +259,6 @@ export function ComposerView() {
     // value can empty the live FileList in some browsers, dropping the selection.
     const files = [...(e.target.files || [])];
     e.target.value = "";
-    // TEMP DIAGNOSTIC (remove once upload is confirmed): alert() is guaranteed to
-    // show; the toast tests whether the toast system itself renders. Comparing the
-    // two pinpoints a "nothing happens" instantly (onChange fired? toast broken?).
-    try { window.alert(`DEBUG unggah\nJumlah file: ${files.length}\nTipe: ${files[0]?.type || "(kosong)"}\nNama: ${files[0]?.name || "-"}\nJenis post: ${type}`); } catch {}
-    try { app.toast(`Terima ${files.length} file · ${files[0]?.type || "tipe kosong"}`, "info"); } catch {}
     ingestFiles(files);
   };
   async function ingestFiles(fileList) {
@@ -291,12 +286,13 @@ export function ComposerView() {
       if (type === "story" && isVideoFile(file)) {
         if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(`Video maksimal ${MAX_VIDEO_MB} MB`, "error"); continue; }
         const meta = await readVideoMeta(file);
+        try { window.alert(`DEBUG metadata\nLebar: ${meta.width}\nTinggi: ${meta.height}\nDurasi: ${meta.duration}\nUnread: ${!!meta.unread}\n\n(klik OK, lalu tunggu popup hasil upload)`); } catch {}
         if (meta.unread) app.toast("Video diunggah, tapi pratinjau mungkin tak tampil di perangkat ini", "info");
         else if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) app.toast("Video bukan 9:16 — Instagram akan menyesuaikan", "info");
         if (meta.duration && meta.duration > 60) { app.toast("Story video maksimal 60 detik (batas Instagram)", "error"); continue; }
         setUploading(true);
-        try { const row = await uploadReelVideo(file, channel.id, meta); setMedia([row]); app.toast("Video diunggah ✓", "success"); }
-        catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
+        try { const row = await uploadReelVideo(file, channel.id, meta); setMedia([row]); try { window.alert("DEBUG upload BERHASIL\n" + row.url); } catch {} app.toast("Video diunggah ✓", "success"); }
+        catch (err) { try { window.alert("DEBUG upload GAGAL\n" + (err?.message || err) + "\n\n" + JSON.stringify(err)?.slice(0, 300)); } catch {} app.toast("Gagal unggah: " + (err.message || err), "error"); }
         finally { setUploading(false); }
         continue;
       }
