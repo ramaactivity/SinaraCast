@@ -568,7 +568,11 @@ export async function uploadReelVideo(file, channelSlug, meta) {
   const { data: u } = await supabase.auth.getUser();
   const uid = u?.user?.id;
   if (!uid) throw new Error("Not signed in");
-  const ext = file.type === "video/quicktime" ? "mov" : "mp4";
+  // file.type can be blank for a .MOV picked from iOS Files — fall back to the
+  // filename so the bucket's allowed-mime check and the stored extension stay right.
+  const isMov = file.type === "video/quicktime" || /\.mov$/i.test(file.name || "");
+  const ext = isMov ? "mov" : "mp4";
+  const contentType = file.type || (isMov ? "video/quicktime" : "video/mp4");
   const base = { bytes: file.size, format: ext, width: meta?.width, height: meta?.height, aspect_ok: true, isVideo: true };
 
   if (file.size > SUPA_MAX_BYTES) {
@@ -580,13 +584,13 @@ export async function uploadReelVideo(file, channelSlug, meta) {
     });
     const j = await res.json().catch(() => ({}));
     if (!j.ok) throw new Error(j.error || "Penyimpanan video besar belum siap");
-    const up = await fetch(j.uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+    const up = await fetch(j.uploadUrl, { method: "PUT", headers: { "Content-Type": contentType }, body: file });
     if (!up.ok) throw new Error("Gagal mengunggah video besar (cek konfigurasi CORS bucket R2)");
     return { ...base, storage_path: j.publicUrl, url: j.publicUrl };
   }
 
   const path = `${uid}/${channelSlug}/${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType, upsert: false });
   if (error) throw error;
   const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
   return { ...base, storage_path: path, url };

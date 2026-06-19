@@ -10,13 +10,24 @@ const { useState: uCo, useRef, useEffect } = React;
 const FCo = "var(--font)";
 const MAX_VIDEO_MB = 300; // IG video; >48 MB detours to R2 (Supabase free caps at 50)
 const TIKTOK_MAX_MB = 50;  // TikTok pulls from URL — unverified domains are gated, keep on Supabase
+// True if the file is a video we can publish. Some browsers (and iOS picking a
+// .MOV from Files) report an empty file.type, so fall back to the extension.
+const isVideoFile = (f) => ["video/mp4", "video/quicktime"].includes(f?.type) || /\.(mov|mp4|m4v)$/i.test(f?.name || "");
+
 function readVideoMeta(file) {
-  return new Promise((res, rej) => {
+  return new Promise((res) => {
     const v = document.createElement("video");
     const url = URL.createObjectURL(file);
+    let done = false;
+    // Never let a stubborn .MOV hang the whole upload silently: whatever happens
+    // (metadata, decode error, or nothing at all within 12s) we resolve and let
+    // the upload proceed — Instagram re-encodes server-side anyway. Zero dims just
+    // skip the 9:16 hint. The only hard failure left is the actual upload call.
+    const finish = (meta) => { if (done) return; done = true; clearTimeout(t); URL.revokeObjectURL(url); res(meta); };
+    const t = setTimeout(() => finish({ width: 0, height: 0, duration: 0, unread: true }), 12000);
     v.preload = "metadata";
-    v.onloadedmetadata = () => { res({ width: v.videoWidth, height: v.videoHeight, duration: v.duration }); URL.revokeObjectURL(url); };
-    v.onerror = () => { rej(new Error("read")); URL.revokeObjectURL(url); };
+    v.onloadedmetadata = () => finish({ width: v.videoWidth, height: v.videoHeight, duration: v.duration });
+    v.onerror = () => finish({ width: 0, height: 0, duration: 0, unread: true });
     v.src = url;
   });
 }
@@ -249,12 +260,13 @@ export function ComposerView() {
     let rep = replaceIdxRef.current; replaceIdxRef.current = null; // replace this slot (Feed); single types replace inherently
     for (const file of files) {
       if (isVideoType) {
-        if (!["video/mp4", "video/quicktime"].includes(file.type)) { app.toast("Video harus MP4/MOV", "error"); continue; }
+        if (!isVideoFile(file)) { app.toast("Video harus MP4/MOV", "error"); continue; }
         const maxMB = isTikVid ? TIKTOK_MAX_MB : MAX_VIDEO_MB;
         if (file.size > maxMB * 1024 * 1024) { app.toast(`Video maksimal ${maxMB} MB`, "error"); continue; }
-        let meta; try { meta = await readVideoMeta(file); } catch { app.toast("Gagal membaca video", "error"); continue; }
+        const meta = await readVideoMeta(file);
+        if (meta.unread) app.toast("Video diunggah, tapi pratinjau mungkin tak tampil di perangkat ini", "info");
         const vr = meta.width / meta.height;
-        if (Math.abs(vr - 9 / 16) > 0.06) app.toast(isTikVid ? "Video bukan 9:16 — TikTok mungkin menyesuaikan" : "Video bukan 9:16 — Instagram akan menyesuaikan (tambah bilah hitam)", "info");
+        if (!meta.unread && Math.abs(vr - 9 / 16) > 0.06) app.toast(isTikVid ? "Video bukan 9:16 — TikTok mungkin menyesuaikan" : "Video bukan 9:16 — Instagram akan menyesuaikan (tambah bilah hitam)", "info");
         if (isTikVid && meta.duration && meta.duration < 3) { app.toast("Video TikTok minimal 3 detik", "error"); continue; }
         const maxSec = isTikVid ? (tkInfo?.maxVideoSec || 600) : 900;
         if (meta.duration && meta.duration > maxSec) { app.toast(isTikVid ? `Video TikTok maksimal ${Math.floor(maxSec / 60)} menit` : "Reels maksimal 15 menit", "error"); continue; }
@@ -265,10 +277,11 @@ export function ComposerView() {
         continue;
       }
       // Story can be an image OR a video.
-      if (type === "story" && ["video/mp4", "video/quicktime"].includes(file.type)) {
+      if (type === "story" && isVideoFile(file)) {
         if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(`Video maksimal ${MAX_VIDEO_MB} MB`, "error"); continue; }
-        let meta; try { meta = await readVideoMeta(file); } catch { app.toast("Gagal membaca video", "error"); continue; }
-        if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) app.toast("Video bukan 9:16 — Instagram akan menyesuaikan", "info");
+        const meta = await readVideoMeta(file);
+        if (meta.unread) app.toast("Video diunggah, tapi pratinjau mungkin tak tampil di perangkat ini", "info");
+        else if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) app.toast("Video bukan 9:16 — Instagram akan menyesuaikan", "info");
         if (meta.duration && meta.duration > 60) { app.toast("Story video maksimal 60 detik (batas Instagram)", "error"); continue; }
         setUploading(true);
         try { const row = await uploadReelVideo(file, channel.id, meta); setMedia([row]); app.toast("Video diunggah ✓", "success"); }
