@@ -254,7 +254,18 @@ export function ComposerView() {
     );
   }
 
-  const onFiles = (e) => { const f = e.target.files; e.target.value = ""; ingestFiles(f); };
+  const onFiles = (e) => {
+    // Snapshot the files into a real array BEFORE clearing the input — clearing
+    // value can empty the live FileList in some browsers, dropping the selection.
+    const files = [...(e.target.files || [])];
+    e.target.value = "";
+    // TEMP DIAGNOSTIC (remove once upload is confirmed): alert() is guaranteed to
+    // show; the toast tests whether the toast system itself renders. Comparing the
+    // two pinpoints a "nothing happens" instantly (onChange fired? toast broken?).
+    try { window.alert(`DEBUG unggah\nJumlah file: ${files.length}\nTipe: ${files[0]?.type || "(kosong)"}\nNama: ${files[0]?.name || "-"}\nJenis post: ${type}`); } catch {}
+    try { app.toast(`Terima ${files.length} file · ${files[0]?.type || "tipe kosong"}`, "info"); } catch {}
+    ingestFiles(files);
+  };
   async function ingestFiles(fileList) {
     const files = [...(fileList || [])];
     let rep = replaceIdxRef.current; replaceIdxRef.current = null; // replace this slot (Feed); single types replace inherently
