@@ -4,7 +4,7 @@ import { Icons } from "./icons";
 import { loadAll, setRuleActive, setChannelPaused, setPauseAll, saveSettingsFields, markNotifRead, markAllNotifsRead, renameChannel, archiveChannel, deleteAllData, setDayOverride, clearDayOverride, todayWibKey } from "./dataLayer";
 import { AppCtx } from "./store";
 import { Sidebar } from "./shell";
-import { Panel, EmptyState, Toast, ConfirmDialog, Spinner } from "./ui";
+import { Panel, EmptyState, Toast, ConfirmDialog, AlertDialog, Spinner } from "./ui";
 import { supabase } from "./supabaseClient";
 import { RulesView } from "./views/rules";
 import { EditorView } from "./views/editor";
@@ -55,6 +55,7 @@ export default function SinaraCast() {
   const [profile, setProfile] = uA(DEFAULT_PROFILE);
   const [toast, setToast] = uA(null);
   const [confirmCfg, setConfirmCfg] = uA(null);
+  const [alertCfg, setAlertCfg] = uA(null);
   const [session, setSession] = uA(undefined); // undefined = loading, null = signed out
   const [dataLoading, setDataLoading] = uA(true);
   const [isMobile, setIsMobile] = uA(false);
@@ -185,6 +186,8 @@ export default function SinaraCast() {
 
   const go = useCallback((v, p = {}) => { setView(v); setParams(p); setDrawerOpen(false); window.scrollTo(0, 0); document.querySelector("#content")?.scrollTo(0, 0); }, []);
   const confirm = useCallback((cfg) => setConfirmCfg(cfg), []);
+  // In-app notice popup (replaces window.alert). Accepts a string or { title, body, tone, confirmLabel }.
+  const alert = useCallback((cfg) => setAlertCfg(typeof cfg === "string" ? { body: cfg } : cfg), []);
 
   // Brands carry LIVE accounts derived from `channels` (not the load-time snapshot),
   // so optimistic channel changes (pause, rename, archive) reflect instantly everywhere.
@@ -383,7 +386,7 @@ export default function SinaraCast() {
   };
 
   const ctx = { view, params, go, channel, setChannel, brands: liveBrands, brand, activeBrand, brandAccounts, selectBrand, rules, setRules, runs, setRuns, oneoffs, plans, followerSeries, specialDays, setSpecialDays, library, notifs, setNotifs,
-    channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm,
+    channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm, alert,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
     toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, connectTikTokChannel, saveSettings,
     connectTelegram, disconnectTelegram, testTelegram, renameChannel: renameChannelFn, archiveChannel: archiveChannelFn, exportData, deleteEverything,
@@ -433,6 +436,8 @@ export default function SinaraCast() {
               <Toast toast={toast} onClose={() => setToast(null)} />
               <ConfirmDialog open={!!confirmCfg} onClose={() => setConfirmCfg(null)} {...(confirmCfg || {})}
                 onConfirm={() => { confirmCfg?.onConfirm?.(); setConfirmCfg(null); }} />
+              <AlertDialog open={!!alertCfg} {...(alertCfg || {})}
+                onClose={() => { alertCfg?.onClose?.(); setAlertCfg(null); }} />
             </>
           )}
         </AppCtx.Provider>

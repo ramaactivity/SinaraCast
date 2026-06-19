@@ -659,6 +659,35 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, body, consequen
   );
 }
 
+// Single-button notice card — the in-app replacement for window.alert(). Wired to
+// app.alert(): pass a string, or { title, body, tone, confirmLabel }. tone tints the
+// icon chip (info | success | warn | danger). Body preserves line breaks.
+export function AlertDialog({ open, onClose, title, body, tone = "info", confirmLabel = "Mengerti" }) {
+  const tones = {
+    info: ["var(--ink-700)", "rgba(140,144,158,.14)", <Icons.info size={22} />],
+    success: ["var(--green-500)", "var(--green-100)", <Icons.checkCircle size={22} />],
+    warn: ["#B07B22", "var(--primary-100)", <Icons.alert size={22} />],
+    danger: ["var(--danger)", "var(--danger-bg)", <Icons.warn size={22} />],
+  };
+  const [fg, chipBg, ic] = tones[tone] || tones.info;
+  return (
+    <Modal open={open} onClose={onClose} width={420}>
+      <div style={{ padding: 26 }}>
+        <div style={{ display: "flex", gap: 14, marginBottom: 18 }}>
+          <div style={{ width: 46, height: 46, borderRadius: 13, flex: "0 0 auto", display: "grid", placeItems: "center", background: chipBg, color: fg }}>{ic}</div>
+          <div style={{ minWidth: 0, alignSelf: "center" }}>
+            {title && <div style={{ fontFamily: F2, fontWeight: 600, fontSize: 17, color: "var(--ink-900)" }}>{title}</div>}
+            {body && <div style={{ fontFamily: F2, fontSize: 13.5, color: "var(--ink-500)", marginTop: title ? 4 : 0, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{body}</div>}
+          </div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Button variant="amber" onClick={onClose}>{confirmLabel}</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /* ---------------- Toast ---------------- */
 // Bottom-right, auto-dismissed by the store; click to dismiss early. Icon sits in a
 // tinted chip so the tone reads at a glance without a colored side-stripe.

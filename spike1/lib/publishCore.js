@@ -1,7 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 
-const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+// Vercel sets SUPABASE_SERVICE_ROLE_KEY; local .env.local writes it as
+// SERVICE_ROLE_SECRET (see supabase/fetchkeys.mjs). Accept either so the engine
+// runs the same locally and in production.
+const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_SECRET;
 const V = process.env.META_GRAPH_VERSION || "v25.0";
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
