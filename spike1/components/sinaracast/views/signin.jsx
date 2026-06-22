@@ -86,6 +86,11 @@ export function SignInView() {
           )}
         </div>
         <div style={{ textAlign: "center", marginTop: 18, fontFamily: FSi, fontSize: 11.5, color: "var(--ink-400)" }}>Semua waktu dalam WIB (UTC+7)</div>
+        <div style={{ textAlign: "center", marginTop: 8, fontFamily: FSi, fontSize: 11.5, color: "var(--ink-400)", display: "flex", gap: 14, justifyContent: "center" }}>
+          <a href="/privacy" style={{ color: "var(--ink-400)" }}>Privasi</a>
+          <a href="/terms" style={{ color: "var(--ink-400)" }}>Ketentuan</a>
+          <a href="/data-deletion" style={{ color: "var(--ink-400)" }}>Hapus Data</a>
+        </div>
       </div>
     </div>
   );
