@@ -9,9 +9,10 @@ name: Deploy to Vercel (Production)
 # Org/Project IDs are inlined below (these are NOT secrets). The only secret you
 # must add is VERCEL_TOKEN (repo Settings -> Secrets and variables -> Actions).
 #
-# The Vercel project's Root Directory is set to "spike1". We run the CLI from the
-# repo root and let `vercel pull` fetch that setting, mirroring native behavior.
-# `vercel build` runs the npm install inside spike1/ using package-lock.json.
+# Build runs REMOTELY on Vercel (no local `vercel build`): Vercel installs deps,
+# applies the project's Root Directory (spike1), builds with its own cache, and
+# injects env vars at build time exactly like the native integration. That makes
+# the CI side minimal and avoids local build/env-pull edge cases.
 
 on:
   push:
@@ -47,12 +48,7 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
-      - name: Build (production)
-        run: vercel build --prod --token=$VERCEL_TOKEN
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-
-      - name: Deploy prebuilt output (production)
-        run: vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
+      - name: Deploy (production, build on Vercel)
+        run: vercel deploy --prod --token=$VERCEL_TOKEN
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

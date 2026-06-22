@@ -7,10 +7,14 @@
 Bukan lagi native Git integration Vercel. Setiap push ke `main` menjalankan
 workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) yang:
 
-1. `vercel pull` — ambil setting project (termasuk Root Directory = `spike1`)
-2. `vercel build --prod` — build di repo root, Vercel apply Root Directory `spike1`
-   dan menjalankan `npm install` di dalam `spike1/` pakai `package-lock.json`
-3. `vercel deploy --prebuilt --prod` — deploy hasil build ke production
+1. `npm install -g vercel@latest` — pasang Vercel CLI di runner
+2. `vercel pull` — ambil setting project (termasuk Root Directory = `spike1`)
+3. `vercel deploy --prod` — upload source, **build dijalankan REMOTE di Vercel**
+   (Vercel yang `npm install` + build pakai cache-nya sendiri, apply Root
+   Directory `spike1`, dan menyuntik env var saat build seperti native)
+
+Tidak ada `vercel build` lokal. Karena build jalan di infra Vercel, env var
+(termasuk yang Sensitive) tersedia otomatis saat build — sisi CI jadi minimal.
 
 ## Kenapa pakai CI token, bukan native Git integration
 
