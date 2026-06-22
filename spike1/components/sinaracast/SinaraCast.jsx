@@ -60,6 +60,17 @@ export default function SinaraCast() {
   const [showSignIn, setShowSignIn] = uA(false); // logged-out: landing first, then sign-in on "Masuk"
   const [session, setSession] = uA(undefined); // undefined = loading, null = signed out
   const [dataLoading, setDataLoading] = uA(true);
+
+  // Only the logged-out landing escapes the fixed #sc-stage to use window scroll (so
+  // GSAP/Lenis can drive it). Everything else (spinner, sign-in, the app) stays locked
+  // inside #sc-stage. Toggle html classes accordingly; clean up on unmount.
+  React.useEffect(() => {
+    const cls = document.documentElement.classList;
+    const isLanding = session === null && !showSignIn;
+    cls.toggle("landing-active", isLanding);
+    cls.toggle("app-locked", !isLanding);
+    return () => { cls.remove("landing-active"); cls.remove("app-locked"); };
+  }, [session, showSignIn]);
   const [isMobile, setIsMobile] = uA(false);
   const [drawerOpen, setDrawerOpen] = uA(false);
 
@@ -400,12 +411,15 @@ export default function SinaraCast() {
     return <div id="sc-stage"><div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center" }}><Spinner size={34} /></div></div>;
   }
   if (!session) {
-    return (
+    // Landing renders directly into <body> (window scroll); sign-in keeps #sc-stage.
+    return showSignIn ? (
       <div id="sc-stage">
         <div style={{ width: "100%", height: "100%" }}>
-          {showSignIn ? <SignInView onBack={() => setShowSignIn(false)} /> : <Landing onMasuk={() => setShowSignIn(true)} />}
+          <SignInView onBack={() => setShowSignIn(false)} />
         </div>
       </div>
+    ) : (
+      <Landing onMasuk={() => setShowSignIn(true)} />
     );
   }
 

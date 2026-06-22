@@ -167,6 +167,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 #sc-stage { position: fixed; inset: 0; overflow: hidden; padding: 12px; }
+/* The logged-out landing renders OUTSIDE #sc-stage and uses native window scroll
+   (so GSAP/Lenis can drive it). Sign-in + the app stay locked inside #sc-stage. */
+html.landing-active, html.landing-active body { overflow-x: hidden; }
+html.app-locked, html.app-locked body { overflow: hidden; height: 100%; }
 /* #sc-root is a fixed logical canvas; SinaraCast.jsx → Stage sets width/height
    and a scale transform so the whole app fits any screen width (desktop fills,
    mobile shrinks proportionally). The 100%/100% here is the pre-JS fallback. */
