@@ -7,14 +7,27 @@
 Bukan lagi native Git integration Vercel. Setiap push ke `main` menjalankan
 workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) yang:
 
-1. `npm install -g vercel@latest` — pasang Vercel CLI di runner
-2. `vercel pull` — ambil setting project (termasuk Root Directory = `spike1`)
-3. `vercel deploy --prod` — upload source, **build dijalankan REMOTE di Vercel**
+1. `actions/checkout@v4` — ambil source
+2. `npm install -g vercel@latest` — pasang Vercel CLI di runner
+3. `vercel pull` — ambil setting project (termasuk Root Directory = `spike1`)
+4. `rm -rf .git` — **WAJIB**, lihat di bawah
+5. `vercel deploy --prod` — upload source, **build dijalankan REMOTE di Vercel**
    (Vercel yang `npm install` + build pakai cache-nya sendiri, apply Root
    Directory `spike1`, dan menyuntik env var saat build seperti native)
 
 Tidak ada `vercel build` lokal. Karena build jalan di infra Vercel, env var
 (termasuk yang Sensitive) tersedia otomatis saat build — sisi CI jadi minimal.
+
+### Kenapa `rm -rf .git` wajib
+
+Kalau `.git` masih ada saat `vercel deploy`, CLI ikut melampirkan **commit
+author**. Di akun Vercel ini (Hobby, GitHub tidak tertaut, tanpa kolaborator),
+Vercel memblokir deployment dengan *"commit email could not be matched to a
+GitHub account"*. Menghapus `.git` membuang metadata itu, sehingga deploy
+diotorisasi murni oleh **token** (atas nama pemilik token) dan tidak ke-block.
+`rm -rf .git` ditaruh **setelah** `vercel pull` (pull menulis ke `.vercel`,
+bukan `.git`) dan tidak mengganggu deploy karena CLI memakai
+`VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` + token, bukan git.
 
 ## Kenapa pakai CI token, bukan native Git integration
 

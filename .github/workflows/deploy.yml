@@ -13,6 +13,12 @@ name: Deploy to Vercel (Production)
 # applies the project's Root Directory (spike1), builds with its own cache, and
 # injects env vars at build time exactly like the native integration. That makes
 # the CI side minimal and avoids local build/env-pull edge cases.
+#
+# `rm -rf .git` before deploy is REQUIRED: otherwise the CLI attaches the commit
+# author, and Vercel blocks the deployment on Hobby with "commit email could not
+# be matched to a GitHub account" (this Vercel account has no GitHub linked, and
+# Hobby has no collaborators). Removing .git strips that metadata, so the deploy
+# is authorized purely by the token / token owner.
 
 on:
   push:
@@ -47,6 +53,12 @@ jobs:
         run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      # Strip git metadata so the deploy isn't blocked on the commit author.
+      # The CLI deploys via VERCEL_ORG_ID/VERCEL_PROJECT_ID + token; it does not
+      # need .git. Keep this AFTER `vercel pull` (pull writes to .vercel, not .git).
+      - name: Drop git metadata (avoid Hobby commit-author block)
+        run: rm -rf .git
 
       - name: Deploy (production, build on Vercel)
         run: vercel deploy --prod --token=$VERCEL_TOKEN
