@@ -88,12 +88,22 @@ export function useLandingMotion(rootRef) {
           // nav condense
           if (nav) ScrollTrigger.create({ start: "40px top", end: "max", onUpdate: (s) => nav.classList.toggle("lp-nav-solid", s.scroll() > 40), onLeaveBack: () => nav.classList.remove("lp-nav-solid") });
 
+          // scroll progress bar
+          const bar = root.querySelector("[data-progress]");
+          if (bar) { gsap.set(bar, { scaleX: 0, transformOrigin: "left center" }); ScrollTrigger.create({ start: 0, end: "max", onUpdate: (s) => gsap.set(bar, { scaleX: s.progress }) }); }
+
           // reveal on scroll (batched, smooth, slight scale)
           const reveals = gsap.utils.toArray("[data-reveal]");
           gsap.set(reveals, { opacity: 0, y: 22, scale: 0.985 });
           ScrollTrigger.batch(reveals, {
             start: "top 88%",
             onEnter: (els) => gsap.to(els, { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: "power3.out", stagger: 0.07, overwrite: true }),
+          });
+
+          // image reveal — clip-path wipe upward as the photo enters
+          gsap.utils.toArray("[data-imgreveal]").forEach((el, i) => {
+            gsap.set(el, { clipPath: "inset(0 0 100% 0)", willChange: "clip-path" });
+            ScrollTrigger.create({ trigger: el, start: "top 86%", once: true, onEnter: () => gsap.to(el, { clipPath: "inset(0 0 0% 0)", duration: 1.0, ease: "power3.out", delay: (i % 4) * 0.08 }) });
           });
 
           // parallax (smoothed scrub, gentle travel)
@@ -109,8 +119,10 @@ export function useLandingMotion(rootRef) {
           const htrack = root.querySelector("[data-htrack]");
           if (hsection && htrack && window.innerWidth >= 880) {
             const dist = () => Math.max(0, htrack.scrollWidth - window.innerWidth);
+            const panels = Math.max(1, htrack.querySelectorAll(".lp-panel").length);
             gsap.to(htrack, { x: () => -dist(), ease: "none",
-              scrollTrigger: { trigger: hsection, start: "top top", end: () => "+=" + dist(), scrub: 0.8, pin: true, anticipatePin: 1, invalidateOnRefresh: true } });
+              scrollTrigger: { trigger: hsection, start: "top top", end: () => "+=" + dist(), scrub: 0.8, pin: true, anticipatePin: 1, invalidateOnRefresh: true,
+                snap: { snapTo: 1 / panels, duration: { min: 0.15, max: 0.4 }, ease: "power1.inOut", delay: 0.04 } } });
           }
 
           // count-up

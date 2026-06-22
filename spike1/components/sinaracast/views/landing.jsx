@@ -75,6 +75,7 @@ export function Landing({ onMasuk }) {
   return (
     <div className="lp-root" data-lp ref={rootRef}>
       <style>{CSS}</style>
+      <span className="lp-progress" data-progress aria-hidden="true" />
       <BrandBumper onDone={onIntroDone} />
       <div className="lp-wrap">
 
@@ -112,7 +113,7 @@ export function Landing({ onMasuk }) {
           </div>
 
           <div className="lp-hero-art lp-up" aria-hidden="true">
-            <div className="lp-hero-photo" data-parallax="0.08" data-tilt="18">
+            <div className="lp-hero-photo" data-parallax="0.08" data-tilt="18" data-imgreveal>
               <Image src="/marketing/hero-context.webp" alt="" fill sizes="(max-width:880px) 60vw, 240px" placeholder="blur" blurDataURL={blur["hero-context"]} style={{ objectFit: "cover" }} />
               <span className="lp-photo-tint" />
             </div>
@@ -158,9 +159,9 @@ export function Landing({ onMasuk }) {
               <p className="lp-show-sub">Geser, lihat tiap format kontenmu terbit otomatis di waktunya.</p>
             </div>
             {SHOWCASE.map((s) => (
-              <article key={s.tag} className="lp-panel">
-                <div className="lp-panel-photo">
-                  <Image src={`/marketing/${s.img}.webp`} alt="" fill sizes="250px" placeholder="blur" blurDataURL={blur[s.img]} style={{ objectFit: "cover" }} />
+              <article key={s.tag} className="lp-panel" data-cardtilt>
+                <div className="lp-panel-photo" data-imgreveal>
+                  <Image src={`/marketing/${s.img}.webp`} alt="" fill sizes="260px" placeholder="blur" blurDataURL={blur[s.img]} style={{ objectFit: "cover" }} />
                   <span className="lp-photo-tint" />
                   <span className="lp-panel-tag"><PlatIcon p={s.plat} size={12} color={s.plat === "tiktok" ? "#fff" : undefined} /> {s.tag}</span>
                   <span className="lp-panel-badge"><Icons.check size={11} sw={2.6} /> 17.00 WIB</span>
@@ -312,8 +313,9 @@ export function Landing({ onMasuk }) {
 
 const CSS = `
 .lp-root { overflow-x: hidden; }
-.lp-wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+.lp-wrap { max-width: 1320px; margin: 0 auto; padding: 0 22px; }
 .lp-root a { text-decoration: none; }
+.lp-progress { position: fixed; top: 0; left: 0; height: 3px; width: 100%; transform: scaleX(0); transform-origin: left center; background: var(--primary-grad); z-index: 60; pointer-events: none; }
 
 /* nav */
 .lp-nav { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; padding: calc(14px + env(safe-area-inset-top)) 6px 12px; transition: background .25s, box-shadow .25s, padding .25s; }
@@ -372,13 +374,13 @@ const CSS = `
 .lp-cat:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); color: var(--primary-500); }
 .lp-band-trust { display: inline-flex; align-items: center; gap: 7px; margin-top: 16px; font-family: ${F}; font-weight: 500; font-size: 12px; color: var(--green-500); }
 
-/* horizontal showcase */
-.lp-show { padding: 50px 0 44px; overflow: hidden; }
-.lp-show-track { display: flex; gap: 20px; align-items: center; padding: 0 24px; }
-.lp-show-intro { flex: 0 0 auto; width: min(320px, 76vw); padding-right: 6px; }
+/* horizontal showcase — full-bleed (breaks out of the centered container) */
+.lp-show { padding: 50px 0 44px; overflow: hidden; width: 100vw; margin-left: calc(50% - 50vw); }
+.lp-show-track { display: flex; gap: 20px; align-items: center; padding: 0 5vw; }
+.lp-show-intro { flex: 0 0 auto; width: min(340px, 78vw); padding-right: 8px; }
 .lp-show-sub { font-family: ${F}; font-weight: 400; font-size: 14px; line-height: 1.55; color: var(--ink-500); margin: 12px 0 0; }
-.lp-panel { flex: 0 0 auto; width: 210px; }
-.lp-panel-photo { position: relative; width: 210px; height: 373px; border-radius: 20px; overflow: hidden; box-shadow: var(--shadow-lg); border: 1px solid rgba(255,255,255,.7); }
+.lp-panel { flex: 0 0 auto; width: 220px; }
+.lp-panel-photo { position: relative; width: 220px; height: 391px; border-radius: 22px; overflow: hidden; box-shadow: var(--shadow-lg); border: 1px solid rgba(255,255,255,.7); will-change: clip-path; }
 .lp-panel-tag { position: absolute; top: 11px; left: 11px; display: inline-flex; align-items: center; gap: 5px; font-family: ${F}; font-weight: 700; font-size: 11px; color: #fff; background: rgba(0,0,0,.34); backdrop-filter: blur(4px); padding: 5px 10px; border-radius: 999px; }
 .lp-panel-badge { position: absolute; bottom: 11px; left: 11px; right: 11px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-family: ${F}; font-weight: 700; font-size: 11px; color: #fff; background: var(--green-grad); padding: 7px; border-radius: 11px; box-shadow: var(--shadow-green); }
 .lp-panel-cap { font-family: ${F}; font-weight: 500; font-size: 12.5px; line-height: 1.5; color: var(--ink-700); margin: 12px 4px 0; }
@@ -465,10 +467,10 @@ const CSS = `
   .lp-hero-art { min-height: 360px; }
   .lp-hero-photo { width: 210px; height: 262px; left: 0; top: 4px; }
   .lp-show { padding: 0; }
-  .lp-show-track { height: 100vh; align-items: center; padding: 0 5vw; gap: 26px; }
-  .lp-show-intro { width: 320px; }
-  .lp-panel { width: 236px; }
-  .lp-panel-photo { width: 236px; height: 420px; }
+  .lp-show-track { height: 100vh; align-items: center; padding: 0 4.5vw; gap: 28px; }
+  .lp-show-intro { width: 360px; }
+  .lp-panel { width: 262px; }
+  .lp-panel-photo { width: 262px; height: 466px; }
   .lp-bento { grid-template-columns: repeat(3, 1fr); }
   .lp-stats { grid-template-columns: repeat(4, 1fr); padding: 32px; }
   .lp-safe { grid-template-columns: repeat(2, 1fr); }
