@@ -1,0 +1,58 @@
+name: Deploy to Vercel (Production)
+
+# Why this exists instead of Vercel's native Git integration:
+# One GitHub account can only be "login-connected" to a single Vercel account
+# at a time. This repo deploys to a Vercel account that differs from other
+# projects, so native Git integration keeps getting stolen/disconnected.
+# Deploying via the Vercel CLI + a project-scoped token sidesteps that entirely.
+#
+# Org/Project IDs are inlined below (these are NOT secrets). The only secret you
+# must add is VERCEL_TOKEN (repo Settings -> Secrets and variables -> Actions).
+#
+# The Vercel project's Root Directory is set to "spike1". We run the CLI from the
+# repo root and let `vercel pull` fetch that setting, mirroring native behavior.
+# `vercel build` runs the npm install inside spike1/ using package-lock.json.
+
+on:
+  push:
+    branches: [main]
+
+# Never run two production deploys at the same time. A newer push cancels the
+# in-flight one.
+concurrency:
+  group: vercel-production
+  cancel-in-progress: true
+
+env:
+  VERCEL_ORG_ID: team_DrIFTCibqzGWz5gnPFEDQ1mi
+  VERCEL_PROJECT_ID: prj_jepDq5u6sM7xHG2LjAm0R54NRyt4
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel project settings (production)
+        run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build (production)
+        run: vercel build --prod --token=$VERCEL_TOKEN
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy prebuilt output (production)
+        run: vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
