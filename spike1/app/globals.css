@@ -78,7 +78,7 @@
   --blur: 28px;
 
   /* ---------- TYPE ---------- */
-  --font: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font: var(--font-poppins), 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   /* spacing scale */
   --sp-1: 4px;
