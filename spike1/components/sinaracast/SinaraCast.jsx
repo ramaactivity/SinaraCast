@@ -5,6 +5,7 @@ import { loadAll, setRuleActive, setChannelPaused, setPauseAll, saveSettingsFiel
 import { AppCtx } from "./store";
 import { Sidebar } from "./shell";
 import { Panel, EmptyState, Toast, ConfirmDialog, AlertDialog, Spinner } from "./ui";
+import { Landing } from "./views/landing";
 import { supabase } from "./supabaseClient";
 import { RulesView } from "./views/rules";
 import { EditorView } from "./views/editor";
@@ -56,6 +57,7 @@ export default function SinaraCast() {
   const [toast, setToast] = uA(null);
   const [confirmCfg, setConfirmCfg] = uA(null);
   const [alertCfg, setAlertCfg] = uA(null);
+  const [showSignIn, setShowSignIn] = uA(false); // logged-out: landing first, then sign-in on "Masuk"
   const [session, setSession] = uA(undefined); // undefined = loading, null = signed out
   const [dataLoading, setDataLoading] = uA(true);
   const [isMobile, setIsMobile] = uA(false);
@@ -398,7 +400,13 @@ export default function SinaraCast() {
     return <div id="sc-stage"><div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center" }}><Spinner size={34} /></div></div>;
   }
   if (!session) {
-    return <div id="sc-stage"><div style={{ width: "100%", height: "100%" }}><SignInView /></div></div>;
+    return (
+      <div id="sc-stage">
+        <div style={{ width: "100%", height: "100%" }}>
+          {showSignIn ? <SignInView onBack={() => setShowSignIn(false)} /> : <Landing onMasuk={() => setShowSignIn(true)} />}
+        </div>
+      </div>
+    );
   }
 
   const VIEWS = {

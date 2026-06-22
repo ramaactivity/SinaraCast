@@ -10,7 +10,7 @@ const FSi = "var(--font)";
 // 6-digit code AND a magic link. PWA users type the code here (verifyOtp creates
 // the session in THIS context — no bounce to the system browser); normal browsers
 // can just click the link.
-export function SignInView() {
+export function SignInView({ onBack }) {
   const [stage, setStage] = uSi("form"); // form | sending | sent | verifying
   const [email, setEmail] = uSi("");
   const [code, setCode] = uSi("");
@@ -41,6 +41,9 @@ export function SignInView() {
   return (
     <div style={{ width: "100%", minHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, overflowY: "auto", boxSizing: "border-box" }}>
       <div style={{ width: "100%", maxWidth: 440 }}>
+        {onBack && (
+          <button onClick={onBack} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", fontFamily: FSi, fontSize: 13, fontWeight: 600, color: "var(--ink-500)", marginBottom: 14 }}>← Kembali</button>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "center", marginBottom: 26 }}>
           <div style={{ width: 42, height: 42, borderRadius: 13, background: "var(--primary-grad)", boxShadow: "var(--shadow-primary)", display: "grid", placeItems: "center", color: "#fff" }}><Icons.grid size={22} sw={2} /></div>
           <span style={{ fontFamily: FSi, fontWeight: 600, fontSize: 22, color: "var(--ink-900)" }}>SinaraCast</span>
