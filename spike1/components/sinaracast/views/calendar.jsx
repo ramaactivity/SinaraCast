@@ -50,6 +50,17 @@ function ruleTime(rule, Y, M, day) {
   const weekend = jsDow === 0 || jsDow === 6;
   return (weekend ? rule.weekendTime : rule.weekdayTime) || "—";
 }
+// All posting times ("HH:MM") for a rule on a given day (a rule can fire several
+// times/day). Array-first with the single-time fallback for older rules.
+function ruleTimes(rule, Y, M, day) {
+  const jsDow = new Date(Date.UTC(Y, M, day)).getUTCDay();
+  const weekend = jsDow === 0 || jsDow === 6;
+  const list = rule.mode !== "schedule" ? rule.postTimes : (weekend ? rule.weekendTimes : rule.weekdayTimes);
+  if (Array.isArray(list) && list.length) return list;
+  const t = ruleTime(rule, Y, M, day);
+  return t !== "—" ? [t] : [];
+}
+const hhmmMin = (t) => { if (!/^\d{2}:\d{2}/.test(t || "")) return null; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 
 // Run/one-off status → { dot, bg } for the in-cell event pills (soft tints, solid markers).
 const ST_C = {
@@ -113,14 +124,15 @@ export function CalendarView() {
     && (filter === "all" || p.ch === filter)
     && platOk(p.platform));
 
-  // ground truth from real runs this month: ruleId|day → {status, time}
+  // ground truth from real runs this month: ruleId|day → [{status, time, …}] (a rule
+  // can now run several times a day, so each day holds a list of runs).
   const runByRuleDay = {};
   app.runs.forEach(r => {
     if (!r.dateWib || !r.dateWib.startsWith(ym)) return;
     if (!inScope(r.ch)) return;
     const day = parseInt(r.dateWib.slice(8, 10), 10);
     const time = (r.actual !== "—" ? r.actual : r.sched).split(", ")[1] || "";
-    runByRuleDay[`${r.ruleId}|${day}`] = { status: r.status, time, ch: r.ch, rule: r.rule, ruleId: r.ruleId };
+    (runByRuleDay[`${r.ruleId}|${day}`] ||= []).push({ status: r.status, time, ch: r.ch, rule: r.rule, ruleId: r.ruleId });
   });
 
   // Hari Spesial markers for this month (active only) — day → [{name, category}]
@@ -134,16 +146,23 @@ export function CalendarView() {
     const items = [];
     // recurring runs + projections (Instagram) — hidden when a planner-status filter is on, or platform≠IG
     if (!statusActive && platOk("instagram")) {
-      Object.entries(runByRuleDay).forEach(([key, v]) => {
+      Object.entries(runByRuleDay).forEach(([key, arr]) => {
         if (parseInt(key.split("|")[1], 10) !== day) return;
-        items.push({ kind: "rule", ch: v.ch, title: v.rule, time: v.time || "—", status: v.status, ruleId: v.ruleId });
+        arr.forEach(v => items.push({ kind: "rule", ch: v.ch, title: v.rule, time: v.time || "—", status: v.status, ruleId: v.ruleId }));
       });
       if (day >= projectFrom) {
         rules.forEach(r => {
           if (!r.active) return;
           if (!ruleFires(r, Y, M, day)) return;
-          if (runByRuleDay[`${r.id}|${day}`]) return; // already shown from history
-          items.push({ kind: "rule", ch: r.ch, title: r.name, time: ruleTime(r, Y, M, day), status: "Scheduled", rule: r });
+          // Project each posting time; skip a slot already covered by a real run that
+          // day (matched within the grace window so a slight publish-time drift dedupes).
+          const runMins = (runByRuleDay[`${r.id}|${day}`] || []).map(v => hhmmMin(v.time)).filter(x => x != null);
+          const tol = (r.grace || 30) + 5;
+          ruleTimes(r, Y, M, day).forEach(t => {
+            const tm = hhmmMin(t);
+            if (tm != null && runMins.some(rm => Math.abs(rm - tm) <= tol)) return;
+            items.push({ kind: "rule", ch: r.ch, title: r.name, time: t, status: "Scheduled", rule: r });
+          });
         });
       }
     }

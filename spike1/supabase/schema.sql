@@ -96,9 +96,12 @@ create table if not exists recurring_rule (
   cadence_type  cadence_type not null,
   interval_days int,
   weekdays      int[],
-  post_time     time,
+  post_time     time,        -- legacy single time; kept as fallback for *_times arrays
   weekday_time  time,
   weekend_time  time,
+  post_times    time[],      -- beberapa jam posting per hari (pool mode)
+  weekday_times time[],      -- beberapa jam posting per hari kerja (schedule mode)
+  weekend_times time[],      -- beberapa jam posting per akhir pekan (schedule mode)
   grace_minutes int not null default 30,
   special_behavior text not null default 'normal', -- 'normal' | 'skip' | 'special_pool' on special days
   end_date      date,

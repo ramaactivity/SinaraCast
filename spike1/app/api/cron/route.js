@@ -12,6 +12,19 @@ const CRON_SECRET = process.env.CRON_SECRET;
 const hhmmToMin = (t) => { if (!t) return null; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 const wibDateStr = (d) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 
+// The posting times for a rule on the current day. A rule can fire at several times
+// per day (mis. pagi/sore/malam). Reads the *_times array, falling back to the legacy
+// single time column when the array is empty. Normalizes to "HH:MM", dedupes, sorts.
+function slotTimesFor(rule, isWeekend) {
+  const arr = rule.mode === "schedule"
+    ? (isWeekend ? rule.weekend_times : rule.weekday_times)
+    : rule.post_times;
+  const single = rule.mode === "schedule" ? (isWeekend ? rule.weekend_time : rule.weekday_time) : rule.post_time;
+  const raw = (Array.isArray(arr) && arr.length) ? arr : (single ? [single] : []);
+  const norm = raw.map((t) => (t || "").slice(0, 5)).filter((t) => /^\d{2}:\d{2}$/.test(t));
+  return [...new Set(norm)].sort();
+}
+
 function isFireDay(rule, dow, today, nowWib) {
   if (rule.cadence_type === "daily") return true;
   if (rule.cadence_type === "weekdays") return Array.isArray(rule.weekdays) && rule.weekdays.includes(dow);
@@ -81,7 +94,7 @@ export async function POST(request) {
   const ttById = Object.fromEntries(ttChannels.filter((c) => !pausedOwners.has(c.owner_id)).map((c) => [c.id, c]));
 
   const { data: rules = [] } = await svc.from("recurring_rule")
-    .select("id, channel_id, name, mode, active, cadence_type, interval_days, weekdays, post_time, weekday_time, weekend_time, grace_minutes, special_behavior, created_at")
+    .select("id, channel_id, name, mode, active, cadence_type, interval_days, weekdays, post_time, weekday_time, weekend_time, post_times, weekday_times, weekend_times, grace_minutes, special_behavior, created_at")
     .eq("active", true).is("archived_at", null).in("channel_id", Object.keys(chById).length ? Object.keys(chById) : ["00000000-0000-0000-0000-000000000000"]);
 
   // Hari Spesial: today's active special day per owner (Map ownerId → name).
@@ -102,70 +115,78 @@ export async function POST(request) {
     if (!channel) continue;
     if (!isFireDay(rule, dow, today, nowWib)) continue;
     const ov = overrides[rule.id];
-    if (ov?.type === "skip") {
-      // honor "lewati hari ini": claim the daily key as skipped so nothing posts and no missed-run alert fires
-      const { data: sk } = await svc.from("post_run").insert({
-        channel_id: channel.id, rule_id: rule.id, status: "skipped", trigger: "scheduled",
-        scheduled_at: nowWib.toISOString(), claim_key: `auto:${rule.id}:${today}`, attempt_count: 0,
-        fail_reason: "Dilewati manual hari ini",
-      }).select("id").maybeSingle();
-      if (sk) { await svc.from("post_attempt").insert({ run_id: sk.id, outcome: "Dilewati manual (lewati hari ini)", is_fail: false }); fired.push({ rule: rule.name, channel: channel.slug, skipped: "manual" }); }
-      continue;
-    }
-    // Hari Spesial 'skip': rule rests on special days. A manual swap for today wins
-    // (the user explicitly picked an image), matching day_override precedence.
-    const specialName = specialByOwner.get(channel.owner_id);
-    if (specialName && rule.special_behavior === "skip" && ov?.type !== "swap") {
-      const { data: sk } = await svc.from("post_run").insert({
-        channel_id: channel.id, rule_id: rule.id, status: "skipped", trigger: "scheduled",
-        scheduled_at: nowWib.toISOString(), claim_key: `auto:${rule.id}:${today}`, attempt_count: 0,
-        fail_reason: `Hari spesial (${specialName}) — dilewati otomatis`,
-      }).select("id").maybeSingle();
-      if (sk) { await svc.from("post_attempt").insert({ run_id: sk.id, outcome: `Dilewati otomatis — hari spesial: ${specialName}`, is_fail: false }); fired.push({ rule: rule.name, channel: channel.slug, skipped: "special" }); }
-      continue;
-    }
     const isWeekend = dow === 0 || dow === 6;
-    const schedMin = hhmmToMin(rule.mode === "schedule" ? (isWeekend ? rule.weekend_time : rule.weekday_time) : rule.post_time);
-    if (schedMin == null) continue;
+    // A rule can fire at several times today (mis. pagi/sore/malam). Each slot is an
+    // independent run, idempotent via a per-slot claim_key `auto:{rule}:{today}:{HH:MM}`.
+    const times = slotTimesFor(rule, isWeekend);
+    if (!times.length) continue;
     const grace = rule.grace_minutes ?? 30;
-    if (!(nowMin >= schedMin && nowMin <= schedMin + grace)) {
-      // Past the grace window with no run today → flag a missed run (once/day).
-      // Reuses the daily claim_key: if a publish already happened the key is
-      // taken and this insert conflicts (23505), so no false "missed" alert.
-      if (nowMin > schedMin + grace) {
-        const { data: skip } = await svc.from("post_run").insert({
-          channel_id: channel.id, rule_id: rule.id, status: "skipped", trigger: "scheduled",
-          scheduled_at: nowWib.toISOString(), claim_key: `auto:${rule.id}:${today}`, attempt_count: 0,
-          fail_reason: "Jadwal terlewat — sudah lewat dari tenggang waktu hari ini",
-        }).select("id").maybeSingle();
-        if (skip) {
-          await svc.from("post_attempt").insert({ run_id: skip.id, outcome: "Jadwal terlewat — sudah lewat dari tenggang waktu hari ini", is_fail: true });
-          await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "warn",
-            title: `Jadwal terlewat — ${channel.handle || channel.slug}`, body: `Jadwal “${rule.name}” tidak sempat terbit dalam tenggang waktu hari ini.`, runId: skip.id });
-          fired.push({ rule: rule.name, channel: channel.slug, missed: true });
-        }
-      }
-      continue;
-    }
+    const specialName = specialByOwner.get(channel.owner_id);
 
-    if (overBudget()) break; // out of budget this tick; due rules retry next minute (still within grace)
+    // Day-level skip reason, applied to every slot today. A manual swap for today wins
+    // over special-day skip (the user explicitly picked an image for the day).
+    const skipReason =
+      ov?.type === "skip" ? "Dilewati manual hari ini"
+      : (specialName && rule.special_behavior === "skip" && ov?.type !== "swap") ? `Hari spesial (${specialName}) — dilewati otomatis`
+      : null;
+
+    // Resolve the pool role once for the day (weekday/weekend, or the special pool
+    // when 'special_pool' applies and it has images). All of today's slots share it.
     let role = roleForNow(rule.mode, dow);
-    // Hari Spesial 'special_pool': use the rule's special pool when it has images;
-    // an empty/missing special pool falls back to the normal pool (never fail the run).
-    if (specialName && rule.special_behavior === "special_pool" && ov?.type !== "swap") {
+    if (!skipReason && specialName && rule.special_behavior === "special_pool" && ov?.type !== "swap") {
       const { data: sp } = await svc.from("pool").select("id").eq("rule_id", rule.id).eq("role", "special").maybeSingle();
       if (sp) {
         const { count } = await svc.from("pool_image").select("id", { count: "exact", head: true }).eq("pool_id", sp.id);
         if (count > 0) role = "special";
       }
     }
-    const claimKey = `auto:${rule.id}:${today}`;
-    try {
-      const res = await publishForRule(svc, { channel, rule, role, trigger: ov?.type === "swap" ? "swap" : "scheduled", claimKey, scheduledAtISO: new Date().toISOString(), forceImageId: ov?.type === "swap" ? ov.swap_image_id : undefined });
-      if (res.skipped) continue;
-      fired.push({ rule: rule.name, channel: channel.slug, ok: res.ok, error: res.error, permalink: res.permalink });
-    } catch (e) {
-      fired.push({ rule: rule.name, channel: channel.slug, ok: false, error: String(e?.message || e) });
+
+    for (let si = 0; si < times.length; si++) {
+      const t = times[si];
+      const schedMin = hhmmToMin(t);
+      if (schedMin == null) continue;
+      const claimKey = `auto:${rule.id}:${today}:${t}`;
+
+      // Day-level skip: claim this slot as skipped so nothing posts and no missed alert fires.
+      if (skipReason) {
+        const { data: sk } = await svc.from("post_run").insert({
+          channel_id: channel.id, rule_id: rule.id, status: "skipped", trigger: "scheduled",
+          scheduled_at: nowWib.toISOString(), claim_key: claimKey, attempt_count: 0, fail_reason: skipReason,
+        }).select("id").maybeSingle();
+        if (sk) { await svc.from("post_attempt").insert({ run_id: sk.id, outcome: skipReason, is_fail: false }); fired.push({ rule: rule.name, channel: channel.slug, at: t, skipped: ov?.type === "skip" ? "manual" : "special" }); }
+        continue;
+      }
+
+      if (!(nowMin >= schedMin && nowMin <= schedMin + grace)) {
+        // Past this slot's grace window with no run → flag a missed run (once/slot/day).
+        // The per-slot claim_key: if a publish already happened the key is taken and
+        // this insert conflicts (23505), so no false "missed" alert.
+        if (nowMin > schedMin + grace) {
+          const reason = `Jadwal terlewat (${t}) — sudah lewat dari tenggang waktu`;
+          const { data: skip } = await svc.from("post_run").insert({
+            channel_id: channel.id, rule_id: rule.id, status: "skipped", trigger: "scheduled",
+            scheduled_at: nowWib.toISOString(), claim_key: claimKey, attempt_count: 0, fail_reason: reason,
+          }).select("id").maybeSingle();
+          if (skip) {
+            await svc.from("post_attempt").insert({ run_id: skip.id, outcome: reason, is_fail: true });
+            await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "warn",
+              title: `Jadwal terlewat — ${channel.handle || channel.slug}`, body: `Jadwal “${rule.name}” jam ${t} tidak sempat terbit dalam tenggang waktu.`, runId: skip.id });
+            fired.push({ rule: rule.name, channel: channel.slug, at: t, missed: true });
+          }
+        }
+        continue;
+      }
+
+      if (overBudget()) break; // out of budget this tick; still-due slots retry next minute (within grace)
+      // A "swap today" override seeds one chosen image; apply it to the earliest slot only.
+      const useSwap = ov?.type === "swap" && si === 0;
+      try {
+        const res = await publishForRule(svc, { channel, rule, role, trigger: useSwap ? "swap" : "scheduled", claimKey, scheduledAtISO: new Date().toISOString(), forceImageId: useSwap ? ov.swap_image_id : undefined });
+        if (res.skipped) continue;
+        fired.push({ rule: rule.name, channel: channel.slug, at: t, ok: res.ok, error: res.error, permalink: res.permalink });
+      } catch (e) {
+        fired.push({ rule: rule.name, channel: channel.slug, at: t, ok: false, error: String(e?.message || e) });
+      }
     }
   }
   // ---- resume video one-offs whose IG container was still transcoding last tick ----

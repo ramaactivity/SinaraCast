@@ -39,10 +39,15 @@ const ruleFiresOn = (rule, Y, M, day) => {
   }
   return false;
 };
-const ruleHHMM = (rule, jsDow) => {
-  if (rule.mode !== "schedule") return (rule.post_time || "").slice(0, 5);
+// All posting times ("HH:MM", deduped, sorted) for a rule on a given weekday. Reads
+// the *_times arrays, falling back to the legacy single time column when empty.
+const ruleTimesFor = (rule, jsDow) => {
   const weekend = jsDow === 0 || jsDow === 6;
-  return ((weekend ? rule.weekend_time : rule.weekday_time) || "").slice(0, 5);
+  const arr = rule.mode !== "schedule" ? rule.post_times : (weekend ? rule.weekend_times : rule.weekday_times);
+  const single = rule.mode !== "schedule" ? rule.post_time : (weekend ? rule.weekend_time : rule.weekday_time);
+  const raw = (Array.isArray(arr) && arr.length) ? arr : (single ? [single] : []);
+  const norm = raw.map((t) => (t || "").slice(0, 5)).filter((t) => /^\d{2}:\d{2}$/.test(t));
+  return [...new Set(norm)].sort();
 };
 const nextRunLabel = (rule) => {
   const now = toWib(new Date().toISOString());
@@ -51,10 +56,13 @@ const nextRunLabel = (rule) => {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + i));
     const Y = d.getUTCFullYear(), M = d.getUTCMonth(), day = d.getUTCDate(), jsDow = d.getUTCDay();
     if (!ruleFiresOn(rule, Y, M, day)) continue;
-    const hhmm = ruleHHMM(rule, jsDow);
+    // Soonest upcoming slot: today skips times already passed; later days take the first.
+    const hhmm = ruleTimesFor(rule, jsDow).find((t) => {
+      if (i > 0) return true;
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m > nowMin;
+    });
     if (!hhmm) continue;
-    const [h, m] = hhmm.split(":").map(Number);
-    if (i === 0 && h * 60 + m <= nowMin) continue; // today, but the time already passed
     if (i === 0) return `Hari ini, ${hhmm} WIB`;
     if (i === 1) return `Besok, ${hhmm} WIB`;
     return `${WD_SHORT[jsDow]}, ${day} ${MONTHS[M]} · ${hhmm} WIB`;
@@ -88,13 +96,19 @@ function mapChannel(c) {
 
 function mapRule(r, slugById) {
   const isSched = r.mode === "schedule";
+  // Posting times per daypart ("HH:MM"), array-first with legacy single-time fallback.
+  const weekdayTimes = ruleTimesFor(r, 1); // any weekday
+  const weekendTimes = ruleTimesFor(r, 0); // any weekend day
+  const postTimes = ruleTimesFor(r, 1);    // pool mode: same list every fire day
+  const repTimes = isSched ? weekdayTimes : postTimes;
   return {
     id: r.id, ch: slugById[r.channel_id] || "", name: r.name, mode: r.mode, active: r.active,
-    cadence: cadenceLabel(r), time: (isSched ? r.weekday_time : r.post_time)?.slice(0, 5) || "—",
+    cadence: cadenceLabel(r), time: repTimes[0] || "—", timesCount: repTimes.length,
     grace: r.grace_minutes,
     // raw scheduling fields for the calendar projection
     cadenceType: r.cadence_type, intervalDays: r.interval_days, weekdaysDb: r.weekdays || [], createdAt: r.created_at,
-    weekdayTime: r.weekday_time?.slice(0, 5) || "", weekendTime: r.weekend_time?.slice(0, 5) || "", postTime: r.post_time?.slice(0, 5) || "",
+    weekdayTimes, weekendTimes, postTimes,
+    weekdayTime: weekdayTimes[0] || "", weekendTime: weekendTimes[0] || "", postTime: postTimes[0] || "",
     pools: isSched ? { weekday: 0, weekend: 0 } : { pool: 0 }, // counts filled below if pools loaded
     cycle: { used: 0, total: 0 }, nextRun: r.active ? nextRunLabel(r) : "Nonaktif",
     todayStatus: r.active ? "Scheduled" : "Inactive", lastImg: 0, runs7: [0, 0, 0, 0, 0, 0, 0],
@@ -608,14 +622,26 @@ export async function deleteStoredImage(storage_path) {
 // Stories posted per run, per pool role. 1..5 (IG Stories have no carousel, so >1
 // publishes as separate Story frames back-to-back). Default 1.
 const clampCount = (n) => Math.max(1, Math.min(5, Math.round(Number(n) || 1)));
+// Normalize a list of "HH:MM" posting times: keep valid ones, dedupe, sort. Falls
+// back to a single 08:00 slot so a rule always has at least one time.
+const normTimes = (arr) => {
+  const norm = (Array.isArray(arr) ? arr : []).map((t) => (t || "").slice(0, 5)).filter((t) => /^\d{2}:\d{2}$/.test(t));
+  const uniq = [...new Set(norm)].sort();
+  return uniq.length ? uniq : ["08:00"];
+};
 
 export async function createRuleWithPools(p) {
   const { data: rule, error: e1 } = await supabase.from("recurring_rule").insert({
     channel_id: p.channelDbId, name: p.name, mode: p.mode, active: true,
     cadence_type: p.cadenceType, interval_days: p.intervalDays ?? null, weekdays: p.weekdaysDb ?? null,
-    post_time: p.mode === "pool" ? p.postTime : null,
-    weekday_time: p.mode === "schedule" ? p.weekdayTime : null,
-    weekend_time: p.mode === "schedule" ? p.weekendTime : null,
+    // Multiple posting times per day. Legacy single-time columns mirror the first slot
+    // so older readers still work.
+    post_times:    p.mode === "pool" ? normTimes(p.postTimes) : null,
+    weekday_times: p.mode === "schedule" ? normTimes(p.weekdayTimes) : null,
+    weekend_times: p.mode === "schedule" ? normTimes(p.weekendTimes) : null,
+    post_time:    p.mode === "pool" ? (normTimes(p.postTimes)[0] || null) : null,
+    weekday_time: p.mode === "schedule" ? (normTimes(p.weekdayTimes)[0] || null) : null,
+    weekend_time: p.mode === "schedule" ? (normTimes(p.weekendTimes)[0] || null) : null,
     grace_minutes: p.grace,
     special_behavior: p.specialBehavior || "normal",
   }).select("id").single();
@@ -724,9 +750,12 @@ export async function updateRuleFields(id, f) {
   const { error } = await supabase.from("recurring_rule").update({
     name: f.name, mode: f.mode, cadence_type: f.cadenceType,
     interval_days: f.intervalDays ?? null, weekdays: f.weekdaysDb ?? null,
-    post_time: f.mode === "pool" ? f.postTime : null,
-    weekday_time: f.mode === "schedule" ? f.weekdayTime : null,
-    weekend_time: f.mode === "schedule" ? f.weekendTime : null,
+    post_times:    f.mode === "pool" ? normTimes(f.postTimes) : null,
+    weekday_times: f.mode === "schedule" ? normTimes(f.weekdayTimes) : null,
+    weekend_times: f.mode === "schedule" ? normTimes(f.weekendTimes) : null,
+    post_time:    f.mode === "pool" ? (normTimes(f.postTimes)[0] || null) : null,
+    weekday_time: f.mode === "schedule" ? (normTimes(f.weekdayTimes)[0] || null) : null,
+    weekend_time: f.mode === "schedule" ? (normTimes(f.weekendTimes)[0] || null) : null,
     grace_minutes: f.grace,
     special_behavior: f.specialBehavior || "normal",
   }).eq("id", id);

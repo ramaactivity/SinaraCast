@@ -143,7 +143,7 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 13, marginTop: 5, fontFamily: FR, fontSize: 12, color: "var(--ink-500)", flexWrap: "wrap", rowGap: 4 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icons.calendar size={14} />{r.cadence}</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icons.clock size={14} />{r.time} WIB</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icons.clock size={14} />{r.time} WIB{r.timesCount > 1 ? ` +${r.timesCount - 1} jam` : ""}</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icons.image size={14} />{total} gambar</span>
           </div>
         </div>

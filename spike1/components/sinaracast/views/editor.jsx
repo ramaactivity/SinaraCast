@@ -97,14 +97,12 @@ export function EditorView() {
   const [cadence, setCadence] = uEd("daily");
   const [everyN, setEveryN] = uEd(2);
   const [days, setDays] = uEd([0, 1, 2, 3, 4]);
-  const [time, setTime] = uEd("08:00");
-  const [wdTime, setWdTime] = uEd("14:00");
-  const [weTime, setWeTime] = uEd("09:00");
+  // Posting times per day — each daypart holds a LIST of times (mis. pagi/sore/malam);
+  // each time publishes 1 Story drawn from the pool via the no-repeat cycle.
+  const [postTimes, setPostTimes] = uEd(["08:00"]);
+  const [weekdayTimes, setWeekdayTimes] = uEd(["14:00"]);
+  const [weekendTimes, setWeekendTimes] = uEd(["09:00"]);
   const [grace, setGrace] = uEd(app.settings.defaultGrace || 30);
-  const [countSingle, setCountSingle] = uEd(1);
-  const [countWeekday, setCountWeekday] = uEd(1);
-  const [countWeekend, setCountWeekend] = uEd(1);
-  const [countSpecial, setCountSpecial] = uEd(1);
   const [specialBehavior, setSpecialBehavior] = uEd("normal");
   const [images, setImages] = uEd({ weekday: [], weekend: [], single: [], special: [] });
   const [poolIdByRole, setPoolIdByRole] = uEd({});
@@ -120,23 +118,18 @@ export function EditorView() {
   useEffect(() => {
     if (!existing) return;
     let active = true;
-    loadRuleDetail(id).then(({ rule, images: im, poolIdByRole: pr, counts: cnt }) => {
+    loadRuleDetail(id).then(({ rule, images: im, poolIdByRole: pr }) => {
       if (!active) return;
-      if (cnt) {
-        if (cnt.single) setCountSingle(cnt.single);
-        if (cnt.weekday) setCountWeekday(cnt.weekday);
-        if (cnt.weekend) setCountWeekend(cnt.weekend);
-        if (cnt.special) setCountSpecial(cnt.special);
-      }
       if (rule) {
         setMode(rule.mode);
         setSpecialBehavior(rule.special_behavior || "normal");
         setCadence(rule.cadence_type === "daily" ? "daily" : rule.cadence_type === "every_n_days" ? "everyN" : "weekdays");
         if (rule.interval_days) setEveryN(rule.interval_days);
         if (rule.weekdays?.length) setDays(rule.weekdays.map(fromDow).sort((a, z) => a - z));
-        if (rule.post_time) setTime(rule.post_time.slice(0, 5));
-        if (rule.weekday_time) setWdTime(rule.weekday_time.slice(0, 5));
-        if (rule.weekend_time) setWeTime(rule.weekend_time.slice(0, 5));
+        // Array-first with legacy single-time fallback so old rules load intact.
+        const pt = timeList(rule.post_times, rule.post_time); if (pt) setPostTimes(pt);
+        const wdt = timeList(rule.weekday_times, rule.weekday_time); if (wdt) setWeekdayTimes(wdt);
+        const wet = timeList(rule.weekend_times, rule.weekend_time); if (wet) setWeekendTimes(wet);
         setGrace(rule.grace_minutes);
       }
       setImages({ weekday: im.weekday, weekend: im.weekend, single: im.single, special: im.special || [] });
@@ -156,9 +149,15 @@ export function EditorView() {
   const curImgs = images[role] || [];
   const reqRoles = mode === "schedule" ? ["weekday", "weekend"] : ["single"];
   const emptyRole = reqRoles.find((r) => (images[r] || []).length === 0);
-  // FR-21: warn if another active rule on this channel posts at the same time.
-  const myTimes = (mode === "schedule" ? [wdTime, weTime] : [time]).filter(Boolean);
-  const clashRule = app.rules.find((o) => o.ch === chId && o.id !== existing?.id && o.active && myTimes.includes(o.time));
+  // FR-21: warn if another active rule on this channel posts at any of the same times.
+  const myTimes = (mode === "schedule" ? [...weekdayTimes, ...weekendTimes] : postTimes).filter(Boolean);
+  const otherTimes = (o) => o.mode === "schedule" ? [...(o.weekdayTimes || []), ...(o.weekendTimes || [])] : (o.postTimes || []);
+  const clashRule = app.rules.find((o) => o.ch === chId && o.id !== existing?.id && o.active && otherTimes(o).some((t) => myTimes.includes(t)));
+  // Warn when a daypart has more posting times than images: the no-repeat cycle
+  // resets once exhausted, so extra slots reuse an image that day.
+  const overSlots = mode === "schedule"
+    ? (images.weekday.length > 0 && weekdayTimes.length > images.weekday.length) || (images.weekend.length > 0 && weekendTimes.length > images.weekend.length)
+    : images.single.length > 0 && postTimes.length > images.single.length;
   const errors = {};
   if (touched && !name.trim()) errors.name = "Beri nama jadwalnya dulu.";
   if (touched && emptyRole) errors.pool = `Kumpulan ${emptyRole === "weekday" ? "hari kerja " : emptyRole === "weekend" ? "akhir pekan " : ""}masih kosong, minimal 1 gambar.`;
@@ -244,12 +243,8 @@ export function EditorView() {
       cadenceType: cadence === "daily" ? "daily" : cadence === "everyN" ? "every_n_days" : "weekdays",
       intervalDays: cadence === "everyN" ? everyN : null,
       weekdaysDb: cadence === "weekdays" ? days.map(toDow).sort((a, z) => a - z) : null,
-      postTime: time, weekdayTime: wdTime, weekendTime: weTime, grace,
+      postTimes, weekdayTimes, weekendTimes, grace,
       specialBehavior,
-      counts: {
-        ...(mode === "schedule" ? { weekday: countWeekday, weekend: countWeekend } : { single: countSingle }),
-        ...(wantSpecial ? { special: countSpecial } : {}),
-      },
       images: {
         ...(mode === "schedule" ? { weekday: images.weekday, weekend: images.weekend } : { single: images.single }),
         ...(images.special?.length ? { special: images.special } : {}),
@@ -335,43 +330,25 @@ export function EditorView() {
                 ))}
               </div>
             )}
-            <div style={{ marginTop: 14 }}>
+            <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 14 }}>
               {mode === "schedule" ? (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <Field label="Jam hari kerja"><TimeField value={wdTime} onChange={setWdTime} /></Field>
-                  <Field label="Jam akhir pekan"><TimeField value={weTime} onChange={setWeTime} /></Field>
-                </div>
+                <>
+                  <Field label="Jam hari kerja" hint="Bisa lebih dari satu — tiap jam terbit 1 Story."><TimeList times={weekdayTimes} onChange={setWeekdayTimes} b={b} /></Field>
+                  <Field label="Jam akhir pekan" hint="Bisa lebih dari satu — tiap jam terbit 1 Story."><TimeList times={weekendTimes} onChange={setWeekendTimes} b={b} /></Field>
+                </>
               ) : (
-                <Field label="Jam posting"><TimeField value={time} onChange={setTime} /></Field>
+                <Field label="Jam posting" hint="Bisa lebih dari satu — tiap jam terbit 1 Story dari kumpulan."><TimeList times={postTimes} onChange={setPostTimes} b={b} /></Field>
               )}
             </div>
             <div style={{ marginTop: 16 }}>
-              <div style={{ fontFamily: FE, fontWeight: 500, fontSize: 12.5, color: "var(--ink-700)", marginBottom: 2 }}>Jumlah Story per posting</div>
-              {mode === "schedule" ? (
-                <>
-                  <CountRow label="Hari kerja" value={countWeekday} onChange={setCountWeekday} />
-                  <div style={{ height: 1, background: "var(--line)" }} />
-                  <CountRow label="Akhir pekan" value={countWeekend} onChange={setCountWeekend} />
-                  {wantSpecial && <>
-                    <div style={{ height: 1, background: "var(--line)" }} />
-                    <CountRow label="Hari spesial" value={countSpecial} onChange={setCountSpecial} />
-                  </>}
-                  {(countWeekday > images.weekday.length || countWeekend > images.weekend.length || (wantSpecial && images.special.length > 0 && countSpecial > images.special.length)) && <CountNote />}
-                </>
-              ) : (
-                <>
-                  <CountRow label="Sekali jalan" value={countSingle} onChange={setCountSingle} />
-                  {wantSpecial && <>
-                    <div style={{ height: 1, background: "var(--line)" }} />
-                    <CountRow label="Hari spesial" value={countSpecial} onChange={setCountSpecial} />
-                  </>}
-                  {(countSingle > images.single.length || (wantSpecial && images.special.length > 0 && countSpecial > images.special.length)) && <CountNote />}
-                </>
-              )}
-              <div style={{ display: "flex", gap: 7, marginTop: 10, fontFamily: FE, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.5 }}>
+              <div style={{ display: "flex", gap: 7, fontFamily: FE, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.5 }}>
                 <Icons.shuffle size={14} style={{ color: b.accent, flex: "0 0 auto", marginTop: 1 }} />
-                <span>Lebih dari 1 diposting jadi beberapa Story terpisah berurutan. Story tidak mendukung carousel.</span>
+                <span>Tiap jam menerbitkan 1 Story, diambil bergiliran dari kumpulan tanpa diulang.{" "}
+                  {mode === "schedule"
+                    ? `${weekdayTimes.length} Story tiap hari kerja, ${weekendTimes.length} tiap akhir pekan.`
+                    : `${postTimes.length} Story tiap hari terbit.`}</span>
               </div>
+              {overSlots && <CountNote />}
             </div>
             <Field label={`Toleransi telat — ${grace} menit`} hint="Berapa lama masih boleh telat sebelum dianggap terlewat." style={{ marginTop: 14 }}>
               <Slider min={10} max={60} step={5} value={grace} onChange={setGrace} style={{ width: "100%" }} />
@@ -411,24 +388,68 @@ export function EditorView() {
   );
 }
 
-// One Story-count row: text label on the left, compact stepper on the right. Rows
-// stack vertically so the pair fits the narrow side panel without label wrapping.
-function CountRow({ label, value, onChange }) {
+// Normalize a rule's stored times (array-first, single-time fallback) to a sorted,
+// deduped list of "HH:MM". Returns null when there's nothing to load.
+function timeList(arr, single) {
+  const raw = (Array.isArray(arr) && arr.length) ? arr : (single ? [single] : []);
+  const norm = raw.map((t) => (t || "").slice(0, 5)).filter((t) => /^\d{2}:\d{2}$/.test(t));
+  return norm.length ? [...new Set(norm)].sort() : null;
+}
+
+// Human daypart label for a time — matches how Rama describes slots (pagi/sore/malam).
+function dayPart(t) {
+  const h = parseInt((t || "00").slice(0, 2), 10);
+  if (h < 5) return "malam";
+  if (h < 11) return "pagi";
+  if (h < 15) return "siang";
+  if (h < 18) return "sore";
+  return "malam";
+}
+// Suggest the next slot ~4h after the latest existing one, so "Tambah jam" lands on a
+// sensible fresh time. Steps forward until it finds a time not already in the list.
+function suggestNextTime(times) {
+  const fmt = (n) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+  const set = new Set(times);
+  const mins = times.map((t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; });
+  let cand = Math.max(0, ...mins) + 240;
+  if (cand > 23 * 60 + 30) cand = 20 * 60; // wrap late times back to a daytime slot
+  for (let i = 0; i < 48 && set.has(fmt(cand)); i++) cand = (cand + 30) % (24 * 60);
+  return fmt(cand);
+}
+
+// Editable list of posting times for one daypart: a row per time (with its pagi/sore/
+// malam chip + remove), plus a dashed "Tambah jam" row. At least one time stays.
+function TimeList({ times, onChange, b }) {
+  const set = (i, v) => onChange(times.map((t, k) => (k === i ? v : t)));
+  const add = () => onChange([...times, suggestNextTime(times)]);
+  const remove = (i) => { if (times.length > 1) onChange(times.filter((_, k) => k !== i)); };
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "11px 0" }}>
-      <span style={{ fontFamily: FE, fontSize: 13, fontWeight: 500, color: "var(--ink-700)" }}>{label}</span>
-      <NumberField min={1} max={5} value={value} onChange={onChange} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {times.map((t, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ flex: 1 }}><TimeField value={t} onChange={(v) => set(i, v)} /></div>
+          <span style={{ fontFamily: FE, fontSize: 11, fontWeight: 600, color: b.accent, background: b.soft, borderRadius: 8, padding: "4px 8px", minWidth: 44, textAlign: "center" }}>{dayPart(t)}</span>
+          <button onClick={() => remove(i)} disabled={times.length <= 1} aria-label="Hapus jam"
+            style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid var(--line)", background: "#fff", cursor: times.length <= 1 ? "not-allowed" : "pointer", opacity: times.length <= 1 ? 0.4 : 1, color: "var(--ink-500)", display: "grid", placeItems: "center", flex: "0 0 auto" }}>
+            <Icons.x size={13} sw={2.4} />
+          </button>
+        </div>
+      ))}
+      <button onClick={add}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, border: "1.5px dashed var(--line)", background: "rgba(255,255,255,.4)", cursor: "pointer", fontFamily: FE, fontSize: 12.5, fontWeight: 600, color: b.accent }}>
+        <Icons.plus size={16} /> Tambah jam
+      </button>
     </div>
   );
 }
 
-// Shown when the requested Story count exceeds the images in that pool: the engine
-// caps at the pool size (no frame repeats), so only that many Stories will post.
+// Shown when a daypart has more posting times than images: the no-repeat cycle resets
+// once exhausted, so an extra slot reuses an image that day.
 function CountNote() {
   return (
     <div style={{ display: "flex", gap: 7, marginTop: 9, background: "var(--st-publishing-bg)", borderRadius: 10, padding: "8px 11px", fontFamily: FE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>
       <Icons.warn size={14} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-      <span>Jumlah Story melebihi gambar yang tersedia. Tambah gambar, atau yang terbit hanya sebanyak gambar di kumpulan (tanpa pengulangan).</span>
+      <span>Jam posting lebih banyak dari gambar. Sebagian jam akan mengulang gambar yang sudah terpakai hari itu. Tambah gambar biar tiap jam beda.</span>
     </div>
   );
 }
