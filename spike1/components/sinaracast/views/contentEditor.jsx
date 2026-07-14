@@ -49,15 +49,16 @@ export function ContentEditorView() {
   const [platform, setPlatform] = uCE(app.params.platform || _initAcct?.platform || "instagram");
   const [date, setDate] = uCE(app.params.date || todayWib());
   const [time, setTime] = uCE(app.params.time || "");
-  const [title, setTitle] = uCE("");
+  const [title, setTitle] = uCE(app.params.title || "");
   const [contentType, setContentType] = uCE("");
   const [pillar, setPillar] = uCE("");
   const [format, setFormat] = uCE("");
   const [goal, setGoal] = uCE("");
   const [hook, setHook] = uCE("");
   const [caption, setCaption] = uCE("");
-  const [notes, setNotes] = uCE("");
-  const [referenceUrl, setReferenceUrl] = uCE("");
+  const [script, setScript] = uCE("");
+  const [notes, setNotes] = uCE(app.params.note || "");
+  const [referenceUrl, setReferenceUrl] = uCE(app.params.reference || "");
   const [briefUrl, setBriefUrl] = uCE("");
   const [designUrl, setDesignUrl] = uCE("");
   const [status, setStatus] = uCE("idea");
@@ -86,7 +87,7 @@ export function ContentEditorView() {
       setPlatform(p.platform); setDate(p.planned_date || todayWib()); setTime((p.planned_time || "").slice(0, 5));
       setTitle(p.title || ""); setContentType(p.content_type || ""); setPillar(p.pillar || "");
       setFormat(p.format || ""); setGoal(p.goal || "");
-      setHook(p.hook || ""); setCaption(p.caption || ""); setNotes(p.notes || "");
+      setHook(p.hook || ""); setCaption(p.caption || ""); setNotes(p.notes || ""); setScript(p.script || "");
       setReferenceUrl(p.reference_url || ""); setBriefUrl(p.brief_url || ""); setDesignUrl(p.design_url || "");
       setStatus(p.status); setPostLink(p.post_link || ""); setPostedAt(p.posted_at);
       setAutoManaged(!!p.auto_managed);
@@ -147,7 +148,7 @@ export function ContentEditorView() {
   function payload() {
     return {
       brandDbId: brandId, channelDbId: account?._id || null, platform, plannedDate: date, plannedTime: time || null,
-      title, contentType, pillar, format, goal, hook, caption, notes,
+      title, contentType, pillar, format, goal, hook, caption, notes, script,
       referenceUrl, briefUrl, designUrl, status, postLink, postedAt,
       m: metricsLocked ? null : m,
     };
@@ -281,10 +282,19 @@ export function ContentEditorView() {
             </div>
           </Panel>
 
+          <PlanAI
+            token={app.session?.access_token} toast={app.toast}
+            brandName={brandObj.name} platform={platform} persona={account?.aiPersona || null}
+            fields={{ title, pillar, format, goal, hook, notes }}
+            apply={{ setHook, setNotes, setFormat, setTime, setCaption, setScript }}
+            hasTime={!!time}
+          />
+
           <Panel>
-            <SectionTitle sub="Hook, caption, dan catatan">Copywriting</SectionTitle>
+            <SectionTitle sub="Hook, caption, script, dan catatan">Copywriting</SectionTitle>
             <Field label="Hook / teks cover"><Input value={hook} onChange={(e) => setHook(e.target.value)} placeholder="Kalimat pembuka di cover…" /></Field>
             <Field label="Caption" style={{ marginTop: 14 }}><Textarea value={caption} onChange={(e) => setCaption(e.target.value)} style={{ minHeight: 110 }} placeholder="Tulis draft caption…" /></Field>
+            <Field label="Naskah / script" hint="Reels/video: hook, isi, CTA per adegan. Diisi AI atau tulis sendiri." style={{ marginTop: 14 }}><Textarea value={script} onChange={(e) => setScript(e.target.value)} style={{ minHeight: 120 }} placeholder="Naskah produksi…" /></Field>
             <Field label="Catatan" style={{ marginTop: 14 }}><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ minHeight: 64 }} placeholder="Catatan produksi, ide visual, dll." /></Field>
           </Panel>
 
@@ -437,6 +447,95 @@ export function ContentEditorView() {
         )}
       </Panel>
     </div>
+  );
+}
+
+// Bantuan AI perencanaan: konsep+hook, script/naskah, dan caption — semua mengikuti
+// karakter (persona) akun. Mengisi field editor langsung; pengguna bisa mengeditnya.
+function PlanAI({ token, toast, brandName, platform, persona, fields, apply, hasTime }) {
+  const [open, setOpen] = uCE(false);
+  const [seed, setSeed] = uCE("");
+  const [busy, setBusy] = uCE("");   // "" | "concept" | "script" | "caption"
+  const [msg, setMsg] = uCE("");
+
+  async function callPlan(task) {
+    const r = await fetch("/api/plan", {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ task, brandName, platform, persona, seed,
+        title: fields.title, pillar: fields.pillar, format: fields.format, goal: fields.goal, hook: fields.hook }),
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || "Gagal");
+    return j;
+  }
+
+  async function doConcept() {
+    if (busy) return; setBusy("concept"); setMsg("");
+    try {
+      const { concept } = await callPlan("concept");
+      if (concept.hook) apply.setHook(concept.hook);
+      const noteParts = [concept.concept, concept.visualIdeas?.length ? "Ide visual:\n- " + concept.visualIdeas.join("\n- ") : ""].filter(Boolean);
+      if (noteParts.length) apply.setNotes(noteParts.join("\n\n"));
+      if (concept.format && !fields.format) apply.setFormat(concept.format);
+      if (concept.bestTime && !hasTime) apply.setTime(concept.bestTime);
+      setMsg("Konsep, hook" + (concept.bestTime && !hasTime ? `, jam (${concept.bestTime})` : "") + " terisi ✓");
+      toast("Konsep & hook dibuat ✓", "success");
+    } catch (e) { toast("Gagal: " + (e.message || e), "error"); }
+    finally { setBusy(""); }
+  }
+
+  async function doScript() {
+    if (busy) return; setBusy("script"); setMsg("");
+    try {
+      const { script } = await callPlan("script");
+      apply.setScript(script);
+      setMsg("Naskah/script terisi di bawah ✓");
+      toast("Script dibuat ✓", "success");
+    } catch (e) { toast("Gagal: " + (e.message || e), "error"); }
+    finally { setBusy(""); }
+  }
+
+  async function doCaption() {
+    if (busy) return; setBusy("caption"); setMsg("");
+    try {
+      const instruction = [fields.title, fields.hook, seed].filter(Boolean).join(". ");
+      const r = await fetch("/api/caption", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ mode: "generate", instruction, persona, platform, postType: fields.format, brandName }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Gagal");
+      apply.setCaption(j.caption);
+      setMsg("Caption terisi ✓");
+      toast("Caption dibuat ✓", "success");
+    } catch (e) { toast("Gagal: " + (e.message || e), "error"); }
+    finally { setBusy(""); }
+  }
+
+  const accent = "var(--st-publishing)";
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 15px", borderRadius: 13, cursor: "pointer",
+        border: `1px solid ${accent}`, background: "var(--st-publishing-bg)", color: accent, fontFamily: FCE, fontSize: 13, fontWeight: 600, alignSelf: "flex-start" }}>
+        <Icons.sparkle size={16} /> Kembangkan dengan AI — konsep, script, caption
+      </button>
+    );
+  }
+  return (
+    <Panel>
+      <SectionTitle sub="Konsep, hook, script & caption — ikut karakter akun" right={<button onClick={() => setOpen(false)} aria-label="Tutup" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--ink-400)", display: "inline-flex" }}><Icons.x size={16} /></button>}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ color: accent, display: "inline-flex" }}><Icons.sparkle size={16} /></span>Bantuan AI</span>
+      </SectionTitle>
+      <Field label="Arahan singkat (opsional)" hint="Mis. angkat sisi keluarga, target ibu muda. Judul & strategi di atas juga dipakai.">
+        <Textarea value={seed} onChange={(e) => setSeed(e.target.value)} style={{ minHeight: 48 }} placeholder="Kosongkan pun tidak apa-apa…" />
+      </Field>
+      <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginTop: 12 }}>
+        <Button size="sm" variant="primary" disabled={!!busy} icon={busy === "concept" ? <Spinner size={14} color="#fff" /> : <Icons.sparkle size={15} />} onClick={doConcept}>Konsep & hook</Button>
+        <Button size="sm" variant="secondary" disabled={!!busy} icon={busy === "script" ? <Spinner size={14} /> : <Icons.film size={15} />} onClick={doScript}>Buatkan script</Button>
+        <Button size="sm" variant="secondary" disabled={!!busy} icon={busy === "caption" ? <Spinner size={14} /> : <Icons.edit size={15} />} onClick={doCaption}>Buatkan caption</Button>
+      </div>
+      {msg && <div style={{ fontFamily: FCE, fontSize: 12, color: "var(--st-success)", marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}><Icons.checkCircle size={14} /> {msg}</div>}
+    </Panel>
   );
 }
 

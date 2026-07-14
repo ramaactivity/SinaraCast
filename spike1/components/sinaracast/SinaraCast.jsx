@@ -21,6 +21,7 @@ import { ComposerView } from "./views/composer";
 import { MediaLibraryView } from "./views/library";
 import { ContentEditorView } from "./views/contentEditor";
 import { PlannerView } from "./views/planner";
+import { IdeaBankView } from "./views/ideaBank";
 import { RingkasanView } from "./views/ringkasan";
 import { SpecialDaysView } from "./views/specialdays";
 
@@ -48,6 +49,7 @@ export default function SinaraCast() {
   const [runs, setRuns] = uA([]);
   const [oneoffs, setOneoffs] = uA([]);
   const [plans, setPlans] = uA([]);
+  const [ideas, setIdeas] = uA([]);
   const [followerSeries, setFollowerSeries] = uA({});
   const [specialDays, setSpecialDays] = uA([]);
   const [library, setLibrary] = uA({});
@@ -137,7 +139,7 @@ export default function SinaraCast() {
     setDataLoading(true);
     loadAll().then((d) => {
       if (!active) return;
-      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setLibrary(d.library || {}); setNotifs(d.notifs); setFollowerSeries(d.followerSeries || {}); setSpecialDays(d.specialDays || []);
+      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setIdeas(d.ideas || []); setLibrary(d.library || {}); setNotifs(d.notifs); setFollowerSeries(d.followerSeries || {}); setSpecialDays(d.specialDays || []);
       setSettings(d.settings); setProfile(d.profile);
       applyScope(d.brands || [], d.channels);
       setDataLoading(false);
@@ -147,7 +149,7 @@ export default function SinaraCast() {
 
   const reload = useCallback(async () => {
     const d = await loadAll();
-    setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setLibrary(d.library || {}); setNotifs(d.notifs); setFollowerSeries(d.followerSeries || {}); setSpecialDays(d.specialDays || []);
+    setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setIdeas(d.ideas || []); setLibrary(d.library || {}); setNotifs(d.notifs); setFollowerSeries(d.followerSeries || {}); setSpecialDays(d.specialDays || []);
     setSettings(d.settings); setProfile(d.profile);
     applyScope(d.brands || [], d.channels);
   }, [applyScope]);
@@ -411,7 +413,7 @@ export default function SinaraCast() {
     }
   };
 
-  const ctx = { view, params, go, channel, setChannel, brands: liveBrands, brand, activeBrand, brandAccounts, selectBrand, rules, setRules, runs, setRuns, oneoffs, plans, followerSeries, specialDays, setSpecialDays, library, notifs, setNotifs,
+  const ctx = { view, params, go, channel, setChannel, brands: liveBrands, brand, activeBrand, brandAccounts, selectBrand, rules, setRules, runs, setRuns, oneoffs, plans, ideas, followerSeries, specialDays, setSpecialDays, library, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm, alert,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
     toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, connectTikTokChannel, saveSettings,
@@ -442,7 +444,7 @@ export default function SinaraCast() {
     activity: ActivityView, notifications: NotificationsView, settings: SettingsView,
     profile: ProfileView, onboarding: OnboardingView, calendar: CalendarView,
     composer: ComposerView, library: MediaLibraryView, contentEditor: ContentEditorView, planner: PlannerView, ringkasan: RingkasanView,
-    specialdays: SpecialDaysView,
+    specialdays: SpecialDaysView, ideaBank: IdeaBankView,
   };
   const View = VIEWS[view];
 

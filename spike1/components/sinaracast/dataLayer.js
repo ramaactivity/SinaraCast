@@ -134,6 +134,7 @@ export async function loadAll() {
     supabase.from("brand").select("id, name, avatar_emoji, color_token, created_at").order("created_at", { ascending: true }),
     supabase.from("follower_snapshot").select("channel_id, snap_date, followers").order("snap_date", { ascending: true }).limit(2000),
     supabase.from("special_day").select("id, on_date, name, category, is_active, source, user_touched").order("on_date", { ascending: true }),
+    supabase.from("idea_bank").select("id, brand_id, channel_id, kind, title, note, url, image_url, tags, source, created_at").is("archived_at", null).order("created_at", { ascending: false }),
   ]);
   const at = (i) => (results[i].status === "fulfilled" ? results[i].value?.data : null);
   const channelsRaw = at(0) || [];
@@ -150,6 +151,7 @@ export async function loadAll() {
   const brandsRaw = at(11) || [];
   const snapsRaw = at(12) || [];
   const specialRaw = at(13) || [];
+  const ideasRaw = at(14) || [];
 
   const slugById = Object.fromEntries((channelsRaw || []).map((c) => [c.id, c.slug]));
   const channels = (channelsRaw || []).map(mapChannel);
@@ -365,7 +367,15 @@ export async function loadAll() {
     active: s.is_active, source: s.source, touched: s.user_touched,
   }));
 
-  return { channels, brands, rules, runs, oneoffs, plans, notifs, settings, profile, library: mediaByChannel, followerSeries, specialDays };
+  // ---- Bank Ide & Referensi (idea_bank) ----
+  const ideas = (ideasRaw || []).map((i) => ({
+    id: i.id, brandId: i.brand_id || null, channelId: i.channel_id || null,
+    kind: i.kind || "idea", title: i.title || "", note: i.note || "",
+    url: i.url || "", imageUrl: i.image_url || "", tags: i.tags || [], source: i.source || "",
+    createdAt: i.created_at,
+  }));
+
+  return { channels, brands, rules, runs, oneoffs, plans, notifs, settings, profile, library: mediaByChannel, followerSeries, specialDays, ideas };
 }
 
 // ============================================================
@@ -380,7 +390,7 @@ function planRow(p, ownerId) {
     platform: p.platform, planned_date: p.plannedDate, planned_time: p.plannedTime || null,
     title: p.title?.trim() || null, content_type: p.contentType?.trim() || null, pillar: p.pillar?.trim() || null,
     format: p.format || null, goal: p.goal || null,
-    hook: p.hook?.trim() || null, caption: p.caption?.trim() || null, notes: p.notes?.trim() || null,
+    hook: p.hook?.trim() || null, caption: p.caption?.trim() || null, notes: p.notes?.trim() || null, script: p.script?.trim() || null,
     reference_url: p.referenceUrl?.trim() || null, brief_url: p.briefUrl?.trim() || null, design_url: p.designUrl?.trim() || null,
     status: p.status, post_link: p.postLink?.trim() || null,
     posted_at: p.status === "posted" ? (p.postedAt || new Date().toISOString()) : null,
@@ -424,6 +434,55 @@ export async function updateContentPlan(id, p) {
 
 export async function deleteContentPlan(id) {
   const { error } = await supabase.from("content_plan").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// Simpan banyak entri rencana sekaligus (hasil "Buatkan ide dengan AI"). Tiap item
+// minimal punya platform + plannedDate; sisanya opsional (title/pillar/format/goal/…).
+export async function createContentPlansBatch(items) {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u?.user?.id;
+  if (!uid) throw new Error("Not signed in");
+  const rows = items.map((p) => planRow(p, uid));
+  const { data, error } = await supabase.from("content_plan").insert(rows).select("id");
+  if (error) throw error;
+  return (data || []).map((r) => r.id);
+}
+
+// ============================================================
+// Bank Ide & Referensi (idea_bank) — CRUD.
+// ============================================================
+function ideaRow(i, ownerId) {
+  const row = {
+    brand_id: i.brandId || null, channel_id: i.channelId || null,
+    kind: i.kind || "idea",
+    title: i.title?.trim() || null, note: i.note?.trim() || null,
+    url: i.url?.trim() || null, image_url: i.imageUrl?.trim() || null,
+    tags: Array.isArray(i.tags) ? i.tags.map((t) => t.trim()).filter(Boolean) : null,
+    source: i.source?.trim() || null,
+  };
+  if (ownerId) row.owner_id = ownerId;
+  return row;
+}
+
+export async function createIdea(i) {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u?.user?.id;
+  if (!uid) throw new Error("Not signed in");
+  const { data, error } = await supabase.from("idea_bank").insert(ideaRow(i, uid)).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+
+export async function updateIdea(id, i) {
+  const { error } = await supabase.from("idea_bank").update(ideaRow(i, null)).eq("id", id);
+  if (error) throw error;
+  return id;
+}
+
+// Soft-delete (arsipkan) supaya bisa dipulihkan bila perlu; hilang dari daftar.
+export async function deleteIdea(id) {
+  const { error } = await supabase.from("idea_bank").update({ archived_at: new Date().toISOString() }).eq("id", id);
   if (error) throw error;
 }
 

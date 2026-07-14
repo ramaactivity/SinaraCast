@@ -3,8 +3,9 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { BrandAvatar, Panel, Card, Button, Select, Input, EmptyState, Skeleton, Segmented, PlatIcon } from "../ui";
+import { BrandAvatar, Panel, Card, Button, Select, Input, EmptyState, Skeleton, Segmented, PlatIcon, Modal, Field, Textarea, Checkbox, Spinner, NumberField } from "../ui";
 import { PLATFORM } from "./contentEditor";
+import { createContentPlansBatch } from "../dataLayer";
 const { useState: uPl } = React;
 const FPl = "var(--font)";
 
@@ -56,6 +57,7 @@ export function PlannerView() {
   const [q, setQ] = uPl("");
   const [sortDir, setSortDir] = uPl("asc");
   const [mode, setMode] = uPl("table");          // table | lanes
+  const [genOpen, setGenOpen] = uPl(false);      // AI idea generator modal
   // Reset brand-specific filters on brand switch (month options + status differ per brand).
   React.useEffect(() => { setMonth("all"); setStat("all"); setPlat("all"); setQ(""); }, [app.brand]);
 
@@ -84,6 +86,7 @@ export function PlannerView() {
   const right = (
     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
       {!app.isMobile && <Segmented options={[{ value: "table", label: "Tabel" }, { value: "lanes", label: "Per platform" }]} value={mode} onChange={setMode} />}
+      <Button variant="secondary" size="sm" icon={<Icons.sparkle size={16} />} onClick={() => setGenOpen(true)}>Ide AI</Button>
       <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => create()}>Buat konten</Button>
     </div>
   );
@@ -160,8 +163,11 @@ export function PlannerView() {
       {/* empty: no content at all in this brand */}
       {phase === "ready" && brandPlans.length === 0 && (
         <Panel pad={0}><EmptyState icon={<Icons.layers size={28} />} title="Belum ada konten"
-          body={`Mulai rencanakan konten untuk ${brand?.name || "brand ini"} — judul, jadwal, status, semua platform di satu tempat.`}
-          action={<Button variant="amber" icon={<Icons.plus size={16} sw={2} />} onClick={() => create()}>Buat konten pertama</Button>} />
+          body={`Mulai rencanakan konten untuk ${brand?.name || "brand ini"} — judul, jadwal, status, semua platform di satu tempat. Atau biar AI yang usulkan ide dulu.`}
+          action={<div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
+            <Button variant="amber" icon={<Icons.sparkle size={16} />} onClick={() => setGenOpen(true)}>Buatkan ide dengan AI</Button>
+            <Button variant="secondary" icon={<Icons.plus size={16} sw={2} />} onClick={() => create()}>Buat manual</Button>
+          </div>} />
         </Panel>
       )}
 
@@ -212,7 +218,145 @@ export function PlannerView() {
       ) : mode === "lanes" && (
         <LaneGrid lanePlatforms={lanePlatforms} rows={rows} Row={Row} create={create} />
       ))}
+
+      <IdeaGenerator open={genOpen} onClose={() => setGenOpen(false)}
+        brandId={brandId} brandName={brand?.name || ""} accounts={accounts}
+        token={app.session?.access_token} toast={app.toast} reload={app.reload} go={app.go} />
     </div>
+  );
+}
+
+// Helper: tanggal WIB 'YYYY-MM-DD' + offset hari.
+const pad2 = (n) => String(n).padStart(2, "0");
+function wibDatePlus(days) {
+  const d = new Date(Date.now() + 7 * 3600 * 1000 + days * 86400 * 1000);
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+}
+
+// Generator ide massal: konfigurasi → AI usulkan ide → pilih → simpan sebagai entri
+// rencana (status Ide), tanggal disebar. Mengikuti karakter akun (persona).
+function IdeaGenerator({ open, onClose, brandId, brandName, accounts, token, toast, reload, go }) {
+  const [platform, setPlatform] = uPl(accounts[0]?.platform || "instagram");
+  const [count, setCount] = uPl(8);
+  const [seed, setSeed] = uPl("");
+  const [pillars, setPillars] = uPl("");
+  const [busy, setBusy] = uPl(false);
+  const [saving, setSaving] = uPl(false);
+  const [ideas, setIdeas] = uPl(null);   // null = belum generate; [] = kosong
+  const [picked, setPicked] = uPl({});
+
+  React.useEffect(() => { if (open) { setIdeas(null); setPicked({}); setSeed(""); setPillars(""); setPlatform(accounts[0]?.platform || "instagram"); } }, [open]); // eslint-disable-line
+
+  const platOpts = [...new Set([...accounts.map((a) => a.platform), "instagram"])].map((p) => ({ value: p, label: platMeta(p).label }));
+  const persona = accounts.find((a) => a.platform === platform)?.aiPersona || accounts[0]?.aiPersona || null;
+
+  async function generate() {
+    if (busy) return; setBusy(true);
+    try {
+      const r = await fetch("/api/plan", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ task: "ideas", brandName, platform, persona, count, seed, pillars }),
+      });
+      const j = await r.json();
+      if (!j.ok) { toast(j.error || "Gagal membuat ide", "error"); return; }
+      setIdeas(j.ideas || []);
+      setPicked(Object.fromEntries((j.ideas || []).map((_, i) => [i, true])));
+    } catch (e) { toast("Gagal: " + (e.message || e), "error"); }
+    finally { setBusy(false); }
+  }
+
+  async function savePicked() {
+    if (saving) return;
+    const chosen = (ideas || []).filter((_, i) => picked[i]);
+    if (!chosen.length) { toast("Pilih minimal satu ide.", "info"); return; }
+    setSaving(true);
+    try {
+      const channelDbId = accounts.find((a) => a.platform === platform)?._id || null;
+      const items = chosen.map((idea, i) => ({
+        brandDbId: brandId, channelDbId, platform,
+        plannedDate: wibDatePlus(1 + i * 2), plannedTime: null,
+        title: idea.title, contentType: idea.contentType, pillar: idea.pillar,
+        format: idea.format, goal: idea.goal,
+        notes: idea.angle ? `Angle: ${idea.angle}` : null,
+        status: "idea",
+      }));
+      await createContentPlansBatch(items);
+      await reload();
+      toast(`${items.length} ide ditambahkan ke rencana ✓`, "success");
+      onClose();
+    } catch (e) { toast("Gagal menyimpan: " + (e.message || e), "error"); }
+    finally { setSaving(false); }
+  }
+
+  const pickedCount = Object.values(picked).filter(Boolean).length;
+
+  return (
+    <Modal open={open} onClose={() => !busy && !saving && onClose()} width={620}>
+      <div style={{ padding: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 4 }}>
+          <span style={{ color: "var(--st-publishing)", display: "inline-flex" }}><Icons.sparkle size={18} /></span>
+          <span style={{ fontFamily: FPl, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>Buatkan ide konten dengan AI</span>
+        </div>
+        <div style={{ fontFamily: FPl, fontSize: 12.5, color: "var(--ink-500)", marginBottom: 16 }}>Untuk {brandName || "brand ini"}. Ide mengikuti karakter akun bila sudah diatur.</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12 }}>
+          <Field label="Platform"><Select value={platform} onChange={setPlatform} options={platOpts} /></Field>
+          <Field label="Jumlah ide"><NumberField value={count} onChange={setCount} min={3} max={14} /></Field>
+        </div>
+        <Field label="Tema / arahan (opsional)" style={{ marginTop: 12 }}>
+          <Textarea value={seed} onChange={(e) => setSeed(e.target.value)} style={{ minHeight: 48 }} placeholder="Mis. sambut bulan Ramadan, promo paket keluarga…" />
+        </Field>
+        <Field label="Pilar konten (opsional, pisah koma)" style={{ marginTop: 12 }}>
+          <Input value={pillars} onChange={(e) => setPillars(e.target.value)} placeholder="Edukasi, Testimoni, Di balik layar" />
+        </Field>
+
+        <div style={{ marginTop: 14 }}>
+          <Button variant="primary" full disabled={busy} icon={busy ? <Spinner size={15} color="#fff" /> : <Icons.sparkle size={16} />} onClick={generate}>
+            {ideas ? "Buat ulang" : "Buatkan ide"}
+          </Button>
+        </div>
+
+        {ideas && (
+          <div style={{ marginTop: 16 }}>
+            {ideas.length === 0 ? (
+              <div style={{ fontFamily: FPl, fontSize: 13, color: "var(--ink-400)", textAlign: "center", padding: 16 }}>Tidak ada ide dihasilkan. Coba lagi.</div>
+            ) : (
+              <>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontFamily: FPl, fontSize: 12, fontWeight: 600, color: "var(--ink-600)" }}>{pickedCount} dari {ideas.length} dipilih</span>
+                  <button onClick={() => setPicked(Object.fromEntries(ideas.map((_, i) => [i, pickedCount !== ideas.length])))} style={{ border: "none", background: "none", cursor: "pointer", fontFamily: FPl, fontSize: 12, fontWeight: 600, color: "var(--primary-500)" }}>{pickedCount === ideas.length ? "Batal semua" : "Pilih semua"}</button>
+                </div>
+                <div className="sc-scroll" style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto" }}>
+                  {ideas.map((idea, i) => (
+                    <div key={i} onClick={() => setPicked((s) => ({ ...s, [i]: !s[i] }))}
+                      style={{ display: "flex", gap: 11, alignItems: "flex-start", padding: "11px 13px", border: `1px solid ${picked[i] ? "var(--primary-300)" : "var(--line)"}`, background: picked[i] ? "var(--primary-100)" : "#fff", borderRadius: 12, cursor: "pointer" }}>
+                      <div style={{ marginTop: 1 }}><Checkbox checked={!!picked[i]} onChange={() => setPicked((s) => ({ ...s, [i]: !s[i] }))} size={18} /></div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontFamily: FPl, fontWeight: 600, fontSize: 13.5, color: "var(--ink-900)" }}>{idea.title}</div>
+                        <div style={{ fontFamily: FPl, fontSize: 11.5, color: "var(--ink-500)", marginTop: 2, lineHeight: 1.45 }}>{idea.angle}</div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                          {[idea.pillar, FORMAT_LABEL[idea.format] || idea.format, idea.contentType].filter(Boolean).map((t, x) => (
+                            <span key={x} style={{ fontFamily: FPl, fontSize: 10.5, color: "var(--ink-500)", background: "rgba(140,144,158,.13)", padding: "2px 8px", borderRadius: 999 }}>{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontFamily: FPl, fontSize: 11.5, color: "var(--ink-400)", marginTop: 10 }}>Ide tersimpan sebagai status <b>Ide</b>, tanggal disebar mulai besok. Buka salah satu untuk kembangkan konsep, script, & caption.</div>
+              </>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10, marginTop: 18, justifyContent: "flex-end" }}>
+          <Button variant="ghost" disabled={busy || saving} onClick={onClose}>Tutup</Button>
+          {ideas && ideas.length > 0 && (
+            <Button variant="primary" disabled={saving || busy || pickedCount === 0} icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.check size={16} />} onClick={savePicked}>Tambahkan {pickedCount} ke rencana</Button>
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }
 

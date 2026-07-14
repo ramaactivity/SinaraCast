@@ -18,6 +18,7 @@ const NAV = [
   { id: "rules", label: "Jadwal Otomatis", icon: "rules" },
   { id: "composer", label: "Buat Postingan", icon: "plus" },
   { id: "planner", label: "Rencana Konten", icon: "layers" },
+  { id: "ideaBank", label: "Bank Ide", icon: "bookmark" },
   { id: "calendar", label: "Kalender", icon: "calendar" },
   { id: "specialdays", label: "Hari Spesial", icon: "sun" },
   { id: "ringkasan", label: "Ringkasan", icon: "sparkle" },
