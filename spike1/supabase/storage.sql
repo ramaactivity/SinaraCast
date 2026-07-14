@@ -5,7 +5,7 @@
 -- Also holds one-off Reels video (mp4/mov). 50 MB = Supabase free-tier global cap.
 -- Applied live via supabase/setup-media-bucket.mjs.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('pool-images', 'pool-images', true, 52428800, array['image/jpeg','image/png','video/mp4','video/quicktime'])
+values ('pool-images', 'pool-images', true, 52428800, array['image/jpeg','image/png','image/webp','video/mp4','video/quicktime'])
 on conflict (id) do update set public = true, file_size_limit = 52428800,
   allowed_mime_types = array['image/jpeg','image/png','video/mp4','video/quicktime'];
 

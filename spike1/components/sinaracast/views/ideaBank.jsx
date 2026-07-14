@@ -3,7 +3,7 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { createIdea, updateIdea, deleteIdea } from "../dataLayer";
+import { createIdea, updateIdea, deleteIdea, uploadIdeaImage } from "../dataLayer";
 import { BrandAvatar, Panel, Card, Button, Field, Input, Textarea, Select, Segmented, EmptyState, Modal, Chip, Spinner, SectionTitle } from "../ui";
 const { useState: uIB } = React;
 const F = "var(--font)";
@@ -21,6 +21,7 @@ const KIND_OPTS = Object.entries(KINDS).map(([v, m]) => ({ value: v, label: m.la
 const tint = (c, pct = 13) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
 
 const emptyDraft = (brandId) => ({ id: null, kind: "idea", title: "", note: "", url: "", imageUrl: "", tags: "", source: "", brandId: brandId || null });
+const imgBtn = { width: 28, height: 28, borderRadius: 8, border: "none", cursor: "pointer", background: "rgba(255,255,255,.92)", color: "var(--ink-700)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" };
 
 export function IdeaBankView() {
   const app = useApp();
@@ -117,7 +118,7 @@ export function IdeaBankView() {
         </div>
       )}
 
-      <IdeaModal editing={editing} setEditing={setEditing} onSave={saveDraft} saving={saving} brands={app.brands} defaultBrandId={brandId} />
+      <IdeaModal editing={editing} setEditing={setEditing} onSave={saveDraft} saving={saving} brands={app.brands} defaultBrandId={brandId} toast={app.toast} />
     </div>
   );
 }
@@ -148,11 +149,24 @@ function IdeaCard({ i, onEdit, onRemove, onToPlan }) {
   );
 }
 
-function IdeaModal({ editing, setEditing, onSave, saving, brands, defaultBrandId }) {
+function IdeaModal({ editing, setEditing, onSave, saving, brands, defaultBrandId, toast }) {
   const open = !!editing;
   const d = editing || {};
   const set = (k, v) => setEditing((s) => ({ ...s, [k]: v }));
   const brandOpts = [{ value: "", label: "Umum (semua brand)" }, ...(brands || []).map((b) => ({ value: b.id, label: b.name }))];
+  const fileRef = React.useRef(null);
+  const [uploading, setUploading] = uIB(false);
+  const [dragOver, setDragOver] = uIB(false);
+
+  async function ingest(file) {
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { toast?.("Hanya gambar JPG / PNG / WebP", "error"); return; }
+    if (file.size > 10 * 1024 * 1024) { toast?.("Gambar terlalu besar (maks 10 MB)", "error"); return; }
+    setUploading(true);
+    try { const url = await uploadIdeaImage(file); set("imageUrl", url); }
+    catch (e) { toast?.("Gagal unggah gambar: " + (e.message || e), "error"); }
+    finally { setUploading(false); }
+  }
   return (
     <Modal open={open} onClose={() => !saving && setEditing(null)} width={540}>
       <div style={{ padding: 22 }}>
@@ -174,8 +188,27 @@ function IdeaModal({ editing, setEditing, onSave, saving, brands, defaultBrandId
             <Input value={d.source || ""} onChange={(e) => set("source", e.target.value)} placeholder="mis. IG @kompetitor" />
           </Field>
         </div>
-        <Field label="Link gambar contoh (opsional)" style={{ marginTop: 13 }}>
-          <Input value={d.imageUrl || ""} onChange={(e) => set("imageUrl", e.target.value)} icon={<Icons.image size={15} />} placeholder="https://…/gambar.jpg" />
+        <Field label="Gambar contoh (opsional)" style={{ marginTop: 13 }}>
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; ingest(f); }} />
+          {d.imageUrl ? (
+            <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid var(--line)" }}>
+              <img src={d.imageUrl} alt="" style={{ display: "block", width: "100%", maxHeight: 220, objectFit: "cover" }} />
+              <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 7 }}>
+                <button onClick={() => fileRef.current?.click()} title="Ganti gambar" style={imgBtn}><Icons.upload size={14} /></button>
+                <button onClick={() => set("imageUrl", "")} title="Hapus gambar" style={imgBtn}><Icons.x size={14} /></button>
+              </div>
+            </div>
+          ) : (
+            <div onClick={() => !uploading && fileRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); ingest(e.dataTransfer.files?.[0]); }}
+              style={{ border: `1.5px dashed ${dragOver ? "var(--primary-400)" : "var(--line)"}`, background: dragOver ? "var(--primary-100)" : "rgba(140,144,158,.045)", borderRadius: 12, padding: "20px 16px", textAlign: "center", cursor: uploading ? "default" : "pointer", transition: "background .15s, border-color .15s" }}>
+              <div style={{ width: 38, height: 38, borderRadius: 11, margin: "0 auto 8px", display: "grid", placeItems: "center", background: "var(--primary-100)", color: "var(--primary-500)" }}>{uploading ? <Spinner size={18} /> : <Icons.upload size={18} />}</div>
+              <div style={{ fontFamily: F, fontWeight: 600, fontSize: 12.5, color: "var(--ink-800)" }}>{uploading ? "Mengunggah…" : "Tarik & lepas, atau klik untuk unggah"}</div>
+              <div style={{ fontFamily: F, fontSize: 11, color: "var(--ink-400)", marginTop: 3 }}>JPG / PNG / WebP · maks 10 MB</div>
+            </div>
+          )}
         </Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 13 }}>
           <Field label="Tag (pisah koma)">

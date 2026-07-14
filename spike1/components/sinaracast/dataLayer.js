@@ -637,6 +637,19 @@ export async function uploadPoolImage(file, channelSlug, meta) {
   return { storage_path: path, url, bytes: file.size, format: ext, width: meta?.width, height: meta?.height, aspect_ok: true };
 }
 
+// Unggah gambar contoh untuk Bank Ide → kembalikan URL publik. Disimpan di bucket
+// yang sama, folder idea-bank (tak terikat channel tertentu).
+export async function uploadIdeaImage(file) {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u?.user?.id;
+  if (!uid) throw new Error("Not signed in");
+  const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const path = `${uid}/idea-bank/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+  if (error) throw error;
+  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
 // Upload a Reels video (mp4/mov) to the same public bucket; returns row data
 // shaped like uploadPoolImage so createScheduledPost can make the media_asset.
 // Supabase free tier caps a file at 50 MB. Bigger videos detour to Cloudflare R2
