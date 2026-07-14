@@ -114,3 +114,25 @@ export async function generateScript({ brandName, platform, persona, title, form
   const prompt = `Kamu penulis naskah konten media sosial. ${ctx({ brandName, platform, persona })} Format: ${FORMAT_LABEL[f] || f}. ${detail} Tulis naskah/script lengkap yang siap diproduksi. ${shape} ${NO_DASH} Balas HANYA naskahnya, tanpa basa-basi pembuka.`;
   return (await aiText(prompt, { temperature: 0.85, maxTokens: 1600 })).trim();
 }
+
+// 4) ANALISA GAMBAR REFERENSI — lihat gambar contoh/inspirasi, jelaskan kenapa
+// bagus + cara adaptasi ke brand + beberapa ide konten turunannya.
+export async function analyzeReference({ brandName, platform, persona, imageUrl, note }) {
+  const extra = note?.trim() ? ` Catatan pengguna soal referensi ini: ${note.trim()}.` : "";
+  const prompt = `Kamu direktur kreatif media sosial. ${ctx({ brandName, platform, persona })} Perhatikan GAMBAR referensi/inspirasi yang terlampir.${extra} Analisa gambar itu dan beri: 3-5 alasan kenapa konten ini menarik/berhasil (whyGood), 3-5 langkah konkret cara mengadaptasinya untuk brand ini tanpa menjiplak (adaptation), dan 3 ide konten turunan (contentIdeas: judul singkat tiap ide). ${NO_DASH}`;
+  const schema = {
+    type: "object",
+    properties: {
+      whyGood: { type: "array", items: { type: "string" } },
+      adaptation: { type: "array", items: { type: "string" } },
+      contentIdeas: { type: "array", items: { type: "string" } },
+    },
+    required: ["whyGood", "adaptation"],
+  };
+  const out = await aiJson(prompt, schema, { imageUrl, temperature: 0.8, maxTokens: 1400 });
+  return {
+    whyGood: Array.isArray(out.whyGood) ? out.whyGood.filter(Boolean) : [],
+    adaptation: Array.isArray(out.adaptation) ? out.adaptation.filter(Boolean) : [],
+    contentIdeas: Array.isArray(out.contentIdeas) ? out.contentIdeas.filter(Boolean) : [],
+  };
+}

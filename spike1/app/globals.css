@@ -35,10 +35,13 @@
 
   /* ---------- INK / TEXT ---------- */
   --ink-900: #3E4351;       /* headings */
+  --ink-800: #4A4F5E;       /* strong body / sub-headings */
   --ink-700: #565C6B;       /* body strong */
+  --ink-600: #6E7484;       /* body / secondary-strong */
   --ink-500: #8A909E;       /* secondary / labels */
   --ink-400: #A6ABB6;       /* muted, inactive nav, placeholder */
   --ink-300: #C4C8D0;       /* faint / disabled day numbers */
+  --ink-200: #DCE0E6;       /* very faint */
 
   /* ---------- SURFACES ---------- */
   --canvas: #EDEBF6;        /* base behind the app */
@@ -254,10 +257,13 @@
 
   /* ink — light on dark */
   --ink-900: #EEECF5;
+  --ink-800: #DAD7E4;
   --ink-700: #C8C4D7;
+  --ink-600: #B0ABC0;
   --ink-500: #9C97AE;
   --ink-400: #847F94;
   --ink-300: #5C5770;
+  --ink-200: #423E52;
 
   /* surfaces — layered charcoal-violet */
   --canvas: #1A1622;

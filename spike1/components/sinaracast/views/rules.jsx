@@ -174,7 +174,7 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
         </div>
       </div>
       {/* footer: status + post-now */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderTop: "1px solid var(--line)", background: "rgba(246,245,251,.5)", borderRadius: "0 0 var(--r-md) var(--r-md)", flexWrap: "wrap", rowGap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderTop: "1px solid var(--line)", background: "var(--surface-2)", borderRadius: "0 0 var(--r-md) var(--r-md)", flexWrap: "wrap", rowGap: 10 }}>
         {r.todayStatus === "Failed"
           ? <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: FR, fontSize: 12, color: "var(--danger)" }}><Status s="Failed" /> {r.failReason}</span>
           : <span style={{ fontFamily: FR, fontSize: 12, color: "var(--ink-500)" }}>Terbit berikutnya: <b style={{ color: "var(--ink-900)", fontWeight: 600 }}>{r.nextRun}</b></span>}
