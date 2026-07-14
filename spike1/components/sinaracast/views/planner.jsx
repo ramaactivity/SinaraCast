@@ -5,7 +5,7 @@ import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { BrandAvatar, Panel, Card, Button, Select, Input, EmptyState, Skeleton, Segmented, PlatIcon, Modal, Field, Textarea, Checkbox, Spinner, NumberField } from "../ui";
 import { PLATFORM } from "./contentEditor";
-import { createContentPlansBatch } from "../dataLayer";
+import { createContentPlansBatch, updateContentPlansStatus, deleteContentPlansBatch } from "../dataLayer";
 const { useState: uPl } = React;
 const FPl = "var(--font)";
 
@@ -58,8 +58,12 @@ export function PlannerView() {
   const [sortDir, setSortDir] = uPl("asc");
   const [mode, setMode] = uPl("table");          // table | lanes
   const [genOpen, setGenOpen] = uPl(false);      // AI idea generator modal
+  const [sel, setSel] = uPl([]);                 // bulk selection (plan ids)
+  const [busyBulk, setBusyBulk] = uPl(false);
   // Reset brand-specific filters on brand switch (month options + status differ per brand).
   React.useEffect(() => { setMonth("all"); setStat("all"); setPlat("all"); setQ(""); }, [app.brand]);
+  // Clear selection when the visible set changes (filter/search/brand) — keep it predictable.
+  React.useEffect(() => { setSel([]); }, [app.brand, plat, stat, month, q]);
 
   const brandPlans = (app.plans || []).filter(p => p.brandId === brandId);
   const monthsPresent = [...new Set(brandPlans.map(p => p.ym).filter(Boolean))].sort();
@@ -83,6 +87,29 @@ export function PlannerView() {
   const anyFilter = plat !== "all" || stat !== "all" || month !== "all" || !!qn;
   const acctSub = accounts.length === 1 ? accounts[0].handle : `${accounts.length} akun sosial media`;
 
+  // ---- bulk selection ----
+  const toggle = (id) => setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const allSel = rows.length > 0 && rows.every((r) => sel.includes(r.id));
+  const toggleAll = () => setSel(allSel ? [] : rows.map((r) => r.id));
+  async function bulkStatus(status) {
+    if (!sel.length || busyBulk) return;
+    setBusyBulk(true);
+    try { await updateContentPlansStatus(sel, status); await app.reload(); app.toast(`${sel.length} konten → ${PLAN_LABEL[status]}`, "success"); setSel([]); }
+    catch (e) { app.toast("Gagal: " + (e.message || e), "error"); }
+    finally { setBusyBulk(false); }
+  }
+  function bulkDelete() {
+    if (!sel.length) return;
+    app.confirm({
+      title: `Hapus ${sel.length} konten?`, danger: true, confirmLabel: "Hapus",
+      body: "Semua entri rencana yang dipilih akan dihapus.", consequence: "Tindakan ini tidak bisa dibatalkan.",
+      onConfirm: async () => {
+        try { await deleteContentPlansBatch(sel); await app.reload(); app.toast(`${sel.length} konten dihapus`, "success"); setSel([]); }
+        catch (e) { app.toast("Gagal menghapus: " + (e.message || e), "error"); }
+      },
+    });
+  }
+
   const right = (
     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
       {!app.isMobile && <Segmented options={[{ value: "table", label: "Tabel" }, { value: "lanes", label: "Per platform" }]} value={mode} onChange={setMode} />}
@@ -101,11 +128,12 @@ export function PlannerView() {
     );
   }
 
-  const Row = ({ p, compact }) => {
+  const Row = ({ p, compact, onToggle, selected }) => {
     const m = platMeta(p.platform);
     return (
-      <Card pad={0} hover onClick={() => open(p)} style={{ borderColor: "var(--line)" }}>
+      <Card pad={0} hover onClick={() => open(p)} style={{ borderColor: selected ? "var(--primary-300)" : "var(--line)", background: selected ? "var(--primary-100)" : undefined }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 14px" }}>
+          {onToggle && <div onClick={(e) => { e.stopPropagation(); onToggle(p.id); }} style={{ display: "flex", flex: "0 0 auto" }}><Checkbox checked={!!selected} onChange={() => onToggle(p.id)} size={18} /></div>}
           <PlatIcon p={p.platform} size={16} />
           <span style={{ fontFamily: FPl, fontSize: 11.5, fontWeight: 700, color: "var(--ink-500)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", flex: "0 0 auto", minWidth: 60 }}>{fmtDate(p.plannedDate)}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -158,6 +186,20 @@ export function PlannerView() {
         </div>
       )}
 
+      {/* bulk action toolbar */}
+      {phase === "ready" && sel.length > 0 && (
+        <Panel pad={0} style={{ marginBottom: 14, border: "1px solid var(--primary-300)", background: "var(--primary-100)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", flexWrap: "wrap" }}>
+            <span style={{ fontFamily: FPl, fontWeight: 600, fontSize: 13, color: "var(--ink-900)" }}>{sel.length} dipilih</span>
+            <div style={{ width: app.isMobile ? "100%" : 190 }}>
+              <Select value="" placeholder="Ubah status…" onChange={(v) => v && bulkStatus(v)} options={PLAN_ORDER.map((s) => ({ value: s, label: PLAN_LABEL[s] }))} />
+            </div>
+            <Button size="sm" variant="danger" icon={busyBulk ? <Spinner size={14} /> : <Icons.trash size={14} />} disabled={busyBulk} onClick={bulkDelete}>Hapus</Button>
+            <Button size="sm" variant="ghost" onClick={() => setSel([])} style={{ marginLeft: app.isMobile ? 0 : "auto" }}>Batal pilih</Button>
+          </div>
+        </Panel>
+      )}
+
       {phase === "loading" && <Panel>{Array.from({ length: 7 }).map((_, i) => <div key={i} style={{ marginBottom: 8 }}><Skeleton h={46} r={12} /></div>)}</Panel>}
 
       {/* empty: no content at all in this brand */}
@@ -184,6 +226,7 @@ export function PlannerView() {
           <div className="sc-scroll" style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 800 }}>
               <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "rgba(140,144,158,.045)" }}>
+                <th style={{ padding: "12px 8px 12px 16px", width: 42 }}><div onClick={(e) => e.stopPropagation()}><Checkbox checked={allSel} onChange={toggleAll} size={17} /></div></th>
                 {[["Tanggal", 140, true], ["Platform", 140], ["Tipe", 130], ["Format", 140], ["Judul", null], ["Status", 112]].map(([label, w, sortable]) => (
                   <th key={label} onClick={sortable ? () => setSortDir(d => d === "asc" ? "desc" : "asc") : undefined} style={{ textAlign: "left", padding: "12px 14px", fontFamily: FPl, fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--ink-400)", whiteSpace: "nowrap", width: w || undefined, cursor: sortable ? "pointer" : "default", userSelect: "none" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{label}{sortable && <Icons.chevDown size={13} style={{ transform: sortDir === "asc" ? "none" : "rotate(180deg)", transition: "transform .15s", color: "var(--ink-300)" }} />}</span>
@@ -191,9 +234,10 @@ export function PlannerView() {
                 ))}
               </tr></thead>
               <tbody>
-                {rows.map(p => (
-                  <tr key={p.id} onClick={() => open(p)} style={{ borderBottom: "1px solid var(--line-soft)", cursor: "pointer", transition: "background .12s" }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "var(--primary-100)"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+                {rows.map(p => { const on = sel.includes(p.id); return (
+                  <tr key={p.id} onClick={() => open(p)} style={{ borderBottom: "1px solid var(--line-soft)", cursor: "pointer", transition: "background .12s", background: on ? "var(--primary-100)" : "transparent" }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--primary-100)"; }} onMouseLeave={e => { e.currentTarget.style.background = on ? "var(--primary-100)" : "transparent"; }}>
+                    <td style={{ padding: "12px 8px 12px 16px", width: 42 }} onClick={(e) => { e.stopPropagation(); toggle(p.id); }}><Checkbox checked={on} onChange={() => toggle(p.id)} size={17} /></td>
                     <td style={{ padding: "12px 14px", fontFamily: FPl, fontSize: 12.5, color: "var(--ink-700)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{fmtDate(p.plannedDate)}{p.plannedTime && <span style={{ color: "var(--ink-400)" }}> · {p.plannedTime}</span>}</td>
                     <td style={{ padding: "12px 14px" }}><PlatTag p={p.platform} /></td>
                     <td style={{ padding: "12px 14px", fontFamily: FPl, fontSize: 12.5, color: p.contentType ? "var(--ink-700)" : "var(--ink-300)", whiteSpace: "nowrap" }}>{p.contentType || "—"}</td>
@@ -203,7 +247,7 @@ export function PlannerView() {
                     </td>
                     <td style={{ padding: "12px 14px" }}><StatusChip s={p.status} /></td>
                   </tr>
-                ))}
+                ); })}
               </tbody>
             </table>
           </div>
@@ -214,7 +258,7 @@ export function PlannerView() {
       {phase === "ready" && rows.length > 0 && (app.isMobile ? (
         mode === "lanes"
           ? <LaneGrid lanePlatforms={lanePlatforms} rows={rows} Row={Row} create={create} mobile />
-          : <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>{rows.map(p => <Row key={p.id} p={p} />)}</div>
+          : <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>{rows.map(p => <Row key={p.id} p={p} onToggle={toggle} selected={sel.includes(p.id)} />)}</div>
       ) : mode === "lanes" && (
         <LaneGrid lanePlatforms={lanePlatforms} rows={rows} Row={Row} create={create} />
       ))}

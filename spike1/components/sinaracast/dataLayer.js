@@ -439,6 +439,20 @@ export async function deleteContentPlan(id) {
   if (error) throw error;
 }
 
+// Aksi massal di Rencana Konten.
+export async function updateContentPlansStatus(ids, status) {
+  if (!ids?.length) return;
+  const patch = { status };
+  if (status === "posted") patch.posted_at = new Date().toISOString();
+  const { error } = await supabase.from("content_plan").update(patch).in("id", ids);
+  if (error) throw error;
+}
+export async function deleteContentPlansBatch(ids) {
+  if (!ids?.length) return;
+  const { error } = await supabase.from("content_plan").delete().in("id", ids);
+  if (error) throw error;
+}
+
 // Simpan banyak entri rencana sekaligus (hasil "Buatkan ide dengan AI"). Tiap item
 // minimal punya platform + plannedDate; sisanya opsional (title/pillar/format/goal/…).
 export async function createContentPlansBatch(items) {
