@@ -207,10 +207,16 @@ export function Topbar({ title, sub, right }) {
   // Sticky on scroll (all pages). No backdrop-filter here: .app-shell already
   // blurs (40px) and #sc-root is scale-transformed, so a nested backdrop-filter
   // doesn't render in Chromium and content ghosts through. Instead the header
-  // paints an OPAQUE copy of the shell surface (app gradient + milky white),
-  // and dissolves at its bottom edge via a masked feather strip — no hard line,
-  // content fades out smoothly as it slides underneath.
-  const surface = "linear-gradient(rgba(255,255,255,.34), rgba(255,255,255,.34)), var(--app-bg)";
+  // paints an OPAQUE frosted surface and dissolves at its bottom edge via a
+  // masked feather strip — no hard line, content fades out as it slides under.
+  //
+  // Use the FLAT --canvas base (a solid per-theme tint), NOT --app-bg: the
+  // latter's radials are anchored to THIS header box, so `at 100% 0%` would
+  // paint a full-intensity bright peak at the header's top-right corner (by the
+  // bell) that the feather then chops off — a visible "cut" seam that never
+  // lines up with the viewport-anchored body gradient. A flat tint has no
+  // corner peaks, so it blends seamlessly with the frosted shell in every theme.
+  const surface = "linear-gradient(rgba(255,255,255,.42), rgba(255,255,255,.42)), var(--canvas)";
   // Geometry contract (keep all three in sync):
   //   • main#content has NO top padding — this header owns the page's top space,
   //     so its resting flow position equals its sticky position (top: 0) and it
