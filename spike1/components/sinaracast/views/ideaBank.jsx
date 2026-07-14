@@ -3,8 +3,9 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { createIdea, updateIdea, deleteIdea, uploadIdeaImage } from "../dataLayer";
-import { BrandAvatar, Panel, Card, Button, Field, Input, Textarea, Select, Segmented, EmptyState, Modal, Chip, Spinner, SectionTitle } from "../ui";
+import { createIdea, updateIdea, deleteIdea, uploadIdeaImage, createContentPlansBatch } from "../dataLayer";
+import { BrandAvatar, Panel, Card, Button, Field, Input, Textarea, Select, Segmented, EmptyState, Modal, Spinner, SectionTitle, PlatIcon } from "../ui";
+import { Lightbox } from "../lightbox";
 const { useState: uIB } = React;
 const F = "var(--font)";
 
@@ -22,17 +23,37 @@ const tint = (c, pct = 13) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
 
 const emptyDraft = (brandId) => ({ id: null, kind: "idea", title: "", note: "", url: "", imageUrl: "", tags: "", source: "", brandId: brandId || null });
 const imgBtn = { width: 28, height: 28, borderRadius: 8, border: "none", cursor: "pointer", background: "rgba(255,255,255,.92)", color: "var(--ink-700)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" };
+const pad2 = (n) => String(n).padStart(2, "0");
+const wibDatePlus = (days) => { const d = new Date(Date.now() + 7 * 3600 * 1000 + days * 86400 * 1000); return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`; };
+
+// Tebak platform dari URL/sumber → ikon yang cocok (biar cepat dikenali).
+const PLAT_KEYS = ["instagram", "tiktok", "youtube", "facebook", "twitter", "threads"];
+function sourcePlatform(url, source) {
+  const s = `${url || ""} ${source || ""}`.toLowerCase();
+  if (/instagram|\big\b/.test(s)) return "instagram";
+  if (/tiktok/.test(s)) return "tiktok";
+  if (/youtu/.test(s)) return "youtube";
+  if (/facebook|fb\.com/.test(s)) return "facebook";
+  if (/twitter|x\.com/.test(s)) return "twitter";
+  if (/threads/.test(s)) return "threads";
+  return null;
+}
 
 export function IdeaBankView() {
   const app = useApp();
   const brandId = app.brand;
   const brand = app.activeBrand;
   const accounts = app.brandAccounts || [];
+  const token = app.session?.access_token;
   const [kindFilter, setKindFilter] = uIB("all");
   const [q, setQ] = uIB("");
   const [editing, setEditing] = uIB(null);     // draft object or null
   const [saving, setSaving] = uIB(false);
+  const [preview, setPreview] = uIB(null);     // image url for lightbox
+  const [analyze, setAnalyze] = uIB(null);     // idea being analysed
+  const [expandingId, setExpandingId] = uIB(null);
 
+  const brandNameById = Object.fromEntries((app.brands || []).map((b) => [b.id, b.name]));
   // Ide untuk brand ini + ide umum (tanpa brand).
   const all = (app.ideas || []).filter((i) => !i.brandId || i.brandId === brandId);
   const qn = q.trim().toLowerCase();
@@ -41,6 +62,10 @@ export function IdeaBankView() {
     (!qn || `${i.title} ${i.note} ${(i.tags || []).join(" ")} ${i.source}`.toLowerCase().includes(qn))
   );
   const countBy = (k) => all.filter((i) => i.kind === k).length;
+  // Tab jenis: hitungan hanya muncul kalau > 0 (tidak menampilkan "(0)").
+  const filterOpts = [{ value: "all", label: `Semua ${all.length}` }, ...Object.entries(KINDS).map(([v, m]) => {
+    const n = countBy(v); return { value: v, label: n ? `${m.label} ${n}` : m.label };
+  })];
 
   const openNew = () => setEditing(emptyDraft(brandId));
   const openEdit = (i) => setEditing({ id: i.id, kind: i.kind, title: i.title, note: i.note, url: i.url, imageUrl: i.imageUrl, tags: (i.tags || []).join(", "), source: i.source, brandId: i.brandId || null });
@@ -72,9 +97,38 @@ export function IdeaBankView() {
 
   // Ide → rencana konten. Bawa judul/catatan/link ke editor; AI di sana bisa
   // langsung mengembangkannya (persona akun otomatis kepakai).
-  function toPlan(i) {
+  function toPlan(i, titleOverride) {
     const platform = accounts[0]?.platform || "instagram";
-    app.go("contentEditor", { brand: i.brandId || brandId, platform, title: i.title || "", note: i.note || "", reference: i.url || "", seed: 1 });
+    app.go("contentEditor", { brand: i.brandId || brandId, platform, title: titleOverride || i.title || "", note: i.note || "", reference: i.url || "", seed: 1 });
+  }
+
+  // Kembangkan satu ide → beberapa ide turunan langsung masuk Rencana Konten.
+  async function expand(i) {
+    if (expandingId) return;
+    setExpandingId(i.id);
+    try {
+      const platform = accounts[0]?.platform || "instagram";
+      const persona = accounts.find((a) => a.platform === platform)?.aiPersona || accounts[0]?.aiPersona || null;
+      const seed = [i.title, i.note].filter(Boolean).join(". ");
+      const r = await fetch("/api/plan", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ task: "ideas", brandName: brand?.name || "", platform, persona, count: 3, seed }),
+      });
+      const j = await r.json();
+      if (!j.ok) { app.toast(j.error || "Gagal membuat ide", "error"); return; }
+      const channelDbId = accounts.find((a) => a.platform === platform)?._id || null;
+      const rows = (j.ideas || []).map((idea, x) => ({
+        brandDbId: i.brandId || brandId, channelDbId, platform,
+        plannedDate: wibDatePlus(1 + x * 2), plannedTime: null,
+        title: idea.title, contentType: idea.contentType, pillar: idea.pillar, format: idea.format, goal: idea.goal,
+        notes: idea.angle ? `Angle: ${idea.angle}` : null, status: "idea",
+      }));
+      if (!rows.length) { app.toast("Tidak ada ide dihasilkan. Coba lagi.", "info"); return; }
+      await createContentPlansBatch(rows);
+      await app.reload();
+      app.toast(`${rows.length} ide turunan masuk Rencana Konten ✓`, "success");
+    } catch (e) { app.toast("Gagal: " + (e.message || e), "error"); }
+    finally { setExpandingId(null); }
   }
 
   const right = <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={openNew}>Tambah ide</Button>;
@@ -99,9 +153,9 @@ export function IdeaBankView() {
           <div style={{ flex: app.isMobile ? "1 1 100%" : "1 1 240px", minWidth: 0, maxWidth: app.isMobile ? "none" : 320 }}>
             <Input icon={<Icons.search size={16} />} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari ide, catatan, tag…" />
           </div>
-          <div style={{ minWidth: app.isMobile ? "100%" : 360 }}>
-            <Segmented options={[{ value: "all", label: `Semua (${all.length})` }, ...Object.entries(KINDS).map(([v, m]) => ({ value: v, label: `${m.label} (${countBy(v)})` }))]} value={kindFilter} onChange={setKindFilter} />
-          </div>
+          {app.isMobile
+            ? <div style={{ width: "100%" }}><Select value={kindFilter} onChange={setKindFilter} options={filterOpts} /></div>
+            : <Segmented options={filterOpts} value={kindFilter} onChange={setKindFilter} />}
         </div>
       )}
 
@@ -114,42 +168,159 @@ export function IdeaBankView() {
         <Panel pad={0}><EmptyState icon={<Icons.search size={26} />} title="Tidak ada yang cocok" body="Coba ubah kata kunci atau filter." action={<Button variant="secondary" onClick={() => { setQ(""); setKindFilter("all"); }}>Hapus filter</Button>} compact /></Panel>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr" : "repeat(auto-fill, minmax(280px, 1fr))", gap: 14, alignItems: "start" }}>
-          {items.map((i) => <IdeaCard key={i.id} i={i} onEdit={() => openEdit(i)} onRemove={() => remove(i)} onToPlan={() => toPlan(i)} />)}
+          {items.map((i) => (
+            <IdeaCard key={i.id} i={i} brandLabel={i.brandId ? brandNameById[i.brandId] : "Umum"}
+              expanding={expandingId === i.id}
+              onPreview={() => setPreview(i.imageUrl)} onEdit={() => openEdit(i)} onRemove={() => remove(i)}
+              onToPlan={() => toPlan(i)} onExpand={() => expand(i)} onAnalyze={() => setAnalyze(i)} />
+          ))}
         </div>
       )}
 
-      <IdeaModal editing={editing} setEditing={setEditing} onSave={saveDraft} saving={saving} brands={app.brands} defaultBrandId={brandId} toast={app.toast} />
+      <IdeaModal editing={editing} setEditing={setEditing} onSave={saveDraft} saving={saving} brands={app.brands} toast={app.toast} token={token} />
+      <AnalyzeModal idea={analyze} onClose={() => setAnalyze(null)} token={token} brand={brand} accounts={accounts} onToPlan={toPlan} />
+      <Lightbox imgs={preview ? [{ url: preview }] : []} index={preview ? 0 : null} onClose={() => setPreview(null)} onIndex={() => {}} ratio={null} />
     </div>
   );
 }
 
-function IdeaCard({ i, onEdit, onRemove, onToPlan }) {
+function IdeaCard({ i, brandLabel, expanding, onPreview, onEdit, onRemove, onToPlan, onExpand, onAnalyze }) {
   const k = KINDS[i.kind] || KINDS.idea;
+  const plat = sourcePlatform(i.url, i.source);
   return (
-    <Card pad={0} style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <Card pad={0} style={{ display: "flex", flexDirection: "column" }}>
       {i.imageUrl ? (
-        <div style={{ height: 132, background: `#f2f3f5 center/cover no-repeat url("${i.imageUrl}")`, borderBottom: "1px solid var(--line)" }} />
+        <div onClick={onPreview} title="Klik untuk pratinjau" style={{ height: 132, cursor: "zoom-in", borderRadius: "16px 16px 0 0", overflow: "hidden", borderBottom: "1px solid var(--line)", background: `#f2f3f5 center/cover no-repeat url("${i.imageUrl}")` }} />
       ) : null}
       <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: F, fontSize: 11, fontWeight: 600, color: k.color, background: tint(k.color), padding: "3px 9px", borderRadius: 999 }}>{k.icon(12)} {k.label}</span>
-          {i.source ? <span style={{ fontFamily: F, fontSize: 11, color: "var(--ink-400)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>· {i.source}</span> : null}
+          <span style={{ marginLeft: "auto", fontFamily: F, fontSize: 10, fontWeight: 600, color: "var(--ink-400)", background: "rgba(140,144,158,.12)", padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap" }}>{brandLabel}</span>
         </div>
         {i.title ? <div style={{ fontFamily: F, fontWeight: 600, fontSize: 14, color: "var(--ink-900)", lineHeight: 1.35 }}>{i.title}</div> : null}
         {i.note ? <div style={{ fontFamily: F, fontSize: 12.5, color: "var(--ink-600)", lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{i.note}</div> : null}
-        {i.url ? <a href={i.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: F, fontSize: 12, color: "var(--st-scheduled)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Icons.external size={13} /> {i.url.replace(/^https?:\/\//, "").slice(0, 40)}</a> : null}
+        {(i.url || i.source) ? (
+          i.url
+            ? <a href={i.url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: F, fontSize: 12, color: "var(--st-scheduled)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {plat ? <PlatIcon p={plat} size={13} /> : <Icons.external size={13} />} {i.source || i.url.replace(/^https?:\/\//, "").slice(0, 40)}
+              </a>
+            : <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: F, fontSize: 12, color: "var(--ink-400)", whiteSpace: "nowrap" }}>{plat ? <PlatIcon p={plat} size={13} /> : null} {i.source}</span>
+        ) : null}
         {i.tags?.length ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{i.tags.slice(0, 6).map((t, x) => <span key={x} style={{ fontFamily: F, fontSize: 10.5, color: "var(--ink-500)", background: "rgba(140,144,158,.12)", padding: "2px 8px", borderRadius: 999 }}>#{t.replace(/^#/, "")}</span>)}</div> : null}
-        <div style={{ display: "flex", gap: 7, marginTop: "auto", paddingTop: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 7, marginTop: "auto", paddingTop: 6, alignItems: "center" }}>
           <Button size="sm" variant="primary" icon={<Icons.sparkle size={14} />} onClick={onToPlan}>Jadikan konten</Button>
-          <Button size="sm" variant="ghost" icon={<Icons.edit size={14} />} onClick={onEdit}>Edit</Button>
-          <Button size="sm" variant="ghost" icon={<Icons.trash size={14} />} onClick={onRemove} />
+          <Button size="sm" variant="secondary" disabled={expanding} icon={expanding ? <Spinner size={13} /> : <Icons.layers size={14} />} onClick={onExpand}>3 ide</Button>
+          <div style={{ marginLeft: "auto" }}>
+            <CardMenu items={[
+              { icon: <Icons.edit size={14} />, label: "Edit", onClick: onEdit },
+              ...(i.imageUrl ? [{ icon: <Icons.sparkle size={14} />, label: "Analisa gambar", onClick: onAnalyze }] : []),
+              { icon: <Icons.trash size={14} />, label: "Hapus", onClick: onRemove, danger: true },
+            ]} />
+          </div>
         </div>
       </div>
     </Card>
   );
 }
 
-function IdeaModal({ editing, setEditing, onSave, saving, brands, defaultBrandId, toast }) {
+function CardMenu({ items }) {
+  const [open, setOpen] = uIB(false);
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button onClick={() => setOpen((o) => !o)} aria-label="Menu" style={{ width: 30, height: 30, borderRadius: 9, border: "1px solid var(--line)", background: "#fff", cursor: "pointer", color: "var(--ink-500)", display: "grid", placeItems: "center" }}><Icons.more size={16} /></button>
+      {open && (
+        <div style={{ position: "absolute", right: 0, bottom: "calc(100% + 6px)", zIndex: 30, minWidth: 168, background: "#fff", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "var(--shadow-lg)", padding: 5, animation: "scPop .14s" }}>
+          {items.map((it, x) => (
+            <button key={x} onClick={() => { setOpen(false); it.onClick(); }}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", border: "none", background: "transparent", borderRadius: 8, cursor: "pointer", fontFamily: F, fontSize: 12.5, fontWeight: 500, color: it.danger ? "var(--danger)" : "var(--ink-700)", textAlign: "left" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = it.danger ? "var(--danger-100, rgba(220,80,80,.1))" : "rgba(140,144,158,.1)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+              {it.icon} {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Modal analisa gambar referensi dengan AI (vision).
+function AnalyzeModal({ idea, onClose, token, brand, accounts, onToPlan }) {
+  const open = !!idea;
+  const [busy, setBusy] = uIB(false);
+  const [res, setRes] = uIB(null);
+  const [err, setErr] = uIB("");
+
+  React.useEffect(() => {
+    if (!open) { setRes(null); setErr(""); return; }
+    let active = true;
+    setBusy(true); setRes(null); setErr("");
+    const platform = accounts[0]?.platform || "instagram";
+    const persona = accounts.find((a) => a.platform === platform)?.aiPersona || accounts[0]?.aiPersona || null;
+    fetch("/api/plan", {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ task: "analyze", brandName: brand?.name || "", platform, persona, imageUrl: idea.imageUrl, note: idea.note }),
+    }).then((r) => r.json()).then((j) => { if (!active) return; if (j.ok) setRes(j.analysis); else setErr(j.error || "Gagal menganalisa"); })
+      .catch((e) => active && setErr(e.message || String(e)))
+      .finally(() => active && setBusy(false));
+    return () => { active = false; };
+  }, [open]); // eslint-disable-line
+
+  const List = ({ title, items, color }) => (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontFamily: F, fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>{title}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+        {items.map((t, x) => (
+          <div key={x} style={{ display: "flex", gap: 8, fontFamily: F, fontSize: 12.5, color: "var(--ink-700)", lineHeight: 1.5 }}>
+            <span style={{ color, flex: "0 0 auto", marginTop: 2 }}>•</span><span>{t}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <Modal open={open} onClose={() => !busy && onClose()} width={560}>
+      <div style={{ padding: 22 }}>
+        <SectionTitle sub="AI melihat gambar referensimu dan menyarankan cara pakai">Analisa referensi</SectionTitle>
+        {idea?.imageUrl && <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid var(--line)", marginBottom: 14 }}><img src={idea.imageUrl} alt="" style={{ display: "block", width: "100%", maxHeight: 200, objectFit: "cover" }} /></div>}
+        {busy && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "18px 4px", fontFamily: F, fontSize: 13, color: "var(--ink-500)" }}><Spinner size={18} /> Menganalisa gambar…</div>}
+        {err && <div style={{ fontFamily: F, fontSize: 12.5, color: "var(--danger)", padding: "6px 2px" }}>{err}</div>}
+        {res && (
+          <>
+            {res.whyGood?.length ? <List title="Kenapa ini menarik" items={res.whyGood} color="var(--st-success)" /> : null}
+            {res.adaptation?.length ? <List title="Cara adaptasi ke brandmu" items={res.adaptation} color="var(--st-scheduled)" /> : null}
+            {res.contentIdeas?.length ? (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontFamily: F, fontSize: 11, fontWeight: 700, color: "var(--st-publishing)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Ide konten turunan</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {res.contentIdeas.map((t, x) => (
+                    <div key={x} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: "1px solid var(--line)", borderRadius: 11 }}>
+                      <span style={{ flex: 1, fontFamily: F, fontSize: 12.5, color: "var(--ink-800)" }}>{t}</span>
+                      <Button size="sm" variant="ghost" icon={<Icons.sparkle size={13} />} onClick={() => { onClose(); onToPlan(idea, t); }}>Jadikan konten</Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+          <Button variant="ghost" disabled={busy} onClick={onClose}>Tutup</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function IdeaModal({ editing, setEditing, onSave, saving, brands, toast, token }) {
   const open = !!editing;
   const d = editing || {};
   const set = (k, v) => setEditing((s) => ({ ...s, [k]: v }));
@@ -157,6 +328,7 @@ function IdeaModal({ editing, setEditing, onSave, saving, brands, defaultBrandId
   const fileRef = React.useRef(null);
   const [uploading, setUploading] = uIB(false);
   const [dragOver, setDragOver] = uIB(false);
+  const [fetching, setFetching] = uIB(false);
 
   async function ingest(file) {
     if (!file) return;
@@ -167,9 +339,29 @@ function IdeaModal({ editing, setEditing, onSave, saving, brands, defaultBrandId
     catch (e) { toast?.("Gagal unggah gambar: " + (e.message || e), "error"); }
     finally { setUploading(false); }
   }
+
+  // Ambil pratinjau dari link (Open Graph) → isi judul/gambar/sumber yang kosong.
+  async function fetchPreview() {
+    const url = (d.url || "").trim();
+    if (!url) { toast?.("Isi link dulu.", "info"); return; }
+    setFetching(true);
+    try {
+      const r = await fetch("/api/og", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ url }) });
+      const j = await r.json();
+      if (!j.ok) { toast?.(j.error || "Gagal mengambil pratinjau", "error"); return; }
+      let filled = 0;
+      if (j.title && !d.title?.trim()) { set("title", j.title); filled++; }
+      if (j.image && !d.imageUrl?.trim()) { set("imageUrl", j.image); filled++; }
+      if (j.siteName && !d.source?.trim()) { set("source", j.siteName); filled++; }
+      if (j.description && !d.note?.trim()) { set("note", j.description); filled++; }
+      toast?.(filled ? "Pratinjau terisi ✓" : "Tautan tidak memberi pratinjau (mungkin butuh login).", filled ? "success" : "info");
+    } catch (e) { toast?.("Gagal: " + (e.message || e), "error"); }
+    finally { setFetching(false); }
+  }
+
   return (
-    <Modal open={open} onClose={() => !saving && setEditing(null)} width={540}>
-      <div style={{ padding: 22 }}>
+    <Modal open={open} onClose={() => !saving && setEditing(null)} width={560}>
+      <div style={{ padding: "22px 22px 0" }}>
         <SectionTitle sub="Simpan ide, inspirasi, contoh, atau referensi">{d.id ? "Edit item" : "Tambah ke bank ide"}</SectionTitle>
         <Field label="Jenis" style={{ marginBottom: 13 }}>
           <Segmented full options={KIND_OPTS} value={d.kind || "idea"} onChange={(v) => set("kind", v)} />
@@ -177,18 +369,22 @@ function IdeaModal({ editing, setEditing, onSave, saving, brands, defaultBrandId
         <Field label="Judul" style={{ marginBottom: 13 }}>
           <Input value={d.title || ""} onChange={(e) => set("title", e.target.value)} placeholder="mis. Reels behind the scenes dapur" />
         </Field>
-        <Field label="Catatan / deskripsi" style={{ marginBottom: 13 }}>
-          <Textarea value={d.note || ""} onChange={(e) => set("note", e.target.value)} style={{ minHeight: 84 }} placeholder="Kenapa ini menarik, poin penting, cara adaptasi…" />
+        <Field label="Catatan / deskripsi" style={{ marginBottom: 16 }}>
+          <Textarea value={d.note || ""} onChange={(e) => set("note", e.target.value)} style={{ minHeight: 78 }} placeholder="Kenapa ini menarik, poin penting, cara adaptasi…" />
         </Field>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="Link (opsional)">
-            <Input value={d.url || ""} onChange={(e) => set("url", e.target.value)} icon={<Icons.link size={15} />} placeholder="https://…" />
-          </Field>
-          <Field label="Sumber (opsional)">
-            <Input value={d.source || ""} onChange={(e) => set("source", e.target.value)} placeholder="mis. IG @kompetitor" />
-          </Field>
-        </div>
-        <Field label="Gambar contoh (opsional)" style={{ marginTop: 13 }}>
+
+        {/* Referensi: link + sumber + gambar dalam satu blok */}
+        <div style={{ fontFamily: F, fontSize: 11, fontWeight: 700, color: "var(--ink-400)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 10 }}>Referensi</div>
+        <Field label="Link (opsional)" style={{ marginBottom: 13 }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0 }}><Input value={d.url || ""} onChange={(e) => set("url", e.target.value)} icon={<Icons.link size={15} />} placeholder="https://…" /></div>
+            <Button variant="secondary" disabled={fetching} icon={fetching ? <Spinner size={14} /> : <Icons.sparkle size={15} />} onClick={fetchPreview}>Ambil pratinjau</Button>
+          </div>
+        </Field>
+        <Field label="Sumber (opsional)" style={{ marginBottom: 13 }}>
+          <Input value={d.source || ""} onChange={(e) => set("source", e.target.value)} placeholder="mis. IG @kompetitor" />
+        </Field>
+        <Field label="Gambar contoh (opsional)" style={{ marginBottom: 16 }}>
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; ingest(f); }} />
           {d.imageUrl ? (
             <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid var(--line)" }}>
@@ -210,7 +406,7 @@ function IdeaModal({ editing, setEditing, onSave, saving, brands, defaultBrandId
             </div>
           )}
         </Field>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 13 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
           <Field label="Tag (pisah koma)">
             <Input value={d.tags || ""} onChange={(e) => set("tags", e.target.value)} icon={<Icons.tag size={15} />} placeholder="promo, video, dapur" />
           </Field>
@@ -218,10 +414,11 @@ function IdeaModal({ editing, setEditing, onSave, saving, brands, defaultBrandId
             <Select value={d.brandId || ""} onChange={(v) => set("brandId", v || null)} options={brandOpts} />
           </Field>
         </div>
-        <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
-          <Button variant="ghost" disabled={saving} onClick={() => setEditing(null)}>Batal</Button>
-          <Button variant="primary" disabled={saving} icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.check size={16} />} onClick={onSave}>{d.id ? "Simpan" : "Tambah"}</Button>
-        </div>
+      </div>
+      {/* footer sticky */}
+      <div style={{ position: "sticky", bottom: 0, background: "#fff", borderTop: "1px solid var(--line)", padding: "14px 22px", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <Button variant="ghost" disabled={saving} onClick={() => setEditing(null)}>Batal</Button>
+        <Button variant="primary" disabled={saving} icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.check size={16} />} onClick={onSave}>{d.id ? "Simpan" : "Tambah"}</Button>
       </div>
     </Modal>
   );
