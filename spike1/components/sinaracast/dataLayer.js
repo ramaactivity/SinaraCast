@@ -391,6 +391,8 @@ function planRow(p, ownerId) {
     title: p.title?.trim() || null, content_type: p.contentType?.trim() || null, pillar: p.pillar?.trim() || null,
     format: p.format || null, goal: p.goal || null,
     hook: p.hook?.trim() || null, caption: p.caption?.trim() || null, notes: p.notes?.trim() || null, script: p.script?.trim() || null,
+    reference_images: Array.isArray(p.referenceImages) ? p.referenceImages : null,
+    storyboard: Array.isArray(p.storyboard) ? p.storyboard : null,
     reference_url: p.referenceUrl?.trim() || null, brief_url: p.briefUrl?.trim() || null, design_url: p.designUrl?.trim() || null,
     status: p.status, post_link: p.postLink?.trim() || null,
     posted_at: p.status === "posted" ? (p.postedAt || new Date().toISOString()) : null,
@@ -640,11 +642,18 @@ export async function uploadPoolImage(file, channelSlug, meta) {
 // Unggah gambar contoh untuk Bank Ide → kembalikan URL publik. Disimpan di bucket
 // yang sama, folder idea-bank (tak terikat channel tertentu).
 export async function uploadIdeaImage(file) {
+  return uploadImageToFolder(file, "idea-bank");
+}
+// Unggah gambar referensi visual (moodboard) untuk rencana konten.
+export async function uploadPlanImage(file) {
+  return uploadImageToFolder(file, "plan-ref");
+}
+async function uploadImageToFolder(file, folder) {
   const { data: u } = await supabase.auth.getUser();
   const uid = u?.user?.id;
   if (!uid) throw new Error("Not signed in");
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-  const path = `${uid}/idea-bank/${crypto.randomUUID()}.${ext}`;
+  const path = `${uid}/${folder}/${crypto.randomUUID()}.${ext}`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
   if (error) throw error;
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;

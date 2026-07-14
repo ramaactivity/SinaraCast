@@ -3,8 +3,9 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { loadContentPlan, createContentPlan, updateContentPlan, deleteContentPlan, linkPlanToRule, unlinkPlan, adaptContentPlan } from "../dataLayer";
-import { BrandAvatar, Panel, Button, Field, Input, Textarea, Select, Segmented, TimeField, DateField, SectionTitle, Spinner, PlatIcon } from "../ui";
+import { loadContentPlan, createContentPlan, updateContentPlan, deleteContentPlan, linkPlanToRule, unlinkPlan, adaptContentPlan, uploadPlanImage } from "../dataLayer";
+import { BrandAvatar, Panel, Button, Field, Input, Textarea, Select, Segmented, TimeField, DateField, SectionTitle, Spinner, PlatIcon, Modal } from "../ui";
+import { Lightbox } from "../lightbox";
 const { useState: uCE, useEffect } = React;
 const FCE = "var(--font)";
 
@@ -58,6 +59,8 @@ export function ContentEditorView() {
   const [caption, setCaption] = uCE("");
   const [script, setScript] = uCE("");
   const [notes, setNotes] = uCE(app.params.note || "");
+  const [referenceImages, setReferenceImages] = uCE([]);
+  const [storyboard, setStoryboard] = uCE([]);
   const [referenceUrl, setReferenceUrl] = uCE(app.params.reference || "");
   const [briefUrl, setBriefUrl] = uCE("");
   const [designUrl, setDesignUrl] = uCE("");
@@ -88,6 +91,7 @@ export function ContentEditorView() {
       setTitle(p.title || ""); setContentType(p.content_type || ""); setPillar(p.pillar || "");
       setFormat(p.format || ""); setGoal(p.goal || "");
       setHook(p.hook || ""); setCaption(p.caption || ""); setNotes(p.notes || ""); setScript(p.script || "");
+      setReferenceImages(Array.isArray(p.reference_images) ? p.reference_images : []); setStoryboard(Array.isArray(p.storyboard) ? p.storyboard : []);
       setReferenceUrl(p.reference_url || ""); setBriefUrl(p.brief_url || ""); setDesignUrl(p.design_url || "");
       setStatus(p.status); setPostLink(p.post_link || ""); setPostedAt(p.posted_at);
       setAutoManaged(!!p.auto_managed);
@@ -149,6 +153,7 @@ export function ContentEditorView() {
     return {
       brandDbId: brandId, channelDbId: account?._id || null, platform, plannedDate: date, plannedTime: time || null,
       title, contentType, pillar, format, goal, hook, caption, notes, script,
+      referenceImages, storyboard,
       referenceUrl, briefUrl, designUrl, status, postLink, postedAt,
       m: metricsLocked ? null : m,
     };
@@ -297,6 +302,15 @@ export function ContentEditorView() {
             <Field label="Naskah / script" hint="Reels/video: hook, isi, CTA per adegan. Diisi AI atau tulis sendiri." style={{ marginTop: 14 }}><Textarea value={script} onChange={(e) => setScript(e.target.value)} style={{ minHeight: 120 }} placeholder="Naskah produksi…" /></Field>
             <Field label="Catatan" style={{ marginTop: 14 }}><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ minHeight: 64 }} placeholder="Catatan produksi, ide visual, dll." /></Field>
           </Panel>
+
+          <VisualBoard
+            token={app.session?.access_token} toast={app.toast}
+            brandName={brandObj.name} platform={platform} persona={account?.aiPersona || null}
+            fields={{ title, format, hook, script, notes, goal }}
+            referenceImages={referenceImages} setReferenceImages={setReferenceImages}
+            storyboard={storyboard} setStoryboard={setStoryboard}
+            bankImages={(app.ideas || []).filter((x) => x.imageUrl && (!x.brandId || x.brandId === brandId))}
+          />
 
           <Panel>
             <SectionTitle sub="Tautan referensi & aset">Produksi</SectionTitle>
@@ -535,6 +549,131 @@ function PlanAI({ token, toast, brandName, platform, persona, fields, apply, has
         <Button size="sm" variant="secondary" disabled={!!busy} icon={busy === "caption" ? <Spinner size={14} /> : <Icons.edit size={15} />} onClick={doCaption}>Buatkan caption</Button>
       </div>
       {msg && <div style={{ fontFamily: FCE, fontSize: 12, color: "var(--st-success)", marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}><Icons.checkCircle size={14} /> {msg}</div>}
+    </Panel>
+  );
+}
+
+// Papan Visual: moodboard referensi (unggah / dari Bank Ide) + storyboard AI.
+function VisualBoard({ token, toast, brandName, platform, persona, fields, referenceImages, setReferenceImages, storyboard, setStoryboard, bankImages }) {
+  const fileRef = React.useRef(null);
+  const [uploading, setUploading] = uCE(false);
+  const [picker, setPicker] = uCE(false);
+  const [preview, setPreview] = uCE(null);   // lightbox index
+  const [genBusy, setGenBusy] = uCE(false);
+
+  async function onFiles(list) {
+    const arr = [...(list || [])].filter((f) => ["image/jpeg", "image/png", "image/webp"].includes(f.type));
+    if (!arr.length) { toast("Hanya gambar JPG / PNG / WebP", "error"); return; }
+    setUploading(true);
+    try {
+      for (const f of arr) {
+        if (f.size > 10 * 1024 * 1024) { toast(`"${f.name}" lewat 10 MB, dilewati`, "info"); continue; }
+        const url = await uploadPlanImage(f);
+        setReferenceImages((prev) => [...prev, url]);
+      }
+    } catch (e) { toast("Gagal unggah: " + (e.message || e), "error"); }
+    finally { setUploading(false); }
+  }
+  const addFromBank = (url) => { setReferenceImages((prev) => (prev.includes(url) ? prev : [...prev, url])); };
+  const removeImg = (idx) => setReferenceImages((prev) => prev.filter((_, i) => i !== idx));
+
+  async function genStory() {
+    if (genBusy) return; setGenBusy(true);
+    try {
+      const r = await fetch("/api/plan", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ task: "storyboard", brandName, platform, persona, title: fields.title, format: fields.format, hook: fields.hook, script: fields.script, concept: fields.notes, goal: fields.goal }),
+      });
+      const j = await r.json();
+      if (!j.ok) { toast(j.error || "Gagal membuat storyboard", "error"); return; }
+      setStoryboard(j.frames || []);
+      toast("Storyboard dibuat ✓", "success");
+    } catch (e) { toast("Gagal: " + (e.message || e), "error"); }
+    finally { setGenBusy(false); }
+  }
+  const setFrame = (i, k, v) => setStoryboard((prev) => prev.map((fr, x) => (x === i ? { ...fr, [k]: v } : fr)));
+  const removeFrame = (i) => setStoryboard((prev) => prev.filter((_, x) => x !== i));
+  const addFrame = () => setStoryboard((prev) => [...prev, { scene: prev.length + 1, visual: "", voiceover: "", duration: "" }]);
+
+  const thumb = (url, i) => (
+    <div key={i} style={{ position: "relative", width: 92, height: 92, flex: "0 0 auto" }}>
+      <div onClick={() => setPreview(i)} title="Pratinjau" style={{ width: "100%", height: "100%", borderRadius: 11, border: "1px solid var(--line)", cursor: "zoom-in", background: `#f2f3f5 center/cover no-repeat url("${url}")` }} />
+      <button onClick={() => removeImg(i)} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
+    </div>
+  );
+
+  return (
+    <Panel>
+      <SectionTitle sub="Moodboard referensi & storyboard adegan">Papan Visual</SectionTitle>
+
+      {/* Moodboard */}
+      <div style={{ fontFamily: FCE, fontSize: 11.5, fontWeight: 700, color: "var(--ink-500)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 10 }}>Referensi visual</div>
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple style={{ display: "none" }} onChange={(e) => { const fs = e.target.files; e.target.value = ""; onFiles(fs); }} />
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        {referenceImages.map((u, i) => thumb(u, i))}
+        <button onClick={() => !uploading && fileRef.current?.click()} title="Unggah gambar" style={{ width: 92, height: 92, borderRadius: 11, border: "1.5px dashed var(--line)", background: "rgba(140,144,158,.045)", cursor: "pointer", display: "grid", placeItems: "center", color: "var(--ink-400)", flex: "0 0 auto" }}>{uploading ? <Spinner size={18} /> : <Icons.upload size={20} />}</button>
+      </div>
+      <div style={{ display: "flex", gap: 9, marginTop: 12, flexWrap: "wrap" }}>
+        <Button size="sm" variant="secondary" icon={<Icons.upload size={14} />} disabled={uploading} onClick={() => fileRef.current?.click()}>Unggah gambar</Button>
+        <Button size="sm" variant="ghost" icon={<Icons.bookmark size={14} />} onClick={() => setPicker(true)}>Dari Bank Ide</Button>
+      </div>
+
+      {/* Storyboard */}
+      <div style={{ borderTop: "1px solid var(--line)", marginTop: 18, paddingTop: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <span style={{ fontFamily: FCE, fontSize: 11.5, fontWeight: 700, color: "var(--ink-500)", textTransform: "uppercase", letterSpacing: ".04em", flex: 1 }}>Storyboard</span>
+          {storyboard.length > 0 && <Button size="sm" variant="ghost" disabled={genBusy} icon={genBusy ? <Spinner size={13} /> : <Icons.retry size={14} />} onClick={genStory}>Buat ulang</Button>}
+        </div>
+        {storyboard.length === 0 ? (
+          <div style={{ border: "1.5px dashed var(--line)", borderRadius: 12, padding: "20px 16px", textAlign: "center", background: "rgba(140,144,158,.03)" }}>
+            <div style={{ fontFamily: FCE, fontSize: 12.5, color: "var(--ink-500)", marginBottom: 12, lineHeight: 1.5 }}>Belum ada storyboard. Biarkan AI memecah konsep/naskah jadi adegan bergambar.</div>
+            <Button size="sm" variant="primary" disabled={genBusy} icon={genBusy ? <Spinner size={14} color="#fff" /> : <Icons.film size={15} />} onClick={genStory}>Buatkan storyboard (AI)</Button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {storyboard.map((fr, i) => (
+              <div key={i} style={{ display: "flex", gap: 12, padding: 12, border: "1px solid var(--line)", borderRadius: 12, background: "#fff" }}>
+                <div style={{ width: 30, height: 30, flex: "0 0 auto", borderRadius: 9, background: "var(--st-publishing-bg)", color: "var(--st-publishing)", display: "grid", placeItems: "center", fontFamily: FCE, fontWeight: 700, fontSize: 13 }}>{fr.scene || i + 1}</div>
+                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <Field label="Visual" style={{ marginBottom: 0 }}><Textarea value={fr.visual || ""} onChange={(e) => setFrame(i, "visual", e.target.value)} style={{ minHeight: 44 }} placeholder="Apa yang tampak di layar…" /></Field>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ flex: 1 }}><Field label="Teks / voiceover" style={{ marginBottom: 0 }}><Textarea value={fr.voiceover || ""} onChange={(e) => setFrame(i, "voiceover", e.target.value)} style={{ minHeight: 40 }} placeholder="Teks di layar / narasi…" /></Field></div>
+                    <div style={{ width: 96, flex: "0 0 auto" }}><Field label="Durasi" style={{ marginBottom: 0 }}><Input value={fr.duration || ""} onChange={(e) => setFrame(i, "duration", e.target.value)} placeholder="3 dtk" /></Field></div>
+                  </div>
+                </div>
+                <button onClick={() => removeFrame(i)} aria-label="Hapus adegan" style={{ width: 28, height: 28, flex: "0 0 auto", borderRadius: 8, border: "1px solid var(--line)", background: "#fff", cursor: "pointer", color: "var(--ink-400)", display: "grid", placeItems: "center", alignSelf: "flex-start" }}><Icons.x size={14} /></button>
+              </div>
+            ))}
+            <button onClick={addFrame} style={{ ...ghostLink, alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6 }}><Icons.plus size={14} /> Tambah adegan</button>
+          </div>
+        )}
+      </div>
+
+      {/* Picker Bank Ide */}
+      <Modal open={picker} onClose={() => setPicker(false)} width={620}>
+        <div style={{ padding: 22 }}>
+          <SectionTitle sub="Pilih gambar dari item Bank Ide untuk brand ini">Ambil dari Bank Ide</SectionTitle>
+          {bankImages.length === 0 ? (
+            <div style={{ fontFamily: FCE, fontSize: 13, color: "var(--ink-400)", textAlign: "center", padding: 20 }}>Belum ada item Bank Ide bergambar untuk brand ini.</div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, maxHeight: 360, overflowY: "auto" }} className="sc-scroll">
+              {bankImages.map((it) => {
+                const on = referenceImages.includes(it.imageUrl);
+                return (
+                  <button key={it.id} onClick={() => addFromBank(it.imageUrl)} title={it.title || "Tambah"} style={{ position: "relative", padding: 0, border: on ? "2px solid var(--primary-400)" : "1px solid var(--line)", borderRadius: 11, overflow: "hidden", cursor: "pointer", background: "#fff" }}>
+                    <div style={{ height: 92, background: `#f2f3f5 center/cover no-repeat url("${it.imageUrl}")` }} />
+                    <div style={{ padding: "6px 8px", fontFamily: FCE, fontSize: 10.5, color: "var(--ink-700)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "left" }}>{it.title || "(tanpa judul)"}</div>
+                    {on && <span style={{ position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: "50%", background: "var(--primary-500)", color: "#fff", display: "grid", placeItems: "center" }}><Icons.check size={12} sw={2.6} /></span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}><Button variant="primary" onClick={() => setPicker(false)}>Selesai</Button></div>
+        </div>
+      </Modal>
+
+      <Lightbox imgs={referenceImages.map((u) => ({ url: u }))} index={preview} onClose={() => setPreview(null)} onIndex={setPreview} ratio={null} />
     </Panel>
   );
 }

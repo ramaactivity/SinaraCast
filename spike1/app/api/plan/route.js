@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { generateIdeas, generateConcept, generateScript, analyzeReference, planningConfigured } from "../../../lib/planningCore";
+import { generateIdeas, generateConcept, generateScript, generateStoryboard, analyzeReference, planningConfigured } from "../../../lib/planningCore";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -40,6 +40,10 @@ export async function POST(request) {
     if (b.task === "script") {
       const script = await generateScript({ ...common, title: b.title, format: b.format, hook: b.hook, goal: b.goal });
       return NextResponse.json({ ok: true, script });
+    }
+    if (b.task === "storyboard") {
+      const frames = await generateStoryboard({ ...common, title: b.title, format: b.format, hook: b.hook, script: b.script, concept: b.concept, goal: b.goal });
+      return NextResponse.json({ ok: true, frames });
     }
     if (b.task === "analyze") {
       if (!b.imageUrl) return NextResponse.json({ ok: false, error: "Butuh gambar untuk dianalisa" }, { status: 400 });
