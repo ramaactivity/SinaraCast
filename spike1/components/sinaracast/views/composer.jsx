@@ -3,7 +3,7 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { uploadPoolImage, uploadReelVideo, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost, loadContentPlan, linkPlanToOneoff } from "../dataLayer";
+import { uploadPoolImage, uploadReelVideo, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost, loadContentPlan, linkPlanToOneoff, updateChannelPersona } from "../dataLayer";
 import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, DateField, Checkbox, MediaThumb, SectionTitle, Spinner, Select, Status } from "../ui";
 import { Lightbox } from "../lightbox";
 const { useState: uCo, useRef, useEffect } = React;
@@ -468,6 +468,17 @@ export function ComposerView() {
               <SectionTitle sub={`${caption.length} / ${capLimit} karakter${(isReels || isTikVid) ? " · opsional" : ""}`}><StepTitle n={3} accent={b.accent} soft={b.soft}>Tulisan (caption)</StepTitle></SectionTitle>
               <Textarea placeholder={isTikVid ? "Tulis caption TikTok (opsional)…" : isReels ? "Tulis caption Reels (opsional)…" : "Tulis caption postingan…"} value={caption} invalid={overCap} onChange={e => setCaption(e.target.value)} style={{ minHeight: 120 }} />
               {overCap && <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--danger)", marginTop: 6 }}>Kepanjangan, maksimal {capLimit} karakter.</div>}
+              <CaptionAI
+                key={channel._id}
+                accent={b.accent} soft={b.soft}
+                caption={caption} onApply={setCaption}
+                token={app.session?.access_token}
+                toast={app.toast}
+                channelDbId={channel._id}
+                persona={channel.aiPersona || null}
+                onReload={app.reload}
+                context={{ imageUrl: media.find(x => !isVid(x))?.url || null, platform: isTikTok ? "tiktok" : "instagram", postType: type, brandName: b.name }}
+              />
               {!isTikVid && <Field label="Komentar pertama (untuk hashtag)" hint="Diposting otomatis di kolom komentar setelah postingan terbit." style={{ marginTop: 16 }}>
                 <Textarea value={firstComment} onChange={e => setFirstComment(e.target.value)} style={{ minHeight: 64 }} placeholder="#hashtag …" />
               </Field>}
@@ -601,6 +612,173 @@ function PhonePreview({ type, media, channel, b, caption, onView, onUpload }) {
             <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 10.5, color: "#fff" }}>{handle}</span>
           </div>
           {caption && <div style={{ fontFamily: FCo, fontSize: 9.5, color: "rgba(255,255,255,.92)", lineHeight: 1.4, maxHeight: 27, overflow: "hidden" }}>{caption.slice(0, 70)}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Bantuan caption AI. Tiga cara pakai: buat dari gambar, buat dari arahan/kata kunci,
+// atau poles caption yang sudah ditulis. Hasil tampil sebagai saran — draf pengguna
+// tidak ditimpa sampai mereka menekan "Pakai". Karakter (persona) akun disimpan per
+// akun, jadi AI mengikuti gaya akun itu tanpa perlu di-brief ulang tiap kali.
+const TONE_OPTS = [
+  { value: "santai", label: "Santai" },
+  { value: "profesional", label: "Profesional" },
+  { value: "ceria", label: "Ceria" },
+  { value: "jualan", label: "Jualan" },
+];
+const EMOJI_OPTS = [
+  { value: "tanpa", label: "Tanpa emoji" },
+  { value: "sedikit", label: "Sedikit" },
+  { value: "banyak", label: "Banyak" },
+];
+// Titik awal cepat — mengisi kolom "karakter" agar tak mulai dari nol.
+const PERSONA_PRESETS = [
+  { label: "Hangat & santai", voice: "Hangat, akrab, dan santai seperti ngobrol dengan teman dekat." },
+  { label: "Formal & berkelas", voice: "Formal, elegan, dan berkelas. Pilihan kata rapi, sopan, dan meyakinkan." },
+  { label: "Seperti teman", voice: "Seperti teman sebaya yang asik dan ringan, bahasa sehari-hari yang relate." },
+  { label: "Semangat & ceria", voice: "Ceria, energik, dan penuh semangat. Kalimat pendek yang memacu." },
+];
+const emptyPersona = () => ({ voice: "", audience: "", emoji: "sedikit", signature: "", hashtags: "", avoid: "" });
+const personaSummary = (p) => (p?.voice?.trim() ? p.voice.trim().split(/[.,]/)[0].slice(0, 48) : "belum diatur");
+
+function CaptionAI({ accent, soft, caption, onApply, token, toast, channelDbId, persona, onReload, context }) {
+  const [open, setOpen] = uCo(false);
+  const [tone, setTone] = uCo("santai");
+  const [instruction, setInstruction] = uCo("");
+  const [busy, setBusy] = uCo(false);
+  const [result, setResult] = uCo("");
+  // Editor karakter akun
+  const [editOpen, setEditOpen] = uCo(false);
+  const [draft, setDraft] = uCo(persona || emptyPersona());
+  const [savingP, setSavingP] = uCo(false);
+  const setP = (k, v) => setDraft((s) => ({ ...s, [k]: v }));
+  const hasPersona = !!persona?.voice?.trim();
+
+  async function run(mode) {
+    if (busy) return;
+    if (mode === "polish" && !caption.trim()) { toast("Tulis dulu captionmu untuk diperbaiki", "info"); return; }
+    setBusy(true); setResult("");
+    try {
+      const r = await fetch("/api/caption", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        // tone hanya dikirim kalau belum ada persona (persona jadi gaya utama).
+        body: JSON.stringify({ mode, draft: caption, instruction, tone: hasPersona ? undefined : tone, persona: persona || null, ...context }),
+      });
+      const j = await r.json();
+      if (!j.ok) { toast(j.error || "Gagal membuat caption", "error"); return; }
+      setResult(j.caption);
+    } catch (e) {
+      toast("Gagal membuat caption: " + (e.message || e), "error");
+    } finally { setBusy(false); }
+  }
+
+  async function savePersona() {
+    if (savingP) return;
+    setSavingP(true);
+    try {
+      const clean = draft.voice?.trim() || draft.audience?.trim() || draft.signature?.trim() || draft.hashtags?.trim() || draft.avoid?.trim() ? draft : null;
+      await updateChannelPersona(channelDbId, clean);
+      await onReload?.();
+      toast(clean ? "Karakter akun disimpan ✓" : "Karakter akun dikosongkan", "success");
+      setEditOpen(false);
+    } catch (e) {
+      toast("Gagal menyimpan karakter: " + (e.message || e), "error");
+    } finally { setSavingP(false); }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 12, padding: "8px 13px", borderRadius: 11, cursor: "pointer",
+        border: `1px solid ${accent}`, background: soft, color: accent, fontFamily: FCo, fontSize: 12.5, fontWeight: 600 }}>
+        <Icons.sparkle size={15} /> Bantuan AI — buat atau perbaiki caption
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 12, border: "1px solid var(--line)", borderRadius: 14, padding: 14, background: "rgba(140,144,158,.04)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ display: "inline-flex", color: accent }}><Icons.sparkle size={16} /></span>
+        <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", flex: 1 }}>Bantuan AI</span>
+        <button onClick={() => setOpen(false)} aria-label="Tutup" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--ink-400)", display: "inline-flex" }}><Icons.x size={15} /></button>
+      </div>
+
+      {/* Ringkasan karakter akun + tombol atur/ubah */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 11px", borderRadius: 10, background: hasPersona ? soft : "rgba(140,144,158,.06)", border: `1px solid ${hasPersona ? accent : "var(--line)"}` }}>
+        <Icons.user size={14} style={{ color: hasPersona ? accent : "var(--ink-400)", flex: "0 0 auto" }} />
+        <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          Karakter akun: <b style={{ color: hasPersona ? "var(--ink-900)" : "var(--ink-500)" }}>{personaSummary(persona)}</b>
+        </span>
+        <button onClick={() => { setDraft(persona || emptyPersona()); setEditOpen((v) => !v); }} style={{ border: "none", background: "none", cursor: "pointer", color: accent, fontFamily: FCo, fontSize: 11.5, fontWeight: 600, flex: "0 0 auto" }}>
+          {hasPersona ? "Ubah" : "Atur"}
+        </button>
+      </div>
+
+      {editOpen && (
+        <div style={{ marginBottom: 12, border: "1px solid var(--line)", borderRadius: 12, padding: 13, background: "#fff" }}>
+          <div style={{ fontFamily: FCo, fontSize: 12, color: "var(--ink-500)", lineHeight: 1.45, marginBottom: 10 }}>Setel sekali, dipakai terus untuk akun ini. Bisa diubah kapan saja.</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+            {PERSONA_PRESETS.map((p) => (
+              <button key={p.label} onClick={() => setP("voice", p.voice)} style={{ border: "1px solid var(--line)", background: "#fff", color: "var(--ink-600)", fontFamily: FCo, fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 999, cursor: "pointer" }}>{p.label}</button>
+            ))}
+          </div>
+          <Field label="Karakter & gaya bahasa" hint="Inti kepribadian akun ini." style={{ marginBottom: 11 }}>
+            <Textarea value={draft.voice} onChange={(e) => setP("voice", e.target.value)} placeholder="Mis. hangat & santai seperti teman, sesekali bercanda ringan…" style={{ minHeight: 58 }} />
+          </Field>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Field label="Target pembaca" style={{ flex: "1 1 160px", minWidth: 150, marginBottom: 11 }}>
+              <Textarea value={draft.audience} onChange={(e) => setP("audience", e.target.value)} placeholder="Mis. anak muda 18-25 di kota besar" style={{ minHeight: 40 }} />
+            </Field>
+            <Field label="Emoji" style={{ flex: "0 0 130px", minWidth: 120, marginBottom: 11 }}>
+              <Select value={draft.emoji} onChange={(v) => setP("emoji", v)} options={EMOJI_OPTS} />
+            </Field>
+          </div>
+          <Field label="Ajakan / penutup khas (opsional)" style={{ marginBottom: 11 }}>
+            <Textarea value={draft.signature} onChange={(e) => setP("signature", e.target.value)} placeholder="Mis. Yuk mampir sekarang!" style={{ minHeight: 40 }} />
+          </Field>
+          <Field label="Tagar khas (opsional)" style={{ marginBottom: 11 }}>
+            <Textarea value={draft.hashtags} onChange={(e) => setP("hashtags", e.target.value)} placeholder="#kopisusu #jakarta" style={{ minHeight: 40 }} />
+          </Field>
+          <Field label="Hindari (opsional)" hint="Kata/gaya yang tidak boleh dipakai." style={{ marginBottom: 12 }}>
+            <Textarea value={draft.avoid} onChange={(e) => setP("avoid", e.target.value)} placeholder="Mis. bahasa alay, singkatan berlebihan" style={{ minHeight: 40 }} />
+          </Field>
+          <div style={{ display: "flex", gap: 9 }}>
+            <Button size="sm" variant="primary" disabled={savingP} icon={savingP ? <Spinner size={14} color="#fff" /> : <Icons.check size={14} />} onClick={savePersona}>Simpan karakter</Button>
+            <Button size="sm" variant="ghost" disabled={savingP} onClick={() => setEditOpen(false)}>Batal</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Nada hanya relevan bila karakter belum diatur */}
+      {!hasPersona && (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+          <Field label="Gaya bahasa" style={{ flex: "1 1 140px", minWidth: 130, marginBottom: 0 }}>
+            <Select value={tone} onChange={setTone} options={TONE_OPTS} />
+          </Field>
+        </div>
+      )}
+      <Field label="Arahan singkat (opsional)" hint={hasPersona ? "Konteks khusus kali ini. Karakter akun tetap dipakai otomatis." : "Mis. promo diskon 20% sampai Minggu, atau target ibu muda."} style={{ marginBottom: 12 }}>
+        <Textarea value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="Kosongkan pun tidak apa-apa…" style={{ minHeight: 52 }} />
+      </Field>
+
+      <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+        <Button size="sm" variant="primary" disabled={busy} icon={busy ? <Spinner size={14} color="#fff" /> : <Icons.sparkle size={15} />} onClick={() => run("generate")}>
+          {context.imageUrl ? "Buatkan dari gambar" : "Buatkan caption"}
+        </Button>
+        <Button size="sm" variant="secondary" disabled={busy || !caption.trim()} icon={<Icons.edit size={14} />} onClick={() => run("polish")}>Perbaiki punyaku</Button>
+      </div>
+
+      {result && (
+        <div style={{ marginTop: 12, border: `1px solid ${accent}`, borderRadius: 12, padding: 12, background: "#fff" }}>
+          <div style={{ fontFamily: FCo, fontSize: 10.5, fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 7 }}>Saran AI</div>
+          <div style={{ fontFamily: FCo, fontSize: 13, color: "var(--ink-800)", lineHeight: 1.5, whiteSpace: "pre-wrap", maxHeight: 260, overflow: "auto" }}>{result}</div>
+          <div style={{ display: "flex", gap: 9, marginTop: 12, flexWrap: "wrap" }}>
+            <Button size="sm" variant="primary" icon={<Icons.check size={14} />} onClick={() => { onApply(result); setResult(""); toast("Caption dipakai ✓", "success"); }}>Pakai ini</Button>
+            <Button size="sm" variant="ghost" disabled={busy} icon={busy ? <Spinner size={13} /> : <Icons.retry size={14} />} onClick={() => run(caption.trim() && caption !== result ? "polish" : "generate")}>Buat lagi</Button>
+          </div>
         </div>
       )}
     </div>

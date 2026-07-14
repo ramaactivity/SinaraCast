@@ -90,6 +90,7 @@ function mapChannel(c) {
     followers: fmtFollowers(c.followers),
     avatarUrl: c.avatar_url || null,
     brandId: c.brand_id || null,
+    aiPersona: c.ai_persona || null, // karakter AI caption per akun
     _id: c.id,
   };
 }
@@ -119,7 +120,7 @@ export async function loadAll() {
   // Fire every independent read in parallel. allSettled (not all) so a single
   // failed query can NEVER blank the whole app — each just falls back to empty.
   const results = await Promise.allSettled([
-    supabase.from("channel").select("id, slug, name, handle, platform, brand_id, token_status, token_expires_at, last_refresh_at, paused, resume_date, followers, color_token, avatar_url").is("archived_at", null).order("created_at", { ascending: true }),
+    supabase.from("channel").select("id, slug, name, handle, platform, brand_id, token_status, token_expires_at, last_refresh_at, paused, resume_date, followers, color_token, avatar_url, ai_persona").is("archived_at", null).order("created_at", { ascending: true }),
     supabase.from("recurring_rule").select("*").is("archived_at", null),
     supabase.from("pool").select("id, rule_id, role"),
     supabase.from("pool_image").select("id, pool_id, used_in_cycle, storage_path, position, bytes").order("position"),
@@ -462,6 +463,12 @@ export async function renameBrand(id, name) {
 // Move an account (channel) into a brand (or detach with brandId=null).
 export async function setChannelBrand(channelDbId, brandId) {
   const { error } = await supabase.from("channel").update({ brand_id: brandId }).eq("id", channelDbId);
+  if (error) throw error;
+}
+// Simpan karakter (persona) AI caption untuk satu akun. persona = objek jsonb
+// (lihat migrasi 2026-07-14-channel-ai-persona). null menghapus persona.
+export async function updateChannelPersona(channelDbId, persona) {
+  const { error } = await supabase.from("channel").update({ ai_persona: persona }).eq("id", channelDbId);
   if (error) throw error;
 }
 // Delete a brand. Accounts detach (channel.brand_id → null via FK); plans cascade.
