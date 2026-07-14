@@ -14,14 +14,14 @@ function ThemePicker() {
   return (
     <Panel>
       <SectionTitle sub="Pilih warna favoritmu — cuma warnanya yang berubah, tata letaknya tetap">Tampilan</SectionTitle>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 4 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginTop: 4 }}>
         {THEMES.map((t) => {
           const active = app.theme === t.id;
           return (
             <button key={t.id} type="button" onClick={() => app.setTheme(t.id)} aria-pressed={active}
               style={{ position: "relative", textAlign: "left", cursor: "pointer", padding: 14, borderRadius: 16,
                 border: active ? "2px solid var(--primary-500)" : "1px solid var(--line)",
-                background: active ? "var(--primary-100)" : "rgba(255,255,255,0.6)",
+                background: active ? "var(--primary-100)" : "var(--surface-2)",
                 boxShadow: active ? "var(--shadow-sm)" : "none", transition: "border-color .18s, background .18s, box-shadow .18s" }}>
               <div style={{ display: "flex", gap: 6, marginBottom: 11 }}>
                 {t.swatch.map((c, i) => (
@@ -66,7 +66,7 @@ export function SettingsView() {
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* pause all / vacation */}
-          <Panel style={{ background: s.pauseAll ? "var(--st-paused-bg)" : "rgba(255,255,255,0.62)" }}>
+          <Panel style={{ background: s.pauseAll ? "var(--st-paused-bg)" : "var(--panel)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <span style={{ width: 46, height: 46, borderRadius: 14, flex: "0 0 auto", display: "grid", placeItems: "center", background: s.pauseAll ? "var(--st-paused)" : "var(--primary-grad)", color: "#fff" }}><Icons.pause size={22} /></span>
               <div style={{ flex: 1 }}>

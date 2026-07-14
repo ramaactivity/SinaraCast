@@ -51,13 +51,13 @@ export function Sidebar({ mobile, open, onClose }) {
   const asideStyle = mobile ? {
     position: "fixed", top: 0, left: 0, height: "100%", width: 280, maxWidth: "85vw",
     display: "flex", flexDirection: "column", padding: "20px 16px",
-    background: "rgba(255,255,255,0.95)", backdropFilter: "blur(var(--blur))", WebkitBackdropFilter: "blur(var(--blur))",
+    background: "var(--veil)", backdropFilter: "blur(var(--blur))", WebkitBackdropFilter: "blur(var(--blur))",
     borderRight: "1px solid var(--line)", boxShadow: "var(--shadow-lg)",
     transform: open ? "translateX(0)" : "translateX(-101%)", transition: "transform .26s cubic-bezier(.4,0,.2,1)", zIndex: 70,
   } : {
     width: "var(--side-w)", flex: "0 0 var(--side-w)", display: "flex", flexDirection: "column",
     padding: "24px 18px", background: "var(--sidebar-glass)", backdropFilter: "blur(var(--blur))",
-    WebkitBackdropFilter: "blur(var(--blur))", borderRight: "1px solid rgba(255,255,255,.45)",
+    WebkitBackdropFilter: "blur(var(--blur))", borderRight: "1px solid var(--shell-border)",
     borderTopLeftRadius: "var(--r-xl)", borderBottomLeftRadius: "var(--r-xl)",
   };
 
@@ -76,7 +76,7 @@ export function Sidebar({ mobile, open, onClose }) {
       <div style={{ marginBottom: 18 }}>
         <div ref={swRef} style={{ position: "relative" }}>
           <button onClick={() => setSwOpen(o => !o)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 11,
-            padding: "9px 11px", background: "#fff", border: "1px solid var(--line)", borderRadius: 14, cursor: "pointer", boxShadow: "var(--shadow-sm)" }}>
+            padding: "9px 11px", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 14, cursor: "pointer", boxShadow: "var(--shadow-sm)" }}>
             <BrandAvatar brand={brandAv(brandObj.name)} size={32} />
             <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
               <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{brandObj.name}</div>
@@ -86,7 +86,7 @@ export function Sidebar({ mobile, open, onClose }) {
           </button>
           {swOpen && (
             <>
-              <div className="sc-scroll" style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, background: "#fff",
+              <div className="sc-scroll" style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, background: "var(--veil)",
                 borderRadius: 16, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 6, animation: "scPop .15s", maxHeight: 380, overflowY: "auto" }}>
                 <div style={{ fontFamily: FS, fontSize: 10, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-400)", padding: "8px 10px 6px" }}>GANTI BRAND</div>
                 {app.brands.map(br => {
@@ -127,10 +127,10 @@ export function Sidebar({ mobile, open, onClose }) {
               const dot = a.status === "Connected" ? "var(--st-success)" : a.status === "Expiring" ? "var(--st-publishing)" : "var(--st-failed)";
               return (
                 <button key={a.id} onClick={() => { app.setChannel(a.id); onClose && onClose(); }} title={`${PLAT[a.platform]?.l || a.platform} · ${a.handle}${a.paused ? " · dijeda" : ""}`}
-                  onMouseEnter={(e) => { if (multi && !showSel) e.currentTarget.style.background = "rgba(255,255,255,.55)"; }}
+                  onMouseEnter={(e) => { if (multi && !showSel) e.currentTarget.style.background = "var(--raise)"; }}
                   onMouseLeave={(e) => { if (!showSel) e.currentTarget.style.background = "transparent"; }}
                   style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 11px", borderRadius: 10, border: "none", width: "100%", textAlign: "left",
-                    cursor: multi ? "pointer" : "default", background: showSel ? "#fff" : "transparent", boxShadow: showSel ? "var(--shadow-sm)" : "none", transition: "background .15s" }}>
+                    cursor: multi ? "pointer" : "default", background: showSel ? "var(--surface)" : "transparent", boxShadow: showSel ? "var(--shadow-sm)" : "none", transition: "background .15s" }}>
                   <PlatIcon p={a.platform} size={16} />
                   <span style={{ flex: 1, minWidth: 0, fontFamily: FS, fontSize: 12, fontWeight: showSel ? 600 : 500, color: showSel ? "var(--ink-900)" : "var(--ink-600)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.handle}</span>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, flex: "0 0 auto" }} />
@@ -160,7 +160,7 @@ export function Sidebar({ mobile, open, onClose }) {
         <NavItem n={{ id: "settings", label: "Pengaturan", icon: "settings" }} active={app.view === "settings"} onClick={() => app.go("settings")} />
         {/* account */}
         <button onClick={() => app.go("profile")} style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", border: "1px solid var(--line)",
-          background: app.view === "profile" ? "#fff" : "rgba(255,255,255,.5)", borderRadius: 14, cursor: "pointer", boxShadow: "var(--shadow-sm)" }}>
+          background: app.view === "profile" ? "var(--surface)" : "var(--raise)", borderRadius: 14, cursor: "pointer", boxShadow: "var(--shadow-sm)" }}>
           <Avatar name={app.profile.name} size={32} />
           <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
             <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 12.5, color: "var(--ink-900)" }}>{app.profile.name}</div>
@@ -179,7 +179,7 @@ function NavItem({ n, active, onClick }) {
     <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
       style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", border: "none", cursor: "pointer",
         borderRadius: 12, position: "relative", textAlign: "left", width: "100%",
-        background: active ? "#fff" : h ? "rgba(255,255,255,.5)" : "transparent",
+        background: active ? "var(--surface)" : h ? "var(--raise)" : "transparent",
         boxShadow: active ? "var(--shadow-sm)" : "none",
         color: active ? "var(--primary-500)" : "var(--ink-500)",
         fontFamily: FS, fontWeight: active ? 600 : 500, fontSize: 13.5, transition: "background .15s, color .15s" }}>
@@ -198,10 +198,10 @@ export function Topbar({ title, sub, right }) {
 
   const bell = (
     <button onClick={() => app.go("notifications")} title="Notifikasi" style={{ position: "relative", width: 46, height: 46, borderRadius: 14, border: "1px solid var(--line)",
-      background: "#fff", color: "var(--ink-500)", cursor: "pointer", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)", flex: "0 0 auto" }}>
+      background: "var(--surface)", color: "var(--ink-500)", cursor: "pointer", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)", flex: "0 0 auto" }}>
       <Icons.bell size={20} />
       {unread > 0 && <span style={{ position: "absolute", top: -5, right: -5, minWidth: 19, height: 19, padding: "0 5px", borderRadius: 999,
-        background: "var(--danger-grad)", color: "#fff", fontFamily: FS, fontWeight: 600, fontSize: 11, display: "grid", placeItems: "center", boxShadow: "0 0 0 2px #fff" }}>{unread}</span>}
+        background: "var(--danger-grad)", color: "#fff", fontFamily: FS, fontWeight: 600, fontSize: 11, display: "grid", placeItems: "center", boxShadow: "0 0 0 2px var(--surface)" }}>{unread}</span>}
     </button>
   );
 
@@ -217,7 +217,7 @@ export function Topbar({ title, sub, right }) {
   // bell) that the feather then chops off — a visible "cut" seam that never
   // lines up with the viewport-anchored body gradient. A flat tint has no
   // corner peaks, so it blends seamlessly with the frosted shell in every theme.
-  const surface = "linear-gradient(rgba(255,255,255,.42), rgba(255,255,255,.42)), var(--canvas)";
+  const surface = "var(--topbar-bg)";
   // Geometry contract (keep all three in sync):
   //   • main#content has NO top padding — this header owns the page's top space,
   //     so its resting flow position equals its sticky position (top: 0) and it
@@ -241,7 +241,7 @@ export function Topbar({ title, sub, right }) {
       <header style={{ ...stickyBase, display: "flex", flexDirection: "column", gap: 12, padding: "14px var(--content-pad) 10px" }}>
         {feather}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={app.openMenu} aria-label="Menu" style={{ width: 46, height: 46, borderRadius: 14, border: "1px solid var(--line)", background: "#fff", color: "var(--ink-700)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)", flex: "0 0 auto", cursor: "pointer" }}><MenuIcon /></button>
+          <button onClick={app.openMenu} aria-label="Menu" style={{ width: 46, height: 46, borderRadius: 14, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-700)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)", flex: "0 0 auto", cursor: "pointer" }}><MenuIcon /></button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 20, color: "var(--ink-900)", letterSpacing: "-.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
             {sub && <div style={{ fontFamily: FS, fontSize: 12, color: "var(--ink-400)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>}

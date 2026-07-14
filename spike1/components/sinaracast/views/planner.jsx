@@ -144,7 +144,7 @@ export function PlannerView() {
       {/* multi-account brands: show which socials this workspace covers */}
       {phase === "ready" && accounts.length > 1 && (
         <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 14 }}>
-          {accounts.map(a => <span key={a.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: FPl, fontSize: 11.5, color: "var(--ink-600)", background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "4px 10px", boxShadow: "var(--shadow-sm)" }}><PlatIcon p={a.platform} size={13} />{platMeta(a.platform).label} · {a.handle}</span>)}
+          {accounts.map(a => <span key={a.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: FPl, fontSize: 11.5, color: "var(--ink-600)", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 999, padding: "4px 10px", boxShadow: "var(--shadow-sm)" }}><PlatIcon p={a.platform} size={13} />{platMeta(a.platform).label} · {a.handle}</span>)}
         </div>
       )}
 
@@ -329,7 +329,7 @@ function IdeaGenerator({ open, onClose, brandId, brandName, accounts, token, toa
                 <div className="sc-scroll" style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto" }}>
                   {ideas.map((idea, i) => (
                     <div key={i} onClick={() => setPicked((s) => ({ ...s, [i]: !s[i] }))}
-                      style={{ display: "flex", gap: 11, alignItems: "flex-start", padding: "11px 13px", border: `1px solid ${picked[i] ? "var(--primary-300)" : "var(--line)"}`, background: picked[i] ? "var(--primary-100)" : "#fff", borderRadius: 12, cursor: "pointer" }}>
+                      style={{ display: "flex", gap: 11, alignItems: "flex-start", padding: "11px 13px", border: `1px solid ${picked[i] ? "var(--primary-300)" : "var(--line)"}`, background: picked[i] ? "var(--primary-100)" : "var(--surface)", borderRadius: 12, cursor: "pointer" }}>
                       <div style={{ marginTop: 1 }}><Checkbox checked={!!picked[i]} onChange={() => setPicked((s) => ({ ...s, [i]: !s[i] }))} size={18} /></div>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ fontFamily: FPl, fontWeight: 600, fontSize: 13.5, color: "var(--ink-900)" }}>{idea.title}</div>

@@ -14,6 +14,7 @@ export const THEMES = [
   { id: "sinar",    name: "Sinar",    sub: "Hangat & cerah",        swatch: ["#F9A826", "#FCC04C", "#82CF7E"] },
   { id: "lavender", name: "Lavender", sub: "Ungu yang segar",       swatch: ["#7A5CE8", "#9A85F1", "#AEDB56"] },
   { id: "hutan",    name: "Hutan",    sub: "Hijau yang menenangkan", swatch: ["#189E66", "#3EBE85", "#26A69A"] },
+  { id: "gelap",    name: "Gelap",    sub: "Mode gelap yang kreatif",  swatch: ["#26222F", "#9A85F1", "#C7EC6E"] },
 ];
 
 export const THEME_IDS = THEMES.map((t) => t.id);

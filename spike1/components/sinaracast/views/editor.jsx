@@ -326,7 +326,7 @@ export function EditorView() {
                 {WD.map((d, i) => (
                   <button key={d} onClick={() => setDays((ds) => ds.includes(i) ? ds.filter((x) => x !== i) : [...ds, i])}
                     style={{ flex: 1, height: 38, borderRadius: 10, border: "1px solid " + (days.includes(i) ? b.accent : "var(--line)"), cursor: "pointer",
-                      background: days.includes(i) ? b.soft : "#fff", color: days.includes(i) ? b.accent : "var(--ink-400)", fontFamily: FE, fontSize: 11.5, fontWeight: 600 }}>{d}</button>
+                      background: days.includes(i) ? b.soft : "var(--surface)", color: days.includes(i) ? b.accent : "var(--ink-400)", fontFamily: FE, fontSize: 11.5, fontWeight: 600 }}>{d}</button>
                 ))}
               </div>
             )}
@@ -430,13 +430,13 @@ function TimeList({ times, onChange, b }) {
           <div style={{ flex: 1 }}><TimeField value={t} onChange={(v) => set(i, v)} /></div>
           <span style={{ fontFamily: FE, fontSize: 11, fontWeight: 600, color: b.accent, background: b.soft, borderRadius: 8, padding: "4px 8px", minWidth: 44, textAlign: "center" }}>{dayPart(t)}</span>
           <button onClick={() => remove(i)} disabled={times.length <= 1} aria-label="Hapus jam"
-            style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid var(--line)", background: "#fff", cursor: times.length <= 1 ? "not-allowed" : "pointer", opacity: times.length <= 1 ? 0.4 : 1, color: "var(--ink-500)", display: "grid", placeItems: "center", flex: "0 0 auto" }}>
+            style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid var(--line)", background: "var(--surface)", cursor: times.length <= 1 ? "not-allowed" : "pointer", opacity: times.length <= 1 ? 0.4 : 1, color: "var(--ink-500)", display: "grid", placeItems: "center", flex: "0 0 auto" }}>
             <Icons.x size={13} sw={2.4} />
           </button>
         </div>
       ))}
       <button onClick={add}
-        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, border: "1.5px dashed var(--line)", background: "rgba(255,255,255,.4)", cursor: "pointer", fontFamily: FE, fontSize: 12.5, fontWeight: 600, color: b.accent }}>
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, border: "1.5px dashed var(--line)", background: "var(--raise)", cursor: "pointer", fontFamily: FE, fontSize: 12.5, fontWeight: 600, color: b.accent }}>
         <Icons.plus size={16} /> Tambah jam
       </button>
     </div>
@@ -480,10 +480,10 @@ function PoolGrid({ imgs, onAdd, onRemove, onReplace }) {
                 style={{ width: "100%", aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block", transition: "box-shadow .15s" }} />}
           {(im.isVideo || isVideoUrl(im.url) || isVideoUrl(im.storage_path)) &&
             <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.55)", pointerEvents: "none" }}><Icons.play size={22} /></span>}
-          <button onClick={(e) => { e.stopPropagation(); onRemove(i); }} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
+          <button onClick={(e) => { e.stopPropagation(); onRemove(i); }} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "var(--surface)", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
         </div>
       ))}
-      <button onClick={onAdd} style={{ aspectRatio: "9/16", borderRadius: 12, border: "1.5px dashed var(--line)", background: "rgba(255,255,255,.4)", cursor: "pointer", display: "grid", placeItems: "center", color: "var(--ink-400)" }}>
+      <button onClick={onAdd} style={{ aspectRatio: "9/16", borderRadius: 12, border: "1.5px dashed var(--line)", background: "var(--raise)", cursor: "pointer", display: "grid", placeItems: "center", color: "var(--ink-400)" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><Icons.plus size={20} /><span style={{ fontFamily: FE, fontSize: 10 }}>Tambah</span></div>
       </button>
     </div>

@@ -159,7 +159,7 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
           <IconButton icon={<Icons.more size={18} />} onClick={() => setMenu(m => !m)} active={menu} />
           {menu && (
             <>
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 50, background: "#fff", borderRadius: 13, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 5, width: 168, animation: "scPop .14s" }}>
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 50, background: "var(--veil)", borderRadius: 13, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 5, width: 168, animation: "scPop .14s" }}>
                 <Menu icon={<Icons.edit size={16} />} onClick={() => { setMenu(false); app.go("editor", { ch: r.ch, id: r.id }); }}>Ubah jadwal</Menu>
                 <Menu icon={<Icons.play size={16} />} onClick={() => { setMenu(false); app.postNow(r); }}>Terbitkan sekarang</Menu>
                 <div style={{ height: 1, background: "var(--line)", margin: "4px 0" }} />

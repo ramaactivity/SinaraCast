@@ -17,7 +17,7 @@ const F = "var(--font)";
 export function Panel({ children, style, pad = 22, strong, flush, ...p }) {
   return (
     <div {...p} style={{
-      background: strong ? "rgba(255,255,255,0.86)" : "rgba(255,255,255,0.62)",
+      background: strong ? "var(--panel-strong)" : "var(--panel)",
       border: "1px solid var(--glass-border)", borderRadius: "var(--r-lg)",
       boxShadow: "var(--shadow-md)", padding: flush ? 0 : pad, ...style,
     }}>{children}</div>
@@ -30,7 +30,7 @@ export function Card({ children, style, pad = 18, hover, onClick, ...p }) {
     <div {...p} onClick={onClick}
       onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
       style={{
-        background: "#fff", border: "1px solid var(--line)", borderRadius: "var(--r-md)",
+        background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--r-md)",
         boxShadow: hover && h ? "var(--shadow-md)" : "var(--shadow-sm)",
         padding: pad, cursor: onClick ? "pointer" : "default",
         transform: hover && h ? "translateY(-2px)" : "none", transition: "box-shadow .18s, transform .18s",
@@ -59,9 +59,9 @@ export function Button({ children, variant = "primary", size = "md", icon, iconR
   const variants = {
     primary: { background: "var(--green-grad)", color: "#fff", boxShadow: h ? "var(--shadow-green)" : "0 8px 18px rgba(130,207,126,.3)", border: "none" },
     amber:   { background: "var(--primary-grad)", color: "#fff", boxShadow: h ? "var(--shadow-primary)" : "0 8px 18px rgba(249,168,38,.28)", border: "none" },
-    secondary: { background: "#fff", color: "var(--ink-700)", boxShadow: h ? "var(--shadow-md)" : "var(--shadow-sm)", border: "1px solid var(--line)" },
+    secondary: { background: "var(--surface)", color: "var(--ink-700)", boxShadow: h ? "var(--shadow-md)" : "var(--shadow-sm)", border: "1px solid var(--line)" },
     ghost: { background: h ? "rgba(140,144,158,.1)" : "transparent", color: "var(--ink-700)", border: "1px solid transparent" },
-    danger: { background: h ? "var(--danger-bg)" : "#fff", color: "var(--danger)", border: "1px solid var(--danger-bg)", boxShadow: "none" },
+    danger: { background: h ? "var(--danger-bg)" : "var(--surface)", color: "var(--danger)", border: "1px solid var(--danger-bg)", boxShadow: "none" },
   };
   const v = variants[variant];
   return (
@@ -136,7 +136,7 @@ export function Toggle({ on, onChange, size = "md" }) {
   return (
     <button onClick={() => onChange && onChange(!on)} style={{
       width: w, height: h, borderRadius: 999, border: "none", cursor: "pointer", padding: 0,
-      background: on ? "var(--green-grad)" : "#D9DCE3", position: "relative", transition: "background .2s",
+      background: on ? "var(--green-grad)" : "var(--track)", position: "relative", transition: "background .2s",
       boxShadow: on ? "inset 0 1px 3px rgba(95,190,107,.4)" : "inset 0 1px 3px rgba(0,0,0,.08)", flex: "0 0 auto",
     }}>
       <span style={{ position: "absolute", top: 3, left: on ? w - k - 3 : 3, width: k, height: k, borderRadius: "50%",
@@ -158,7 +158,7 @@ export function Field({ label, hint, error, children, style }) {
 }
 const inputBase = {
   width: "100%", height: 46, padding: "0 15px", borderRadius: 13, fontFamily: F, fontSize: 14,
-  color: "var(--ink-900)", background: "#fff", border: "1px solid var(--line)", outline: "none",
+  color: "var(--ink-900)", background: "var(--surface)", border: "1px solid var(--line)", outline: "none",
   boxShadow: "var(--shadow-sm)", boxSizing: "border-box",
 };
 export function Input({ icon, invalid, style, ...p }) {
@@ -234,7 +234,7 @@ export function Select({ options = [], value, onChange, style, placeholder, size
         <span style={{ position: "absolute", right: sm ? 11 : 13, top: "50%", color: open ? "var(--primary-500)" : "var(--ink-400)", pointerEvents: "none", display: "flex", transition: "transform .2s cubic-bezier(.2,.8,.2,1), color .15s", transform: `translateY(-50%) rotate(${open ? 180 : 0}deg)` }}><Icons.chevDown size={sm ? 15 : 16} /></span>
       </button>
       <Floating anchorRef={ref} open={open} onClose={() => setOpen(false)} estHeight={Math.min(options.length * 42 + 12, 280)}>
-        <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 13, boxShadow: "var(--shadow-lg)", padding: 5 }}>
+        <div style={{ background: "var(--veil)", border: "1px solid var(--line)", borderRadius: 13, boxShadow: "var(--shadow-lg)", padding: 5 }}>
           {options.map((o) => {
             const v = o.value ?? o, on = v === value;
             return (
@@ -308,7 +308,7 @@ export function TimeField({ value, onChange, style }) {
         <span style={{ fontFamily: F, fontSize: 11, fontWeight: 600, color: "var(--ink-400)" }}>WIB</span>
       </button>
       <Floating anchorRef={ref} open={open} onClose={() => setOpen(false)} width={Math.max(232, 0)} estHeight={300}>
-        <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 16, boxShadow: "var(--shadow-lg)", overflow: "hidden" }}>
+        <div style={{ background: "var(--veil)", border: "1px solid var(--line)", borderRadius: 16, boxShadow: "var(--shadow-lg)", overflow: "hidden" }}>
           <div style={{ display: "flex", borderBottom: "1px solid var(--line-soft)" }}>
             <TimeColumn items={HOURS} value={hh} label="Jam" onPick={(h) => set(h, mm)} />
             <div style={{ width: 1, background: "var(--line-soft)", margin: "8px 0" }} />
@@ -316,7 +316,7 @@ export function TimeField({ value, onChange, style }) {
           </div>
           <div style={{ display: "flex", gap: 8, padding: 8 }}>
             <button type="button" onClick={() => { const n = new Date(Date.now() + 7 * 3600 * 1000); set(n.getUTCHours(), n.getUTCMinutes()); }}
-              style={{ flex: 1, height: 34, borderRadius: 9, border: "1px solid var(--line)", background: "#fff", cursor: "pointer", fontFamily: F, fontSize: 12, fontWeight: 600, color: "var(--ink-600)" }}>Sekarang</button>
+              style={{ flex: 1, height: 34, borderRadius: 9, border: "1px solid var(--line)", background: "var(--surface)", cursor: "pointer", fontFamily: F, fontSize: 12, fontWeight: 600, color: "var(--ink-600)" }}>Sekarang</button>
             <button type="button" onClick={() => setOpen(false)}
               style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: "var(--primary-500)", cursor: "pointer", fontFamily: F, fontSize: 12, fontWeight: 700, color: "#fff" }}>Selesai</button>
           </div>
@@ -355,7 +355,7 @@ export function DateField({ value, onChange, min, style }) {
         <span style={{ flex: 1, color: value ? "var(--ink-900)" : "var(--ink-400)" }}>{value ? fmtDateID(value) : "Pilih tanggal"}</span>
       </button>
       <Floating anchorRef={ref} open={open} onClose={() => setOpen(false)} width={290} estHeight={320}>
-        <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 16, boxShadow: "var(--shadow-lg)", padding: 12, width: 290 }}>
+        <div style={{ background: "var(--veil)", border: "1px solid var(--line)", borderRadius: 16, boxShadow: "var(--shadow-lg)", padding: 12, width: 290 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <button type="button" onClick={() => shift(-1)} style={navBtn}><Icons.chevLeft size={17} /></button>
             <span style={{ fontFamily: F, fontWeight: 700, fontSize: 13.5, color: "var(--ink-900)" }}>{MONFULL_ID[vm.m]} {vm.y}</span>
@@ -391,7 +391,7 @@ export function Checkbox({ checked, onChange, disabled, size = 18 }) {
     <button type="button" role="checkbox" aria-checked={!!checked} disabled={disabled}
       onClick={(e) => { e.stopPropagation(); if (!disabled && onChange) onChange(!checked); }}
       style={{ width: size, height: size, flex: "0 0 auto", borderRadius: 6, padding: 0, cursor: disabled ? "not-allowed" : "pointer",
-        border: `1.5px solid ${checked ? "var(--primary-500)" : "var(--line)"}`, background: checked ? "var(--primary-grad)" : "#fff",
+        border: `1.5px solid ${checked ? "var(--primary-500)" : "var(--line)"}`, background: checked ? "var(--primary-grad)" : "var(--surface)",
         color: "#fff", display: "grid", placeItems: "center", boxShadow: checked ? "var(--shadow-primary)" : "var(--shadow-sm)", transition: "background .15s, border-color .15s" }}>
       {checked && <Icons.check size={size - 6} sw={3} />}
     </button>
@@ -429,11 +429,11 @@ export function Slider({ value, onChange, onCommit, min = 0, max = 100, step = 1
 /* ---------------- Number stepper (custom, no native spinner) ---------------- */
 export function NumberField({ value, onChange, min = 0, max = 9999, step = 1, suffix, style }) {
   const clamp = (v) => Math.max(min, Math.min(max, v));
-  const btn = (disabled) => ({ width: 40, height: 44, flex: "0 0 auto", borderRadius: 11, border: "1px solid var(--line)", background: "#fff", cursor: disabled ? "not-allowed" : "pointer", color: disabled ? "var(--ink-300)" : "var(--ink-700)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)" });
+  const btn = (disabled) => ({ width: 40, height: 44, flex: "0 0 auto", borderRadius: 11, border: "1px solid var(--line)", background: "var(--surface)", cursor: disabled ? "not-allowed" : "pointer", color: disabled ? "var(--ink-300)" : "var(--ink-700)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)" });
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: 8, ...style }}>
       <button type="button" disabled={value <= min} onClick={() => onChange(clamp(value - step))} style={btn(value <= min)}><span style={{ fontSize: 20, fontWeight: 600, lineHeight: 1, marginTop: -2 }}>−</span></button>
-      <div style={{ minWidth: 58, height: 44, borderRadius: 12, border: "1px solid var(--line)", background: "#fff", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center", fontFamily: F, fontSize: 15, fontWeight: 600, color: "var(--ink-900)", fontVariantNumeric: "tabular-nums", padding: "0 12px" }}>{value}{suffix ? <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-400)", marginLeft: 3 }}>{suffix}</span> : null}</div>
+      <div style={{ minWidth: 58, height: 44, borderRadius: 12, border: "1px solid var(--line)", background: "var(--surface)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center", fontFamily: F, fontSize: 15, fontWeight: 600, color: "var(--ink-900)", fontVariantNumeric: "tabular-nums", padding: "0 12px" }}>{value}{suffix ? <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-400)", marginLeft: 3 }}>{suffix}</span> : null}</div>
       <button type="button" disabled={value >= max} onClick={() => onChange(clamp(value + step))} style={btn(value >= max)}><span style={{ fontSize: 20, fontWeight: 600, lineHeight: 1, marginTop: -2 }}>+</span></button>
     </div>
   );
@@ -449,7 +449,7 @@ export function Segmented({ options, value, onChange, full }) {
           <button key={v} onClick={() => onChange(v)} style={{
             flex: full ? 1 : "0 0 auto", border: "none", cursor: "pointer", padding: "8px 16px", borderRadius: 9,
             fontFamily: F, fontWeight: on ? 600 : 500, fontSize: 13,
-            background: on ? "#fff" : "transparent", color: on ? "var(--ink-900)" : "var(--ink-500)",
+            background: on ? "var(--surface)" : "transparent", color: on ? "var(--ink-900)" : "var(--ink-500)",
             boxShadow: on ? "var(--shadow-sm)" : "none", transition: "all .15s", whiteSpace: "nowrap",
           }}>{o.label ?? o}</button>
         );
@@ -474,7 +474,7 @@ export function BrandAvatar({ brand, size = 34, ring, src }) {
   const b = typeof brand === "string" ? BRANDS[brand] : brand;
   const [failed, setFailed] = useState(false);
   const radius = size > 40 ? 13 : 10;
-  const shadow = ring ? `0 0 0 3px #fff, 0 6px 14px ${b?.soft || "var(--line)"}` : `0 4px 10px rgba(90,96,120,.14)`;
+  const shadow = ring ? `0 0 0 3px var(--surface), 0 6px 14px ${b?.soft || "var(--line)"}` : `0 4px 10px rgba(90,96,120,.14)`;
   // Real Instagram profile photo when available; fall back to initials if it
   // fails to load (IG CDN URLs can expire).
   if (src && !failed) return (
@@ -624,7 +624,7 @@ export function Modal({ open, onClose, children, width = 460 }) {
   return createPortal(
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, display: "grid", placeItems: "center", padding: 24,
       background: "rgba(62,67,81,.32)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", animation: "scFade .15s" }}>
-      <div onClick={e => e.stopPropagation()} style={{ width, maxWidth: "100%", background: "#fff", borderRadius: "var(--r-xl)",
+      <div onClick={e => e.stopPropagation()} style={{ width, maxWidth: "100%", background: "var(--surface)", borderRadius: "var(--r-xl)",
         boxShadow: "var(--shadow-lg)", animation: "scPop .18s", maxHeight: "88vh", overflow: "auto" }} className="sc-scroll">
         {children}
       </div>
@@ -702,7 +702,7 @@ export function Toast({ toast, onClose }) {
   return (
     <div onClick={onClose} role="status" aria-live="polite" title="Tutup"
       style={{ position: "fixed", bottom: 22, right: 22, left: "auto", zIndex: 300, maxWidth: "min(380px, calc(100vw - 44px))",
-        display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 14, padding: "11px 15px 11px 11px",
+        display: "flex", alignItems: "center", gap: 12, background: "var(--surface)", borderRadius: 14, padding: "11px 15px 11px 11px",
         boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", animation: "scToast .26s cubic-bezier(.2,.85,.25,1)",
         cursor: "pointer", fontFamily: F2, fontSize: 13.5, fontWeight: 500, color: "var(--ink-900)" }}>
       <span style={{ width: 30, height: 30, borderRadius: 10, flex: "0 0 auto", display: "grid", placeItems: "center", background: chipBg, color: fg }}>{ic}</span>

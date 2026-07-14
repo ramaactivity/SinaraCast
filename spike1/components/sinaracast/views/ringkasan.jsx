@@ -154,7 +154,7 @@ export function RingkasanView() {
                   const scopeDelta = series.length >= 2 ? series[series.length - 1].followers - series[0].followers : null;
                   const m = platMeta(a.platform);
                   return (
-                    <div key={a.id} style={{ border: "1px solid var(--line)", borderRadius: 14, padding: "13px 16px", background: "#fff" }}>
+                    <div key={a.id} style={{ border: "1px solid var(--line)", borderRadius: 14, padding: "13px 16px", background: "var(--surface)" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
                         <PlatIcon p={a.platform} size={20} />
                         <div style={{ minWidth: 0, flex: app.isMobile ? "1 1 60%" : "0 0 auto", width: app.isMobile ? "auto" : 150 }}>
@@ -239,7 +239,7 @@ export function RingkasanView() {
               <>
                 <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 12 }}>
                   {perf.map(({ k, label, icon, value }) => (
-                    <div key={k} style={{ border: "1px solid var(--line)", borderRadius: 14, padding: "13px 15px", background: "#fff" }}>
+                    <div key={k} style={{ border: "1px solid var(--line)", borderRadius: 14, padding: "13px 15px", background: "var(--surface)" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 7, fontFamily: FRk, fontSize: 11.5, color: "var(--ink-400)", fontWeight: 500 }}><span style={{ color: "var(--ink-300)" }}>{icon}</span>{label}</div>
                       <div style={{ fontFamily: FRk, fontSize: 24, fontWeight: 700, color: "var(--ink-900)", marginTop: 5, letterSpacing: "-.02em" }}>{fmtCompact(value ?? sum(k))}</div>
                     </div>
@@ -395,8 +395,8 @@ function PerContent({ runs, isMobile }) {
 // Row container: link to the IG post when available, hover affordance either way.
 function RowShell({ r, grid, children }) {
   const base = grid
-    ? { display: "grid", gridTemplateColumns: grid, gap: 0, alignItems: "center", padding: "10px 13px", border: "1px solid var(--line)", borderRadius: 13, background: "#fff", transition: "box-shadow .14s, border-color .14s" }
-    : { display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, background: "#fff", transition: "box-shadow .14s, border-color .14s" };
+    ? { display: "grid", gridTemplateColumns: grid, gap: 0, alignItems: "center", padding: "10px 13px", border: "1px solid var(--line)", borderRadius: 13, background: "var(--surface)", transition: "box-shadow .14s, border-color .14s" }
+    : { display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, background: "var(--surface)", transition: "box-shadow .14s, border-color .14s" };
   const hover = {
     onMouseEnter: (e) => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.borderColor = "var(--primary-200)"; },
     onMouseLeave: (e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "var(--line)"; },

@@ -114,7 +114,7 @@ function TypeCards({ options, value, onChange, accent, soft }) {
         return (
           <button key={o.value} onClick={() => onChange(o.value)}
             style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, padding: "12px 14px", borderRadius: 13, cursor: "pointer", textAlign: "left", minWidth: 0,
-              border: on ? `1.5px solid ${accent}` : "1px solid var(--line)", background: on ? soft : "#fff",
+              border: on ? `1.5px solid ${accent}` : "1px solid var(--line)", background: on ? soft : "var(--surface)",
               boxShadow: on ? "var(--shadow-sm)" : "none", transition: "border-color .15s, background .15s, box-shadow .15s" }}>
             <span style={{ color: on ? accent : "var(--ink-400)", display: "inline-flex" }}>{o.icon}</span>
             <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13.5, color: on ? "var(--ink-900)" : "var(--ink-700)" }}>{o.label}</span>
@@ -129,7 +129,7 @@ function TypeCards({ options, value, onChange, accent, soft }) {
 // One-tap presets for schedule date/time — the most repeated action on this page.
 function QuickChip({ on, children, onClick }) {
   return (
-    <button onClick={onClick} style={{ border: on ? "1px solid var(--primary-300)" : "1px solid var(--line)", background: on ? "var(--primary-100)" : "#fff",
+    <button onClick={onClick} style={{ border: on ? "1px solid var(--primary-300)" : "1px solid var(--line)", background: on ? "var(--primary-100)" : "var(--surface)",
       color: on ? "#E0922A" : "var(--ink-500)", fontFamily: FCo, fontSize: 11.5, fontWeight: 600, padding: "5px 11px", borderRadius: 999, cursor: "pointer", transition: "all .14s" }}>{children}</button>
   );
 }
@@ -453,7 +453,7 @@ export function ComposerView() {
                           <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.6)", pointerEvents: "none" }}><Icons.play size={26} /></span>
                         </div>
                       : <MediaThumb seed={i} src={m.url} w={isFeed ? 96 : 90} ratio={isFeed ? 1 : 16 / 9} label={isFeed ? "Feed" : "9:16"} onClick={() => setView(i)} />}
-                    <button onClick={() => setMedia(ms => ms.filter((_, x) => x !== i))} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
+                    <button onClick={() => setMedia(ms => ms.filter((_, x) => x !== i))} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "var(--surface)", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
                   </div>
                 ))}
                 {isFeed && media.length < 10 && (
@@ -523,7 +523,7 @@ export function ComposerView() {
               <button key={o.id} onClick={() => app.go("composer", { ch: o.ch, postId: o.id })}
                 onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-md)"; e.currentTarget.style.borderColor = "var(--primary-200)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "var(--line)"; }}
-                style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, cursor: "pointer", background: "#fff", textAlign: "left", width: "100%", transition: "box-shadow .14s, border-color .14s" }}>
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, cursor: "pointer", background: "var(--surface)", textAlign: "left", width: "100%", transition: "box-shadow .14s, border-color .14s" }}>
                 <BrandAvatar brand={b} src={channel.avatarUrl} size={32} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -564,7 +564,7 @@ function PhonePreview({ type, media, channel, b, caption, onView, onUpload }) {
 
   if (isFeed) {
     return (
-      <div onClick={m ? onView : onUpload} title={m ? "Klik untuk pratinjau besar" : "Unggah gambar"} style={{ width: 216, margin: "0 auto", border: "1px solid var(--line)", borderRadius: 16, overflow: "hidden", background: "#fff", boxShadow: "var(--shadow-sm)", cursor: "pointer" }}>
+      <div onClick={m ? onView : onUpload} title={m ? "Klik untuk pratinjau besar" : "Unggah gambar"} style={{ width: 216, margin: "0 auto", border: "1px solid var(--line)", borderRadius: 16, overflow: "hidden", background: "var(--surface)", boxShadow: "var(--shadow-sm)", cursor: "pointer" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 10px" }}>
           <BrandAvatar brand={b} src={channel.avatarUrl} size={22} />
           <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 11, color: "var(--ink-900)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{handle}</span>
@@ -718,11 +718,11 @@ function CaptionAI({ accent, soft, caption, onApply, token, toast, channelDbId, 
       </div>
 
       {editOpen && (
-        <div style={{ marginBottom: 12, border: "1px solid var(--line)", borderRadius: 12, padding: 13, background: "#fff" }}>
+        <div style={{ marginBottom: 12, border: "1px solid var(--line)", borderRadius: 12, padding: 13, background: "var(--surface)" }}>
           <div style={{ fontFamily: FCo, fontSize: 12, color: "var(--ink-500)", lineHeight: 1.45, marginBottom: 10 }}>Setel sekali, dipakai terus untuk akun ini. Bisa diubah kapan saja.</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
             {PERSONA_PRESETS.map((p) => (
-              <button key={p.label} onClick={() => setP("voice", p.voice)} style={{ border: "1px solid var(--line)", background: "#fff", color: "var(--ink-600)", fontFamily: FCo, fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 999, cursor: "pointer" }}>{p.label}</button>
+              <button key={p.label} onClick={() => setP("voice", p.voice)} style={{ border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-600)", fontFamily: FCo, fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 999, cursor: "pointer" }}>{p.label}</button>
             ))}
           </div>
           <Field label="Karakter & gaya bahasa" hint="Inti kepribadian akun ini." style={{ marginBottom: 11 }}>
@@ -772,7 +772,7 @@ function CaptionAI({ accent, soft, caption, onApply, token, toast, channelDbId, 
       </div>
 
       {result && (
-        <div style={{ marginTop: 12, border: `1px solid ${accent}`, borderRadius: 12, padding: 12, background: "#fff" }}>
+        <div style={{ marginTop: 12, border: `1px solid ${accent}`, borderRadius: 12, padding: 12, background: "var(--surface)" }}>
           <div style={{ fontFamily: FCo, fontSize: 10.5, fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 7 }}>Saran AI</div>
           <div style={{ fontFamily: FCo, fontSize: 13, color: "var(--ink-800)", lineHeight: 1.5, whiteSpace: "pre-wrap", maxHeight: 260, overflow: "auto" }}>{result}</div>
           <div style={{ display: "flex", gap: 9, marginTop: 12, flexWrap: "wrap" }}>

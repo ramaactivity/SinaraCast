@@ -48,6 +48,26 @@
   --glass-border: rgba(255, 255, 255, 0.65);
   --sidebar-glass: rgba(255, 255, 255, 0.38);
 
+  /* ---------- SURFACE ROLES (theme-swappable) ----------
+     Every component draws its panels/cards/chips from these named roles
+     instead of raw white, so a dark theme only has to re-declare them once.
+     Light values = exactly what the app used before (no visible change). */
+  --surface:      #FFFFFF;                  /* solid cards, panels, inputs, secondary buttons, active nav */
+  --surface-2:    rgba(255, 255, 255, 0.60);/* softer/secondary fill, inactive rows */
+  --raise:        rgba(255, 255, 255, 0.50);/* translucent hover / selected over the gradient */
+  --raise-2:      rgba(255, 255, 255, 0.72);/* stronger hover / frosted chips */
+  --veil:         rgba(255, 255, 255, 0.90);/* near-opaque: popovers, drawer, floating menus */
+  --faint:        rgba(255, 255, 255, 0.18);/* faint wash */
+  --shell-bg:     rgba(255, 255, 255, 0.28);/* the outer app-shell glass */
+  --shell-border: rgba(255, 255, 255, 0.50);/* app-shell / sidebar hairline */
+  --on-accent:    #FFFFFF;                  /* text/icon on colored (primary/danger) fills — stays white in dark */
+  /* sticky Topbar fill — flat frosted tint (no corner-anchored radials, so it
+     blends seamlessly with the shell). Opaque base hides content scrolling under. */
+  --topbar-bg:    linear-gradient(rgba(255,255,255,.42), rgba(255,255,255,.42)), var(--canvas);
+  --panel:        rgba(255, 255, 255, 0.62);/* core translucent frosted card (Panel) */
+  --panel-strong: rgba(255, 255, 255, 0.86);/* emphasized Panel (strong) */
+  --track:        #D9DCE3;                  /* toggle / switch off-track */
+
   /* Pale multi-hue background gradient (cream → lavender → mint) */
   --app-bg:
     radial-gradient(120% 90% at 0% 0%,   #FBF3DF 0%, transparent 45%),
@@ -206,6 +226,95 @@
   --shadow-green:   0 12px 26px rgba(38, 166, 154, 0.32);
 }
 
+/* Gelap — creative dark. Not flat black: a warm violet-charcoal with layered
+   surfaces, an aurora-tinted backdrop (violet / lime / teal corner glows echoing
+   the light themes), and vivid violet + lime accents. Inverts ink, lines,
+   surfaces, shadows and status washes; brand-gradient buttons keep white text. */
+[data-sc-theme="gelap"] {
+  /* accent — vivid violet (brighter than light so it reads on dark) + lime */
+  --primary-100: rgba(154, 133, 241, 0.16);  /* subtle accent wash (active nav / selected bg) */
+  --primary-200: rgba(154, 133, 241, 0.26);
+  --primary-300: #8E79E8;
+  --primary-400: #A896F6;
+  --primary-500: #BBA9FF;                     /* active text / icons — light enough for dark */
+  --primary-grad: linear-gradient(135deg, #A38CF6 0%, #7A5CE8 100%);
+
+  --green-100: rgba(174, 219, 86, 0.15);
+  --green-200: rgba(174, 219, 86, 0.24);
+  --green-300: #A6D257;
+  --green-400: #BEE267;
+  --green-500: #C7EC6E;                        /* lime accent text on dark */
+  --green-grad: linear-gradient(135deg, #C3E97F 0%, #9AD24F 100%);
+
+  --teal-grad: linear-gradient(150deg, #A896F6 0%, #7A5CE8 100%);
+
+  --card-yellow: linear-gradient(135deg, rgba(250,227,161,.16) 0%, rgba(249,168,38,.14) 100%);
+  --card-mint:   linear-gradient(135deg, rgba(189,231,207,.16) 0%, rgba(95,190,107,.14) 100%);
+  --card-lilac:  linear-gradient(135deg, rgba(230,215,242,.18) 0%, rgba(149,121,196,.16) 100%);
+
+  /* ink — light on dark */
+  --ink-900: #EEECF5;
+  --ink-700: #C8C4D7;
+  --ink-500: #9C97AE;
+  --ink-400: #847F94;
+  --ink-300: #5C5770;
+
+  /* surfaces — layered charcoal-violet */
+  --canvas: #1A1622;
+  --glass:        rgba(255, 255, 255, 0.05);
+  --glass-strong: rgba(255, 255, 255, 0.08);
+  --glass-solid:  #26222F;
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --sidebar-glass: rgba(255, 255, 255, 0.03);
+
+  --surface:      #26222F;
+  --surface-2:    rgba(255, 255, 255, 0.045);
+  --raise:        rgba(255, 255, 255, 0.06);
+  --raise-2:      rgba(255, 255, 255, 0.10);
+  --veil:         #2C2838;
+  --faint:        rgba(255, 255, 255, 0.05);
+  --shell-bg:     rgba(28, 24, 38, 0.52);
+  --shell-border: rgba(255, 255, 255, 0.08);
+  --on-accent:    #FFFFFF;
+  --topbar-bg:    linear-gradient(rgba(255,255,255,.04), rgba(255,255,255,.04)), var(--canvas);
+  --panel:        rgba(255, 255, 255, 0.05);
+  --panel-strong: rgba(255, 255, 255, 0.09);
+  --track:        rgba(255, 255, 255, 0.16);
+
+  /* aurora backdrop — deep base with soft violet / lime / teal corner glows */
+  --app-bg:
+    radial-gradient(120% 90% at 0% 0%,   rgba(122, 92, 232, 0.22) 0%, transparent 48%),
+    radial-gradient(120% 90% at 100% 0%, rgba(174, 219, 86, 0.10) 0%, transparent 52%),
+    radial-gradient(120% 120% at 100% 100%, rgba(54, 176, 160, 0.14) 0%, transparent 55%),
+    linear-gradient(135deg, #1C1727 0%, #191521 55%, #171320 100%);
+
+  --line: rgba(255, 255, 255, 0.08);
+  --line-soft: rgba(255, 255, 255, 0.05);
+
+  /* shadows — deep ambient (no cool-tinted light-mode glow), accent glows kept */
+  --shadow-sm: 0 6px 16px rgba(0, 0, 0, 0.32);
+  --shadow-md: 0 14px 34px rgba(0, 0, 0, 0.42);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.52);
+  --shadow-primary: 0 12px 26px rgba(122, 92, 232, 0.42);
+  --shadow-green:   0 12px 26px rgba(139, 191, 57, 0.30);
+
+  /* status washes — translucent on dark instead of bright pastels */
+  --st-success-bg:    rgba(79, 179, 106, 0.16);
+  --st-publishing-bg: rgba(224, 146, 42, 0.16);
+  --st-scheduled-bg:  rgba(110, 139, 192, 0.18);
+  --st-failed-bg:     rgba(224, 106, 106, 0.16);
+  --st-skipped-bg:    rgba(154, 160, 171, 0.14);
+  --st-paused-bg:     rgba(149, 121, 196, 0.20);
+  --danger-bg:        rgba(224, 106, 106, 0.16);
+  --shadow-danger:    0 12px 26px rgba(224, 106, 106, 0.34);
+
+  /* brand accent soft-fills — muted for dark */
+  --b-mahakan-soft:  rgba(240, 162, 44, 0.16);
+  --b-tiska-soft:    rgba(95, 174, 107, 0.16);
+  --b-tetra-soft:    rgba(149, 121, 196, 0.18);
+  --b-outentika-soft:rgba(79, 182, 160, 0.16);
+}
+
 /* status pill helper */
 .sc-pill {
   display: inline-flex; align-items: center; gap: 6px;
@@ -246,9 +355,9 @@ html.app-locked, html.app-locked body { overflow: hidden; height: 100%; }
 .app-shell {
   flex: 1; min-width: 0;
   display: flex; height: 100%; overflow: hidden;
-  background: rgba(255,255,255,.28);
+  background: var(--shell-bg);
   backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
-  border: 1px solid rgba(255,255,255,.5);
+  border: 1px solid var(--shell-border);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-lg);
 }
