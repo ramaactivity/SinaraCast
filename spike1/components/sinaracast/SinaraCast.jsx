@@ -7,6 +7,7 @@ import { Sidebar } from "./shell";
 import { Panel, EmptyState, Toast, ConfirmDialog, AlertDialog, Spinner } from "./ui";
 import { Landing } from "./views/landing";
 import { supabase } from "./supabaseClient";
+import { readTheme, writeTheme, DEFAULT_THEME } from "./theme";
 import { RulesView } from "./views/rules";
 import { EditorView } from "./views/editor";
 import { ConnectionsView } from "./views/connections";
@@ -73,6 +74,18 @@ export default function SinaraCast() {
   }, [session, showSignIn]);
   const [isMobile, setIsMobile] = uA(false);
   const [drawerOpen, setDrawerOpen] = uA(false);
+
+  // Color theme (personalization). Seeded from localStorage so the pick
+  // survives a refresh with no flash; applied as data-sc-theme on <html> only
+  // while signed in, so the marketing landing always keeps the default look.
+  const [theme, setThemeState] = uA(typeof window !== "undefined" ? readTheme() : DEFAULT_THEME);
+  const setTheme = useCallback((id) => { setThemeState(id); writeTheme(id); }, []);
+  React.useEffect(() => {
+    const el = document.documentElement;
+    if (session) el.setAttribute("data-sc-theme", theme);
+    else el.removeAttribute("data-sc-theme");
+    return () => el.removeAttribute("data-sc-theme");
+  }, [theme, session]);
 
   // Responsive: below 860px the sidebar becomes an off-canvas drawer.
   React.useEffect(() => {
@@ -404,6 +417,7 @@ export default function SinaraCast() {
     toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, connectTikTokChannel, saveSettings,
     connectTelegram, disconnectTelegram, testTelegram, renameChannel: renameChannelFn, archiveChannel: archiveChannelFn, exportData, deleteEverything,
     skipToday, unskipToday, swapToday,
+    theme, setTheme,
     isMobile, openMenu: () => setDrawerOpen(true) };
 
   // Auth gate

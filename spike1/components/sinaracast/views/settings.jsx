@@ -4,7 +4,44 @@ import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { Panel, Button, Toggle, Field, Input, Progress, SectionTitle, Avatar, DateField, Slider } from "../ui";
+import { THEMES } from "../theme";
 const FSe = "var(--font)";
+
+// Theme picker — custom swatch cards (no native radio). Only colors change;
+// the whole app recolors instantly because every component reads CSS tokens.
+function ThemePicker() {
+  const app = useApp();
+  return (
+    <Panel>
+      <SectionTitle sub="Pilih warna favoritmu — cuma warnanya yang berubah, tata letaknya tetap">Tampilan</SectionTitle>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 4 }}>
+        {THEMES.map((t) => {
+          const active = app.theme === t.id;
+          return (
+            <button key={t.id} type="button" onClick={() => app.setTheme(t.id)} aria-pressed={active}
+              style={{ position: "relative", textAlign: "left", cursor: "pointer", padding: 14, borderRadius: 16,
+                border: active ? "2px solid var(--primary-500)" : "1px solid var(--line)",
+                background: active ? "var(--primary-100)" : "rgba(255,255,255,0.6)",
+                boxShadow: active ? "var(--shadow-sm)" : "none", transition: "border-color .18s, background .18s, box-shadow .18s" }}>
+              <div style={{ display: "flex", gap: 6, marginBottom: 11 }}>
+                {t.swatch.map((c, i) => (
+                  <span key={i} style={{ width: 24, height: 24, borderRadius: 8, background: c, boxShadow: "inset 0 0 0 1px rgba(0,0,0,.06)" }} />
+                ))}
+              </div>
+              <div style={{ fontFamily: FSe, fontWeight: 600, fontSize: 13.5, color: "var(--ink-900)" }}>{t.name}</div>
+              <div style={{ fontFamily: FSe, fontSize: 11.5, color: "var(--ink-500)", marginTop: 1 }}>{t.sub}</div>
+              {active && (
+                <span style={{ position: "absolute", top: 11, right: 11, width: 20, height: 20, borderRadius: "50%", background: "var(--primary-grad)", color: "#fff", display: "grid", placeItems: "center", boxShadow: "var(--shadow-primary)" }}>
+                  <Icons.check size={12} />
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </Panel>
+  );
+}
 
 function Row({ title, body, children }) {
   return (
@@ -46,6 +83,9 @@ export function SettingsView() {
               </div>
             )}
           </Panel>
+
+          {/* appearance / theme */}
+          <ThemePicker />
 
           {/* alerts */}
           <Panel>
