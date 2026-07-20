@@ -112,6 +112,9 @@ function buildVideoPostInfo(post) {
     disable_stitch: o.allow_stitch === false,
     brand_organic_toggle: !!o.your_brand,                       // "your brand" (organic) — ok when private
     brand_content_toggle: TIKTOK_AUDITED && !!o.branded_content, // paid partnership — needs public, so audited-only
+    // Sampul: TikTok hanya menerima frame dari videonya (dalam milidetik). Tidak ada
+    // cara mengunggah gambar sampul sendiri lewat API, jadi tanpa ini TikTok memilih sendiri.
+    ...(post.cover_offset_ms != null ? { video_cover_timestamp_ms: post.cover_offset_ms } : {}),
   };
 }
 

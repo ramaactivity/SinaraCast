@@ -240,6 +240,11 @@ export function ComposerView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chId, isTikTok]);
 
+  // Pindah ke TikTok: gambar sampul sendiri tidak berlaku di sana, balik ke otomatis.
+  useEffect(() => {
+    if (type === "tiktok_video" && coverMode === "image") setCoverMode("auto");
+  }, [type, coverMode]);
+
   // Geser pratinjau sampul ke detik yang dipilih (video-nya sendiri jadi pratinjaunya,
   // jadi tidak perlu menggambar frame ke canvas).
   useEffect(() => {
@@ -386,7 +391,7 @@ export function ComposerView() {
     const payload = {
       channelDbId: channel._id, postType: type, caption: hasCaption ? caption.trim() : null,
       firstComment: (hasCaption && !isTikVid) ? firstComment.trim() : null, scheduledAtISO: scheduledISO(), status, images: media,
-      coverOffsetMs: isReels && coverMode === "frame" ? Math.round(coverMs) : null,
+      coverOffsetMs: isVideoType && coverMode === "frame" ? Math.round(coverMs) : null,
       coverPath: isReels && coverMode === "image" ? (coverImg?.storage_path || null) : null,
       tiktokOptions,
     };
@@ -509,18 +514,19 @@ export function ComposerView() {
 
             {/* Sampul Reels — Instagram menerima frame dari videonya (thumb_offset)
                 atau gambar terpisah (cover_url). Keduanya opsional. */}
-            {isReels && media.length > 0 && isVid(media[0]) && (
+            {isVideoType && media.length > 0 && isVid(media[0]) && (
               <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
-                <div style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13, color: "var(--ink-800)" }}>Sampul Reels</div>
+                <div style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13, color: "var(--ink-800)" }}>{isTikVid ? "Sampul video" : "Sampul Reels"}</div>
                 <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 3, marginBottom: 11 }}>Gambar yang orang lihat di profil dan feed sebelum videonya diputar.</div>
                 <Segmented full value={coverMode} onChange={setCoverMode} options={[
                   { value: "auto", label: "Otomatis" },
                   { value: "frame", label: "Ambil dari video" },
-                  { value: "image", label: "Unggah gambar" },
+                  // TikTok tidak menerima gambar sampul terpisah lewat API, hanya frame dari videonya.
+                  ...(isTikVid ? [] : [{ value: "image", label: "Unggah gambar" }]),
                 ]} />
 
                 {coverMode === "auto" && (
-                  <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 11, lineHeight: 1.5 }}>Instagram yang memilih sampulnya, biasanya dari awal video.</div>
+                  <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 11, lineHeight: 1.5 }}>{isTikVid ? "TikTok yang memilih sampulnya, biasanya dari awal video." : "Instagram yang memilih sampulnya, biasanya dari awal video."}</div>
                 )}
 
                 {coverMode === "frame" && (
@@ -542,7 +548,7 @@ export function ComposerView() {
                   </div>
                 )}
 
-                {coverMode === "image" && (
+                {coverMode === "image" && !isTikVid && (
                   <div style={{ display: "flex", gap: 14, marginTop: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
                     <input ref={coverFileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={onCoverFile} style={{ display: "none" }} />
                     {coverImg ? (

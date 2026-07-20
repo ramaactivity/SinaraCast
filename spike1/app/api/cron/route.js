@@ -275,7 +275,7 @@ export async function POST(request) {
   const ttIds = Object.keys(ttById);
   if (ttIds.length) {
     const { data: posts = [] } = await svc.from("scheduled_post")
-      .select("id, channel_id, post_type, caption, scheduled_at, status, tiktok_options")
+      .select("id, channel_id, post_type, caption, scheduled_at, status, tiktok_options, cover_offset_ms")
       .eq("status", "scheduled").eq("post_type", "tiktok_video")
       .lte("scheduled_at", new Date().toISOString())
       .in("channel_id", ttIds);
