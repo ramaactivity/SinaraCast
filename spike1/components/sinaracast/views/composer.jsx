@@ -4,7 +4,7 @@ import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { uploadPoolImage, uploadReelVideo, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost, loadContentPlan, linkPlanToOneoff, updateChannelPersona } from "../dataLayer";
-import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, DateField, Checkbox, MediaThumb, SectionTitle, Spinner, Select, Status } from "../ui";
+import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, DateField, Checkbox, MediaThumb, SectionTitle, Spinner, Select, Status, Segmented, Slider } from "../ui";
 import { Lightbox } from "../lightbox";
 const { useState: uCo, useRef, useEffect } = React;
 const FCo = "var(--font)";
@@ -162,6 +162,15 @@ export function ComposerView() {
   const setTkField = (k, v) => setTk((s) => ({ ...s, [k]: v }));
   const [view, setView] = uCo(null); // lightbox index, or null
   const [dragOver, setDragOver] = uCo(false);
+  // Sampul Reels: "auto" (Instagram yang pilih), "frame" (ambil detik tertentu dari
+  // videonya), "image" (unggah gambar sampul sendiri).
+  const [coverMode, setCoverMode] = uCo("auto");
+  const [coverMs, setCoverMs] = uCo(0);
+  const [coverImg, setCoverImg] = uCo(null); // { storage_path, url }
+  const [vidDur, setVidDur] = uCo(0);        // durasi video (detik), untuk penggeser
+  const [coverBusy, setCoverBusy] = uCo(false);
+  const coverFileRef = useRef(null);
+  const coverVidRef = useRef(null);
   const fileRef = useRef(null);
   const replaceIdxRef = useRef(null); // when set, the next upload replaces this media index
   function startReplace(idx) { replaceIdxRef.current = idx; fileRef.current?.click(); }
@@ -170,7 +179,7 @@ export function ComposerView() {
   useEffect(() => {
     if (!postId) return;
     let active = true;
-    loadScheduledPost(postId).then(({ post, media: m }) => {
+    loadScheduledPost(postId).then(({ post, media: m, coverUrl }) => {
       if (!active || !post) { if (active) setLoading(false); return; }
       setType(["feed", "reels", "tiktok_video"].includes(post.post_type) ? post.post_type : "story");
       setCaption(post.caption || "");
@@ -179,6 +188,8 @@ export function ComposerView() {
       const o = post.tiktok_options || {};
       if (post.post_type === "tiktok_video") setTk((s) => ({ ...s, privacy: o.privacy_level || "SELF_ONLY", allowComment: o.allow_comment !== false, allowDuet: o.allow_duet !== false, allowStitch: o.allow_stitch !== false, commercial: !!o.commercial_content, yourBrand: !!o.your_brand, branded: !!o.branded_content, musicOk: !!o.music_ok }));
       if (post.scheduled_at) { const p = isoToWibParts(post.scheduled_at); setDate(p.date); setTime(p.time); }
+      if (post.cover_path) { setCoverMode("image"); setCoverImg({ storage_path: post.cover_path, url: coverUrl }); }
+      else if (post.cover_offset_ms != null) { setCoverMode("frame"); setCoverMs(post.cover_offset_ms); }
       setMedia(m || []);
       setLoading(false);
     }).catch(() => active && setLoading(false));
@@ -229,6 +240,15 @@ export function ComposerView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chId, isTikTok]);
 
+  // Geser pratinjau sampul ke detik yang dipilih (video-nya sendiri jadi pratinjaunya,
+  // jadi tidak perlu menggambar frame ke canvas).
+  useEffect(() => {
+    const v = coverVidRef.current;
+    if (!v || coverMode !== "frame") return;
+    const t = coverMs / 1000;
+    if (isFinite(t) && Math.abs(v.currentTime - t) > 0.05) { try { v.currentTime = t; } catch (_) { /* belum siap seek */ } }
+  }, [coverMs, coverMode]);
+
   const isFeed = type === "feed";
   const isReels = type === "reels";
   const isTikVid = type === "tiktok_video";
@@ -277,7 +297,13 @@ export function ComposerView() {
         const maxSec = isTikVid ? (tkInfo?.maxVideoSec || 600) : 900;
         if (meta.duration && meta.duration > maxSec) { app.toast(isTikVid ? `Video TikTok maksimal ${Math.floor(maxSec / 60)} menit` : "Reels maksimal 15 menit", "error"); continue; }
         setUploading(true);
-        try { const row = await uploadReelVideo(file, channel.id, meta); setMedia([row]); app.toast("Video diunggah ✓", "success"); }
+        try {
+          const row = await uploadReelVideo(file, channel.id, meta);
+          setMedia([row]);
+          // Video baru: sampul lama tidak berlaku lagi.
+          setVidDur(meta.duration || 0); setCoverMode("auto"); setCoverMs(0); setCoverImg(null);
+          app.toast("Video diunggah ✓", "success");
+        }
         catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
         finally { setUploading(false); }
         continue;
@@ -324,6 +350,23 @@ export function ComposerView() {
     }
   }
 
+  // Unggah gambar sampul Reels sendiri (dipotong otomatis ke 9:16 seperti media lain).
+  async function onCoverFile(e) {
+    const file = (e.target.files || [])[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { app.toast("Sampul harus gambar JPG / PNG / WebP", "error"); return; }
+    setCoverBusy(true);
+    try {
+      const dim = await readDims(file);
+      const p = await prepareImage(file, Math.abs(dim.width / dim.height - 9 / 16) > 0.04 ? 9 / 16 : null);
+      const row = await uploadPoolImage(p.file, channel.id, { width: p.width, height: p.height });
+      setCoverImg(row);
+      app.toast(p.cropped ? "Sampul dipotong otomatis ke 9:16 ✓" : "Sampul diunggah ✓", "success");
+    } catch (err) { app.toast("Gagal unggah sampul: " + (err.message || err), "error"); }
+    finally { setCoverBusy(false); }
+  }
+
   // Combine the WIB date + time into a UTC ISO timestamp.
   const scheduledISO = () => new Date(`${date}T${time}:00+07:00`).toISOString();
 
@@ -343,6 +386,8 @@ export function ComposerView() {
     const payload = {
       channelDbId: channel._id, postType: type, caption: hasCaption ? caption.trim() : null,
       firstComment: (hasCaption && !isTikVid) ? firstComment.trim() : null, scheduledAtISO: scheduledISO(), status, images: media,
+      coverOffsetMs: isReels && coverMode === "frame" ? Math.round(coverMs) : null,
+      coverPath: isReels && coverMode === "image" ? (coverImg?.storage_path || null) : null,
       tiktokOptions,
     };
     try {
@@ -458,6 +503,64 @@ export function ComposerView() {
                 ))}
                 {isFeed && media.length < 10 && (
                   <button onClick={() => fileRef.current?.click()} title="Tambah gambar" style={{ width: 96, height: 96, borderRadius: 12, border: "1.5px dashed var(--line)", background: "rgba(140,144,158,.045)", cursor: "pointer", display: "grid", placeItems: "center", color: "var(--ink-400)" }}><Icons.plus size={22} /></button>
+                )}
+              </div>
+            )}
+
+            {/* Sampul Reels — Instagram menerima frame dari videonya (thumb_offset)
+                atau gambar terpisah (cover_url). Keduanya opsional. */}
+            {isReels && media.length > 0 && isVid(media[0]) && (
+              <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
+                <div style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13, color: "var(--ink-800)" }}>Sampul Reels</div>
+                <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 3, marginBottom: 11 }}>Gambar yang orang lihat di profil dan feed sebelum videonya diputar.</div>
+                <Segmented full value={coverMode} onChange={setCoverMode} options={[
+                  { value: "auto", label: "Otomatis" },
+                  { value: "frame", label: "Ambil dari video" },
+                  { value: "image", label: "Unggah gambar" },
+                ]} />
+
+                {coverMode === "auto" && (
+                  <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 11, lineHeight: 1.5 }}>Instagram yang memilih sampulnya, biasanya dari awal video.</div>
+                )}
+
+                {coverMode === "frame" && (
+                  <div style={{ display: "flex", gap: 14, marginTop: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+                    <video ref={coverVidRef} src={media[0].url} muted playsInline preload="metadata"
+                      onLoadedMetadata={(e) => {
+                        const d = e.currentTarget.duration;
+                        if (d && isFinite(d)) setVidDur(d);
+                        try { e.currentTarget.currentTime = Math.min(coverMs / 1000, Math.max(0, (d || 1) - 0.05)); } catch (_) { /* abaikan */ }
+                      }}
+                      style={{ width: 108, aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", background: "#000", display: "block" }} />
+                    <div style={{ flex: "1 1 200px", minWidth: 180, paddingTop: 4 }}>
+                      <Slider tone="amber" min={0} max={Math.max(200, Math.round((vidDur || 0) * 1000))} step={100} value={coverMs} onChange={setCoverMs} />
+                      <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-500)", marginTop: 8, fontVariantNumeric: "tabular-nums" }}>
+                        Detik {(coverMs / 1000).toFixed(1)}{vidDur ? ` dari ${vidDur.toFixed(1)} detik` : ""}
+                      </div>
+                      <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 6, lineHeight: 1.5 }}>Geser untuk memilih detik yang jadi sampul. Pratinjau di sebelah kiri mengikuti.</div>
+                    </div>
+                  </div>
+                )}
+
+                {coverMode === "image" && (
+                  <div style={{ display: "flex", gap: 14, marginTop: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+                    <input ref={coverFileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={onCoverFile} style={{ display: "none" }} />
+                    {coverImg ? (
+                      <div style={{ position: "relative" }}>
+                        <img src={coverImg.url} alt="Sampul" style={{ width: 108, aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block", background: "#000" }} />
+                        <button onClick={() => setCoverImg(null)} aria-label="Hapus sampul" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "var(--surface)", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
+                      </div>
+                    ) : (
+                      <div onClick={() => !coverBusy && coverFileRef.current?.click()}
+                        style={{ width: 108, aspectRatio: "9/16", borderRadius: 12, border: "1.5px dashed var(--line)", background: "rgba(140,144,158,.045)", cursor: coverBusy ? "default" : "pointer", display: "grid", placeItems: "center", color: "var(--ink-400)" }}>
+                        {coverBusy ? <Spinner size={20} /> : <Icons.upload size={20} />}
+                      </div>
+                    )}
+                    <div style={{ flex: "1 1 200px", minWidth: 180, paddingTop: 4 }}>
+                      <Button size="sm" variant="secondary" icon={coverBusy ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={coverBusy} onClick={() => coverFileRef.current?.click()}>{coverImg ? "Ganti sampul" : "Pilih gambar"}</Button>
+                      <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 8, lineHeight: 1.5 }}>Gambar tegak 9:16, JPG / PNG. Kalau bentuknya lain, dipotong otomatis di tengah.</div>
+                    </div>
+                  </div>
                 )}
               </div>
             )}

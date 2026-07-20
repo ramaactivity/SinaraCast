@@ -786,6 +786,7 @@ export async function createScheduledPost(p) {
   const { data: post, error: ep } = await supabase.from("scheduled_post").insert({
     channel_id: p.channelDbId, post_type: p.postType, caption: p.caption || null,
     first_comment: p.firstComment || null, scheduled_at: p.scheduledAtISO || null, status: p.status,
+    cover_offset_ms: p.coverOffsetMs ?? null, cover_path: p.coverPath || null,
     ...(p.tiktokOptions ? { tiktok_options: p.tiktokOptions } : {}),
   }).select("id").single();
   if (ep) throw ep;
@@ -811,12 +812,19 @@ export async function loadScheduledPost(id) {
     const a = byId[l.asset_id];
     return a ? { assetId: a.id, storage_path: a.storage_path, url: /^https?:\/\//i.test(a.storage_path || "") ? a.storage_path : supabase.storage.from(BUCKET).getPublicUrl(a.storage_path).data.publicUrl, width: a.width, height: a.height, format: a.format, bytes: a.bytes } : null;
   }).filter(Boolean);
-  return { post, media };
+  const coverUrl = post?.cover_path
+    ? (/^https?:\/\//i.test(post.cover_path) ? post.cover_path : supabase.storage.from(BUCKET).getPublicUrl(post.cover_path).data.publicUrl)
+    : null;
+  return { post, media, coverUrl };
 }
 
 // Update a one-off scheduled_post incl. media (full replace of media links).
 // images entries already in DB carry `assetId`; freshly uploaded ones don't.
 export async function updateScheduledPost(id, p) {
+  // A replaced/removed cover image leaves its old file behind — drop it here so
+  // storage doesn't fill up with abandoned covers.
+  const { data: prev } = await supabase.from("scheduled_post").select("cover_path").eq("id", id).maybeSingle();
+  if (prev?.cover_path && prev.cover_path !== (p.coverPath || null)) await deleteStoredImage(prev.cover_path);
   const finalAssetIds = [];
   for (const im of (p.images || [])) {
     if (im.assetId) { finalAssetIds.push(im.assetId); continue; }
@@ -830,6 +838,7 @@ export async function updateScheduledPost(id, p) {
   const { error: eu } = await supabase.from("scheduled_post").update({
     post_type: p.postType, caption: p.caption || null, first_comment: p.firstComment || null,
     scheduled_at: p.scheduledAtISO || null, status: p.status,
+    cover_offset_ms: p.coverOffsetMs ?? null, cover_path: p.coverPath || null,
     ...(p.tiktokOptions ? { tiktok_options: p.tiktokOptions } : {}),
   }).eq("id", id);
   if (eu) throw eu;

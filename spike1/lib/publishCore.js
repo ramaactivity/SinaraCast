@@ -32,6 +32,61 @@ async function igCall(method, path, params) {
   return { status: res.status, json };
 }
 
+// Instagram intermittently answers a perfectly good request with a generic,
+// non-permanent error ("An unknown error occurred", "Media ID is not available",
+// "The requested resource does not exist"). Observed in the wild on healthy
+// tokens + reachable media, on two accounts minutes apart — i.e. their side.
+// A real problem (bad media, missing permission) repeats and still surfaces.
+const TRANSIENT_IG = /unknown error|Media ID is not available|requested resource does not exist|temporarily|please try again|rate limit|internal error/i;
+const isTransientIg = (err) => TRANSIENT_IG.test(err?.message || "");
+
+// Create a media container, retrying transient Instagram errors. Safe to repeat:
+// a container that is never published just expires (24h), it posts nothing.
+async function createContainer(igUserId, params, tries = 3) {
+  let last = null;
+  for (let i = 0; i < tries; i++) {
+    const r = await igCall("POST", `/${igUserId}/media`, params);
+    if (r.json.id) return { id: r.json.id, retried: i > 0 };
+    last = r.json.error;
+    if (!isTransientIg(last)) break;
+    await sleep(2000 * (i + 1));
+  }
+  return { error: last?.message || "Gagal menyiapkan media di Instagram" };
+}
+
+// A Story that landed in the last 2 minutes. Used as a double-post guard: if a
+// media_publish call errors we cannot tell whether it took effect, so we ask
+// Instagram what is actually live before considering a retry.
+async function recentStoryId(igUserId, token) {
+  try {
+    const r = await igCall("GET", `/${igUserId}/stories`, { fields: "id,timestamp", limit: 5, access_token: token });
+    const cutoff = Date.now() - 2 * 60 * 1000;
+    for (const s of r.json.data || []) {
+      if (new Date(s.timestamp).getTime() >= cutoff) return s.id;
+    }
+  } catch (_) { /* guard is best-effort — never block publishing on it */ }
+  return null;
+}
+
+// Publish a finished container, retrying once on a transient error. For Stories
+// we check what is live before retrying so a publish that silently succeeded is
+// never posted twice.
+async function publishContainer(igUserId, token, creationId, { isStory = false } = {}) {
+  let r = await igCall("POST", `/${igUserId}/media_publish`, { creation_id: creationId, access_token: token });
+  if (r.json.id) return { id: r.json.id };
+  const firstErr = r.json.error;
+  if (!isTransientIg(firstErr)) return { error: firstErr?.message || "Gagal menerbitkan ke Instagram." };
+
+  await sleep(3000);
+  if (isStory) {
+    const landed = await recentStoryId(igUserId, token);
+    if (landed) return { id: landed, deduped: true }; // it actually went through
+  }
+  r = await igCall("POST", `/${igUserId}/media_publish`, { creation_id: creationId, access_token: token });
+  if (r.json.id) return { id: r.json.id, retried: true };
+  return { error: r.json.error?.message || firstErr?.message || "Gagal menerbitkan ke Instagram." };
+}
+
 // Absolute URLs (large videos hosted on Cloudflare R2) pass through untouched;
 // everything else is a Supabase Storage path.
 export const publicImageUrl = (storagePath) =>
@@ -280,7 +335,10 @@ export async function publishForRule(svc, { channel, rule, role, trigger, claimK
   }
 
   const okRuns = results.filter((r) => r && r.ok);
-  const failRuns = results.filter((r) => r && !r.ok);
+  // Video frames still transcoding are neither done nor failed — a later tick
+  // resumes them, so they must not trigger the failure alert.
+  const pendingRuns = results.filter((r) => r && r.processing);
+  const failRuns = results.filter((r) => r && !r.ok && !r.processing);
   const first = okRuns[0];
   const multi = picks.length > 1;
 
@@ -297,7 +355,7 @@ export async function publishForRule(svc, { channel, rule, role, trigger, claimK
         ? `“${rule.name}”: ${failRuns.length} dari ${picks.length} Story gagal terbit. ${failRuns[0].error || ""}`.trim()
         : `“${rule.name}”: ${failRuns[0].error || "gagal terbit"}`,
       runId: failRuns[0].runId });
-  } else if (trigger !== "scheduled") {
+  } else if (trigger !== "scheduled" && okRuns.length) {
     await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success",
       title: `Berhasil terbit — ${chLabel}`,
       body: multi ? `“${rule.name}” terbit ${okRuns.length} Story ke Instagram.` : `“${rule.name}” terbit ke Instagram.`,
@@ -306,7 +364,8 @@ export async function publishForRule(svc, { channel, rule, role, trigger, claimK
 
   return {
     ok: okRuns.length > 0, posted: okRuns.length, total: picks.length,
-    error: okRuns.length ? undefined : (failRuns[0]?.error || "Gagal terbit"),
+    processing: pendingRuns.length || undefined,
+    error: (okRuns.length || pendingRuns.length) ? undefined : (failRuns[0]?.error || "Gagal terbit"),
     mediaId: first?.mediaId, permalink: first?.permalink, runId: first?.runId,
   };
 }
@@ -329,13 +388,17 @@ async function publishOneStory(svc, { channel, run, pick }) {
   const cParams = pickIsVideo
     ? { media_type: "STORIES", video_url: mediaUrl, access_token: channel.access_token }
     : { media_type: "STORIES", image_url: mediaUrl, access_token: channel.access_token };
-  let r = await igCall("POST", `/${channel.ig_user_id}/media`, cParams);
-  if (!r.json.id) return fail(r.json.error?.message || "Gagal menyiapkan media di Instagram");
-  const creationId = r.json.id;
+  const created = await createContainer(channel.ig_user_id, cParams);
+  if (!created.id) return fail(created.error);
+  const creationId = created.id;
   await log(pickIsVideo ? "Menyiapkan video Story di Instagram…" : "Menyiapkan media di Instagram…");
+  if (created.retried) await log("Instagram sempat menolak sesaat — dicoba lagi dan berhasil.");
+  // Video: stash the container id so a later tick can resume polling instead of
+  // hard-failing on a slow Instagram transcode (same trick as the one-off path).
+  if (pickIsVideo) await svc.from("post_run").update({ ig_media_id: creationId }).eq("id", run.id);
 
   // 2) poll FINISHED (video transcoding takes longer)
-  let statusCode = "";
+  let statusCode = "", r;
   for (let i = 0; i < (pickIsVideo ? 16 : 18); i++) {
     r = await igCall("GET", `/${creationId}`, { fields: "status_code", access_token: channel.access_token });
     statusCode = r.json.status_code;
@@ -343,13 +406,19 @@ async function publishOneStory(svc, { channel, run, pick }) {
     if (statusCode === "ERROR") return fail("Instagram gagal memproses media ini.");
     await sleep(2500);
   }
-  if (statusCode !== "FINISHED") return fail("Instagram belum selesai memproses media tepat waktu. Coba lagi.");
+  if (statusCode !== "FINISHED") {
+    // A slow video is not a failure — the next cron tick resumes from the container.
+    if (pickIsVideo) { await log("Video masih diproses Instagram — dilanjutkan otomatis menit berikutnya."); return { processing: true, runId: run.id }; }
+    return fail("Instagram belum selesai memproses media tepat waktu. Coba lagi.");
+  }
   await log("Media siap");
 
   // 3) publish
-  r = await igCall("POST", `/${channel.ig_user_id}/media_publish`, { creation_id: creationId, access_token: channel.access_token });
-  if (!r.json.id) return fail(r.json.error?.message || "Gagal menerbitkan ke Instagram.");
-  const mediaId = r.json.id;
+  const published = await publishContainer(channel.ig_user_id, channel.access_token, creationId, { isStory: true });
+  if (!published.id) return fail(published.error);
+  if (published.retried) await log("Instagram sempat menolak sesaat — dicoba lagi dan berhasil.");
+  if (published.deduped) await log("Instagram sempat melaporkan error padahal Story sudah terbit — tidak diposting ulang.");
+  const mediaId = published.id;
 
   // 4) permalink
   r = await igCall("GET", `/${mediaId}`, { fields: "permalink", access_token: channel.access_token });
@@ -358,6 +427,52 @@ async function publishOneStory(svc, { channel, run, pick }) {
   await log("Dipublikasikan ✓");
   await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
   await svc.from("pool_image").update({ used_in_cycle: true }).eq("id", pick.id);
+  return { ok: true, mediaId, permalink, runId: run.id };
+}
+
+// Resume a recurring-rule video Story whose container was still transcoding when
+// its creating tick gave up. Mirrors resumeOneoffContainer but for the pool path:
+// no scheduled_post row, and the pool image is marked used on success. Scheduled
+// successes stay silent (no-news-is-good-news); only failures alert.
+export async function resumeRuleStory(svc, { channel, run }) {
+  const containerId = run.ig_media_id;
+  const token = channel.access_token, igu = channel.ig_user_id;
+  const chLabel = channel.handle || channel.slug || "channel";
+  const log = (outcome, is_fail = false) => svc.from("post_attempt").insert({ run_id: run.id, outcome, is_fail });
+  const ruleName = async () => {
+    const { data } = await svc.from("recurring_rule").select("name").eq("id", run.rule_id).maybeSingle();
+    return data?.name || "Jadwal";
+  };
+  const fail = async (reason) => {
+    await log(reason, true);
+    await svc.from("post_run").update({ status: "failed", fail_reason: reason }).eq("id", run.id);
+    await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "error",
+      title: `Publikasi gagal — ${chLabel}`, body: `“${await ruleName()}”: ${reason}`, runId: run.id });
+    return { ok: false, error: reason, runId: run.id };
+  };
+
+  let statusCode = "", r;
+  for (let i = 0; i < 8; i++) { // ~20s this tick, then wait for the next one
+    r = await igCall("GET", `/${containerId}`, { fields: "status_code", access_token: token });
+    statusCode = r.json.status_code;
+    if (statusCode === "FINISHED") break;
+    if (statusCode === "ERROR") return fail("Instagram gagal memproses video ini.");
+    await sleep(2500);
+  }
+  if (statusCode !== "FINISHED") { await log("Video masih diproses Instagram — dicek lagi menit berikutnya."); return { processing: true, runId: run.id }; }
+  await log("Video siap");
+
+  const published = await publishContainer(igu, token, containerId, { isStory: true });
+  if (!published.id) return fail(published.error);
+  if (published.deduped) await log("Instagram sempat melaporkan error padahal Story sudah terbit — tidak diposting ulang.");
+  const mediaId = published.id;
+  r = await igCall("GET", `/${mediaId}`, { fields: "permalink", access_token: token });
+  const permalink = r.json.permalink || null;
+
+  await log("Dipublikasikan ✓");
+  await svc.from("post_run").update({ status: "published", published_at: new Date().toISOString(), ig_media_id: mediaId, permalink }).eq("id", run.id);
+  if (run.image_id) await svc.from("pool_image").update({ used_in_cycle: true }).eq("id", run.image_id);
+  await fillLinkedPlan(svc, { ruleId: run.rule_id, runId: run.id, permalink, wibDate: new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10) });
   return { ok: true, mediaId, permalink, runId: run.id };
 }
 
@@ -401,9 +516,11 @@ export async function publishStoryOneoff(svc, { channel, post }) {
   const params = isVideo
     ? { media_type: "STORIES", video_url: mediaUrl, access_token: channel.access_token }
     : { media_type: "STORIES", image_url: mediaUrl, access_token: channel.access_token };
-  let r = await igCall("POST", `/${channel.ig_user_id}/media`, params);
-  if (!r.json.id) return fail(r.json.error?.message || "Gagal menyiapkan media di Instagram");
-  const creationId = r.json.id; await log(isVideo ? "Menyiapkan video Story di Instagram…" : "Menyiapkan media di Instagram…");
+  const created = await createContainer(channel.ig_user_id, params);
+  if (!created.id) return fail(created.error);
+  const creationId = created.id; await log(isVideo ? "Menyiapkan video Story di Instagram…" : "Menyiapkan media di Instagram…");
+  if (created.retried) await log("Instagram sempat menolak sesaat — dicoba lagi dan berhasil.");
+  let r;
   // Video: persist the container id so a later cron tick can resume polling past
   // this function's 60s budget instead of hard-failing on a slow IG transcode.
   if (isVideo) await svc.from("post_run").update({ ig_media_id: creationId }).eq("id", run.id);
@@ -421,9 +538,11 @@ export async function publishStoryOneoff(svc, { channel, post }) {
     return fail("Instagram belum selesai memproses media tepat waktu. Coba lagi.");
   }
   await log("Media siap");
-  r = await igCall("POST", `/${channel.ig_user_id}/media_publish`, { creation_id: creationId, access_token: channel.access_token });
-  if (!r.json.id) return fail(r.json.error?.message || "Gagal menerbitkan ke Instagram.");
-  const mediaId = r.json.id;
+  const published = await publishContainer(channel.ig_user_id, channel.access_token, creationId, { isStory: true });
+  if (!published.id) return fail(published.error);
+  if (published.retried) await log("Instagram sempat menolak sesaat — dicoba lagi dan berhasil.");
+  if (published.deduped) await log("Instagram sempat melaporkan error padahal Story sudah terbit — tidak diposting ulang.");
+  const mediaId = published.id;
   r = await igCall("GET", `/${mediaId}`, { fields: "permalink", access_token: channel.access_token });
   const permalink = r.json.permalink || null;
   await log("Dipublikasikan ✓");
@@ -624,7 +743,13 @@ export async function publishReelsOneoff(svc, { channel, post }) {
   if (!storagePath) return fail("Video Reels tidak ditemukan");
   const token = channel.access_token, igu = channel.ig_user_id;
 
-  let r = await igCall("POST", `/${igu}/media`, { media_type: "REELS", video_url: publicImageUrl(storagePath), caption: post.caption || "", share_to_feed: "true", access_token: token });
+  // Sampul: gambar sendiri (cover_url) menang atas frame dari video (thumb_offset).
+  // Tanpa keduanya, Instagram memilih sendiri seperti sebelumnya.
+  const cover = post.cover_path
+    ? { cover_url: publicImageUrl(post.cover_path) }
+    : (post.cover_offset_ms != null ? { thumb_offset: String(post.cover_offset_ms) } : {});
+
+  let r = await igCall("POST", `/${igu}/media`, { media_type: "REELS", video_url: publicImageUrl(storagePath), caption: post.caption || "", share_to_feed: "true", ...cover, access_token: token });
   if (!r.json.id) return fail(r.json.error?.message || "Gagal menyiapkan Reels di Instagram");
   const containerId = r.json.id;
   await log("Menyiapkan video Reels di Instagram…");
@@ -659,6 +784,7 @@ export async function publishReelsOneoff(svc, { channel, post }) {
   await fillLinkedPlan(svc, { scheduledPostId: post.id, runId: run.id, permalink });
   await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `Reels terbit — ${chLabel}`, body: "Reels berhasil terbit ke Instagram.", runId: run.id });
   await removeStoredMedia(svc, storagePath); // free the transit video file
+  if (post.cover_path) await removeStoredMedia(svc, post.cover_path); // and its cover
   return { ok: true, permalink, runId: run.id };
 }
 
@@ -717,6 +843,7 @@ export async function resumeOneoffContainer(svc, { channel, post, run }) {
       const { data: a } = await svc.from("media_asset").select("storage_path").eq("id", links[0].asset_id).single();
       if (a?.storage_path) await removeStoredMedia(svc, a.storage_path);
     }
+    if (post.cover_path) await removeStoredMedia(svc, post.cover_path);
   } catch (_) { /* cleanup is best-effort */ }
   return { ok: true, permalink, runId: run.id };
 }

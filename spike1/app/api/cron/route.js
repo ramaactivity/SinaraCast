@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, resumeOneoffContainer, refreshTokensDue, refreshPlanMetricsDue, refreshRunMetricsDue, snapshotFollowersDue } from "../../../lib/publishCore";
+import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, resumeOneoffContainer, resumeRuleStory, refreshTokensDue, refreshPlanMetricsDue, refreshRunMetricsDue, snapshotFollowersDue } from "../../../lib/publishCore";
 import { publishTikTokVideoScheduled, resumeTikTokVideo } from "../../../lib/tiktokCore";
 import { syncSpecialDaysDue, specialDayRemindersDue, specialTodayByOwner } from "../../../lib/specialDays";
 
@@ -11,6 +11,12 @@ const CRON_SECRET = process.env.CRON_SECRET;
 
 const hhmmToMin = (t) => { if (!t) return null; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 const wibDateStr = (d) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+// Absolute instant (UTC ms) of a WIB "HH:MM" slot on a WIB date "YYYY-MM-DD".
+const slotInstantMs = (wibDate, hhmm) => {
+  const [y, mo, d] = wibDate.split("-").map(Number);
+  const [h, mi] = hhmm.split(":").map(Number);
+  return Date.UTC(y, mo - 1, d, h, mi) - 7 * 3600 * 1000;
+};
 
 // The posting times for a rule on the current day. A rule can fire at several times
 // per day (mis. pagi/sore/malam). Reads the *_times array, falling back to the legacy
@@ -66,7 +72,20 @@ export async function POST(request) {
       const ch = await svc.from("channel").select("owner_id").eq("id", sp.channel_id).maybeSingle();
       await notify(svc, { ownerId: ch.data?.owner_id, channelId: sp.channel_id, type: "error", title: "Postingan tertahan", body: "Sebuah postingan video gagal selesai diproses tepat waktu. Coba lagi dengan video lebih pendek." });
     }
-    await svc.from("post_run").update({ status: "failed", fail_reason: "Tidak selesai diproses tepat waktu." }).eq("status", "publishing").lt("created_at", staleIso).is("scheduled_post_id", null);
+    // Recurring-rule runs (no scheduled_post row) stuck past the window — since
+    // video Stories now legitimately wait across ticks, these must alert too
+    // instead of failing silently.
+    const { data: stuckRules = [] } = await svc.from("post_run")
+      .select("id, channel_id, rule_id").eq("status", "publishing")
+      .lt("created_at", staleIso).is("scheduled_post_id", null);
+    for (const run of stuckRules || []) {
+      await svc.from("post_run").update({ status: "failed", fail_reason: "Tidak selesai diproses tepat waktu." }).eq("id", run.id);
+      const { data: ch } = await svc.from("channel").select("owner_id, slug, handle").eq("id", run.channel_id).maybeSingle();
+      const { data: rl } = await svc.from("recurring_rule").select("name").eq("id", run.rule_id).maybeSingle();
+      await notify(svc, { ownerId: ch?.owner_id, channelId: run.channel_id, type: "error",
+        title: `Publikasi gagal — ${ch?.handle || ch?.slug || "channel"}`,
+        body: `“${rl?.name || "Jadwal"}”: Instagram tidak selesai memproses video tepat waktu. Coba video yang lebih ringan.`, runId: run.id });
+    }
   } catch (_) { /* sweep is best-effort */ }
 
   // Keep long-lived Instagram tokens fresh (~60d lifetime). Cheap: only touches
@@ -162,6 +181,11 @@ export async function POST(request) {
         // The per-slot claim_key: if a publish already happened the key is taken and
         // this insert conflicts (23505), so no false "missed" alert.
         if (nowMin > schedMin + grace) {
+          // A rule created after this slot's grace window had already closed never
+          // had any chance to fire it — calling that "missed" is a false alarm on
+          // day one (mis. bikin jadwal jam 15:12 yang punya slot 13:30). A rule
+          // created *inside* the window did have a chance, so it still alerts.
+          if (new Date(rule.created_at).getTime() > slotInstantMs(today, t) + grace * 60000) continue;
           const reason = `Jadwal terlewat (${t}) — sudah lewat dari tenggang waktu`;
           const { data: skip } = await svc.from("post_run").insert({
             channel_id: channel.id, rule_id: rule.id, status: "skipped", trigger: "scheduled",
@@ -189,25 +213,35 @@ export async function POST(request) {
       }
     }
   }
-  // ---- resume video one-offs whose IG container was still transcoding last tick ----
-  // (created within the stale window so the sweep above hasn't failed them yet)
+  // ---- resume videos whose IG container was still transcoding last tick ----
+  // Covers both one-offs (scheduled_post_id set) and recurring-rule Stories
+  // (rule_id set). Created within the stale window so the sweep above hasn't
+  // failed them yet.
   const resumed = [];
   try {
     const { data: pending = [] } = await svc.from("post_run")
-      .select("id, channel_id, scheduled_post_id, ig_media_id")
-      .eq("status", "publishing").not("scheduled_post_id", "is", null).not("ig_media_id", "is", null)
+      .select("id, channel_id, scheduled_post_id, rule_id, image_id, ig_media_id")
+      .eq("status", "publishing").not("ig_media_id", "is", null)
       .gte("created_at", staleIso);
     for (const run of pending || []) {
       if (overBudget()) break;
       const { data: ch } = await svc.from("channel").select("id, owner_id, slug, handle, platform, ig_user_id, access_token, refresh_token, token_expires_at").eq("id", run.channel_id).maybeSingle();
-      const { data: post } = await svc.from("scheduled_post").select("id, post_type, first_comment").eq("id", run.scheduled_post_id).maybeSingle();
-      if (!ch || !post) continue;
+      if (!ch) continue;
       try {
+        // Recurring-rule Story: no scheduled_post row, resume from the pool path.
+        if (!run.scheduled_post_id) {
+          if (!run.rule_id) continue;
+          const res = await resumeRuleStory(svc, { channel: ch, run });
+          resumed.push({ rule: run.rule_id, type: "story", ok: res.ok, processing: res.processing, error: res.error });
+          continue;
+        }
+        const { data: post } = await svc.from("scheduled_post").select("id, post_type, first_comment, cover_path").eq("id", run.scheduled_post_id).maybeSingle();
+        if (!post) continue;
         const res = ch.platform === "tiktok"
           ? await resumeTikTokVideo(svc, { channel: ch, post, run })
           : await resumeOneoffContainer(svc, { channel: ch, post, run });
         resumed.push({ oneoff: post.id, type: post.post_type, ok: res.ok, processing: res.processing, error: res.error });
-      } catch (e) { resumed.push({ oneoff: run.scheduled_post_id, ok: false, error: String(e?.message || e) }); }
+      } catch (e) { resumed.push({ run: run.id, ok: false, error: String(e?.message || e) }); }
     }
   } catch (_) { /* resume is best-effort; stale-sweep is the backstop */ }
 
@@ -216,7 +250,7 @@ export async function POST(request) {
   const chIds = Object.keys(chById);
   if (chIds.length) {
     const { data: posts = [] } = await svc.from("scheduled_post")
-      .select("id, channel_id, post_type, caption, first_comment, scheduled_at, status")
+      .select("id, channel_id, post_type, caption, first_comment, scheduled_at, status, cover_offset_ms, cover_path")
       .eq("status", "scheduled")
       .lte("scheduled_at", new Date().toISOString())
       .in("channel_id", chIds);
