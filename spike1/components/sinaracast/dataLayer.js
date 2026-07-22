@@ -640,21 +640,37 @@ export async function markAllNotifsRead() {
 
 const BUCKET = "pool-images";
 
-// Upload one validated image file to Storage; returns row data for pool_image.
-export async function uploadPoolImage(file, channelSlug, meta) {
-  const { data: u } = await supabase.auth.getUser();
-  const uid = u?.user?.id;
-  if (!uid) throw new Error("Not signed in");
-  const ext = file.type === "image/png" ? "png" : "jpg";
-  const path = `${uid}/${channelSlug}/${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
-  if (error) throw error;
-  const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-  return { storage_path: path, url, bytes: file.size, format: ext, width: meta?.width, height: meta?.height, aspect_ok: true };
+// ALL media (images + videos) now lives on Cloudflare R2, whose egress is free —
+// Supabase Storage is no longer used for media (its 1 GB storage / 5 GB egress
+// free tier is what took the project down). Each upload is a presigned browser→R2
+// PUT; the returned absolute R2 URL becomes storage_path, and every downstream
+// consumer (publicImageUrl, previews, IG/TikTok publish) already passes absolute
+// URLs through untouched. Legacy Supabase-hosted relative paths still resolve too.
+async function uploadToR2(file, ext, folder) {
+  const { data: sess } = await supabase.auth.getSession();
+  const token = sess?.session?.access_token;
+  if (!token) throw new Error("Not signed in");
+  const res = await fetch("/api/r2/presign", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ ext, folder }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!j.ok) throw new Error(j.error || "Penyimpanan media (R2) belum siap");
+  // PUT with the exact content type the URL was signed for, or R2 rejects it.
+  const up = await fetch(j.uploadUrl, { method: "PUT", headers: { "Content-Type": j.contentType }, body: file });
+  if (!up.ok) throw new Error("Gagal mengunggah berkas ke penyimpanan (cek konfigurasi CORS bucket R2)");
+  return j.publicUrl;
 }
 
-// Unggah gambar contoh untuk Bank Ide → kembalikan URL publik. Disimpan di bucket
-// yang sama, folder idea-bank (tak terikat channel tertentu).
+// Upload one validated image file; returns row data for pool_image.
+export async function uploadPoolImage(file, channelSlug, meta) {
+  const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const url = await uploadToR2(file, ext, channelSlug);
+  return { storage_path: url, url, bytes: file.size, format: ext, width: meta?.width, height: meta?.height, aspect_ok: true };
+}
+
+// Unggah gambar contoh untuk Bank Ide → kembalikan URL publik R2.
 export async function uploadIdeaImage(file) {
   return uploadImageToFolder(file, "idea-bank");
 }
@@ -663,59 +679,36 @@ export async function uploadPlanImage(file) {
   return uploadImageToFolder(file, "plan-ref");
 }
 async function uploadImageToFolder(file, folder) {
-  const { data: u } = await supabase.auth.getUser();
-  const uid = u?.user?.id;
-  if (!uid) throw new Error("Not signed in");
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-  const path = `${uid}/${folder}/${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
-  if (error) throw error;
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  return uploadToR2(file, ext, folder);
 }
 
-// Upload a Reels video (mp4/mov) to the same public bucket; returns row data
-// shaped like uploadPoolImage so createScheduledPost can make the media_asset.
-// Supabase free tier caps a file at 50 MB. Bigger videos detour to Cloudflare R2
-// via a presigned direct upload; their storage_path is then the absolute R2 URL
-// (every consumer passes absolute URLs through untouched).
-const SUPA_MAX_BYTES = 48 * 1024 * 1024;
-
+// Upload a Reels/TikTok video (mp4/mov); returns row data shaped like
+// uploadPoolImage so createScheduledPost can make the media_asset.
 export async function uploadReelVideo(file, channelSlug, meta) {
-  const { data: u } = await supabase.auth.getUser();
-  const uid = u?.user?.id;
-  if (!uid) throw new Error("Not signed in");
   // file.type can be blank for a .MOV picked from iOS Files — fall back to the
-  // filename so the bucket's allowed-mime check and the stored extension stay right.
+  // filename so the stored extension/content type stay right.
   const isMov = file.type === "video/quicktime" || /\.mov$/i.test(file.name || "");
   const ext = isMov ? "mov" : "mp4";
-  const contentType = file.type || (isMov ? "video/quicktime" : "video/mp4");
-  const base = { bytes: file.size, format: ext, width: meta?.width, height: meta?.height, aspect_ok: true, isVideo: true };
-
-  if (file.size > SUPA_MAX_BYTES) {
-    const { data: sess } = await supabase.auth.getSession();
-    const token = sess?.session?.access_token;
-    const res = await fetch("/api/r2/presign", {
-      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ ext }),
-    });
-    const j = await res.json().catch(() => ({}));
-    if (!j.ok) throw new Error(j.error || "Penyimpanan video besar belum siap");
-    const up = await fetch(j.uploadUrl, { method: "PUT", headers: { "Content-Type": contentType }, body: file });
-    if (!up.ok) throw new Error("Gagal mengunggah video besar (cek konfigurasi CORS bucket R2)");
-    return { ...base, storage_path: j.publicUrl, url: j.publicUrl };
-  }
-
-  const path = `${uid}/${channelSlug}/${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType, upsert: false });
-  if (error) throw error;
-  const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-  return { ...base, storage_path: path, url };
+  const url = await uploadToR2(file, ext, channelSlug);
+  return { storage_path: url, url, bytes: file.size, format: ext, width: meta?.width, height: meta?.height, aspect_ok: true, isVideo: true };
 }
 
 export async function deleteStoredImage(storage_path) {
   if (!storage_path) return;
-  // R2-hosted media (absolute URL) is cleaned up server-side after publish.
-  if (/^https?:\/\//i.test(storage_path)) return;
+  // R2-hosted media (absolute URL): delete via the server (R2 needs credentials).
+  if (/^https?:\/\//i.test(storage_path)) {
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess?.session?.access_token;
+    if (!token) return;
+    await fetch("/api/r2/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ url: storage_path }),
+    }).catch(() => {});
+    return;
+  }
+  // Legacy Supabase-hosted media (relative path).
   await supabase.storage.from(BUCKET).remove([storage_path]);
 }
 
