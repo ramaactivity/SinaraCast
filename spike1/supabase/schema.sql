@@ -73,6 +73,7 @@ create table if not exists channel (
   name             text not null,
   handle           text not null,
   avatar_emoji     text,
+  avatar_url       text,
   color_token      text,
   ig_user_id       text,
   access_token     text,
