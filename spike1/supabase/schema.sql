@@ -105,7 +105,8 @@ create table if not exists recurring_rule (
   weekend_times time[],      -- beberapa jam posting per akhir pekan (schedule mode)
   grace_minutes int not null default 30,
   special_behavior text not null default 'normal', -- 'normal' | 'skip' | 'special_pool' on special days
-  end_date      date,
+  start_date    date,        -- masa berlaku: mulai jalan (NULL = langsung)
+  end_date      date,        -- masa berlaku: berhenti otomatis (NULL = selamanya)
   archived_at   timestamptz,
   created_at    timestamptz not null default now()
 );

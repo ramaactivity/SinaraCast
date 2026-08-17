@@ -12,6 +12,24 @@ const FR = "var(--font)";
 
 function modeLabel(m) { return m === "schedule" ? "Beda akhir pekan" : "Satu kumpulan"; }
 
+/* Masa berlaku — hanya tampil kalau jadwalnya memang dibatasi tanggal. Tanpa
+   start/end berarti jalan terus, dan itu tidak perlu diberi label apa pun. */
+const MON_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const fmtDay = (ymd) => { if (!ymd) return ""; const [y, m, d] = ymd.split("-").map(Number); return `${d} ${MON_ID[m - 1]}`; };
+const todayWib = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); const p = (n) => String(n).padStart(2, "0"); return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`; };
+const daysLeft = (end) => {
+  const [y1, m1, d1] = todayWib().split("-").map(Number), [y2, m2, d2] = end.split("-").map(Number);
+  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000);
+};
+function rangeInfo(r) {
+  if (!r.startDate && !r.endDate) return null;
+  if (r.windowState === "ended") return { text: `Selesai ${fmtDay(r.endDate)}`, danger: true };
+  if (r.windowState === "upcoming") return { text: `Mulai ${fmtDay(r.startDate)}` };
+  if (!r.endDate) return { text: `Mulai ${fmtDay(r.startDate)}` };
+  const n = daysLeft(r.endDate);
+  return { text: `Sampai ${fmtDay(r.endDate)}${n <= 7 ? ` · sisa ${n === 0 ? "hari ini" : `${n} hari`}` : ""}`, danger: n <= 3 };
+}
+
 export function RulesView() {
   const app = useApp();
   const phase = app.dataLoading ? "loading" : "ready";
@@ -130,6 +148,7 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [menu]);
   const total = r.mode === "schedule" ? (r.pools.weekday + r.pools.weekend) : r.pools.pool;
+  const range = rangeInfo(r);
   return (
     <Card pad={0} onClick={() => app.go("editor", { ch: r.ch, id: r.id })} style={{ borderColor: selected ? b.accent : "var(--line)", borderWidth: selected ? 1.5 : 1,
       boxShadow: selected ? "var(--shadow-md)" : "var(--shadow-sm)", overflow: "visible" }} hover>
@@ -145,6 +164,7 @@ function RuleCard({ r, b, selected, onSelect, disabled }) {
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icons.calendar size={14} />{r.cadence}</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icons.clock size={14} />{r.time} WIB{r.timesCount > 1 ? ` +${r.timesCount - 1} jam` : ""}</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Icons.image size={14} />{total} gambar</span>
+            {range && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: range.danger ? "var(--danger)" : "var(--ink-500)" }}><Icons.calendar size={14} />{range.text}</span>}
           </div>
         </div>
         {/* shuffle cycle progress (hidden on mobile — also shown in the inspector) */}
@@ -232,6 +252,7 @@ function NextInspector({ r, b, ch }) {
             <Meta icon={<Icons.shuffle size={14} />} t={`Diacak, tiap gambar dapat giliran · ${r.cycle.used}/${r.cycle.total} sudah tampil`} />
             <Meta icon={<Icons.layers size={14} />} t={r.mode === "schedule" ? `${r.pools.weekday} gambar hari kerja` : `${r.pools.pool} gambar`} />
             <Meta icon={<Icons.clock size={14} />} t={`Toleransi telat ${r.grace} menit`} />
+            <Meta icon={<Icons.calendar size={14} />} t={rangeText(r)} />
           </div>
         </div>
       </div>
@@ -253,6 +274,14 @@ function NextInspector({ r, b, ch }) {
   );
 }
 function Meta({ icon, t }) { return <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ color: "var(--ink-400)" }}>{icon}</span>{t}</span>; }
+
+// Kalimat masa berlaku untuk panel "Terbit berikutnya" — versi panjang dari chip di kartu.
+function rangeText(r) {
+  if (r.windowState === "ended") return `Masa berlaku selesai ${fmtDay(r.endDate)}`;
+  if (r.windowState === "upcoming") return `Mulai jalan ${fmtDay(r.startDate)}`;
+  if (r.endDate) { const n = daysLeft(r.endDate); return `Berhenti ${fmtDay(r.endDate)} · sisa ${n === 0 ? "hari ini" : `${n} hari`}`; }
+  return "Tanpa batas waktu";
+}
 
 function SwapModal({ open, onClose, r }) {
   const app = useApp();

@@ -25,14 +25,27 @@ const fmtNotifTime = (iso) => {
 // Next scheduled run for an active rule, as a friendly WIB label. Mirrors the
 // engine's fire logic (JS day-of-week 0=Sun; every_n_days anchored on created_at).
 const WD_SHORT = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+// Masa berlaku (start_date / end_date, keduanya opsional). Dibandingkan sebagai
+// string "YYYY-MM-DD" — sudah kronologis, jadi tidak perlu parsing tanggal.
+export const dayOnly = (d) => (d ? String(d).slice(0, 10) : null);
+const ymdUTC = (Y, M, day) => `${Y}-${String(M + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+const inRuleWindow = (rule, ymd) => {
+  const s = dayOnly(rule.start_date), e = dayOnly(rule.end_date);
+  return (!s || ymd >= s) && (!e || ymd <= e);
+};
 const ruleFiresOn = (rule, Y, M, day) => {
+  if (!inRuleWindow(rule, ymdUTC(Y, M, day))) return false;
   const jsDow = new Date(Date.UTC(Y, M, day)).getUTCDay();
   if (rule.cadence_type === "daily") return true;
   if (rule.cadence_type === "weekdays") return Array.isArray(rule.weekdays) && rule.weekdays.includes(jsDow);
   if (rule.cadence_type === "every_n_days") {
     const n = rule.interval_days || 2;
-    if (!rule.created_at) return false;
-    const anchor = toWib(rule.created_at);
+    // Hitungan "setiap N hari" dimulai dari tanggal mulai kalau masa berlakunya
+    // diatur; kalau tidak, dari tanggal jadwal dibuat (perilaku lama).
+    if (!rule.start_date && !rule.created_at) return false;
+    const anchor = rule.start_date
+      ? new Date(`${dayOnly(rule.start_date)}T00:00:00Z`)
+      : toWib(rule.created_at);
     const a = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate());
     const diff = Math.round((Date.UTC(Y, M, day) - a) / 86400000);
     return diff >= 0 && diff % n === 0;
@@ -49,12 +62,24 @@ const ruleTimesFor = (rule, jsDow) => {
   const norm = raw.map((t) => (t || "").slice(0, 5)).filter((t) => /^\d{2}:\d{2}$/.test(t));
   return [...new Set(norm)].sort();
 };
+// Status masa berlaku sebuah rule terhadap hari ini (WIB):
+// "upcoming" belum mulai · "ended" sudah lewat tanggal terakhir · "open" sedang berlaku.
+const windowStateOf = (rule, todayYmd) => {
+  const s = dayOnly(rule.start_date), e = dayOnly(rule.end_date);
+  if (e && todayYmd > e) return "ended";
+  if (s && todayYmd < s) return "upcoming";
+  return "open";
+};
 const nextRunLabel = (rule) => {
   const now = toWib(new Date().toISOString());
   const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
-  for (let i = 0; i < 366; i++) {
+  const today = ymdUTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  if (windowStateOf(rule, today) === "ended") return "Masa berlaku selesai";
+  for (let i = 0; i < 400; i++) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + i));
     const Y = d.getUTCFullYear(), M = d.getUTCMonth(), day = d.getUTCDate(), jsDow = d.getUTCDay();
+    // Lewat tanggal terakhir → tidak ada lagi yang akan terbit, hentikan pencarian.
+    if (dayOnly(rule.end_date) && ymdUTC(Y, M, day) > dayOnly(rule.end_date)) break;
     if (!ruleFiresOn(rule, Y, M, day)) continue;
     // Soonest upcoming slot: today skips times already passed; later days take the first.
     const hhmm = ruleTimesFor(rule, jsDow).find((t) => {
@@ -97,6 +122,9 @@ function mapChannel(c) {
 
 function mapRule(r, slugById) {
   const isSched = r.mode === "schedule";
+  const nowWib = toWib(new Date().toISOString());
+  const todayYmd = ymdUTC(nowWib.getUTCFullYear(), nowWib.getUTCMonth(), nowWib.getUTCDate());
+  const windowState = windowStateOf(r, todayYmd); // "open" | "upcoming" | "ended"
   // Posting times per daypart ("HH:MM"), array-first with legacy single-time fallback.
   const weekdayTimes = ruleTimesFor(r, 1); // any weekday
   const weekendTimes = ruleTimesFor(r, 0); // any weekend day
@@ -108,11 +136,16 @@ function mapRule(r, slugById) {
     grace: r.grace_minutes,
     // raw scheduling fields for the calendar projection
     cadenceType: r.cadence_type, intervalDays: r.interval_days, weekdaysDb: r.weekdays || [], createdAt: r.created_at,
+    // masa berlaku — dipakai editor, kartu jadwal, dan proyeksi kalender
+    startDate: dayOnly(r.start_date), endDate: dayOnly(r.end_date), windowState,
     weekdayTimes, weekendTimes, postTimes,
     weekdayTime: weekdayTimes[0] || "", weekendTime: weekendTimes[0] || "", postTime: postTimes[0] || "",
     pools: isSched ? { weekday: 0, weekend: 0 } : { pool: 0 }, // counts filled below if pools loaded
-    cycle: { used: 0, total: 0 }, nextRun: r.active ? nextRunLabel(r) : "Nonaktif",
-    todayStatus: r.active ? "Scheduled" : "Inactive", lastImg: 0, runs7: [0, 0, 0, 0, 0, 0, 0],
+    cycle: { used: 0, total: 0 },
+    // Masa berlaku yang sudah habis menang atas label "Nonaktif": lebih jelas kenapa
+    // jadwalnya berhenti (mesin cron memang mematikannya sendiri saat lewat tanggal).
+    nextRun: windowState === "ended" ? "Masa berlaku selesai" : r.active ? nextRunLabel(r) : "Nonaktif",
+    todayStatus: r.active && windowState !== "ended" ? "Scheduled" : "Inactive", lastImg: 0, runs7: [0, 0, 0, 0, 0, 0, 0],
   };
 }
 
@@ -739,6 +772,8 @@ export async function createRuleWithPools(p) {
     weekend_time: p.mode === "schedule" ? (normTimes(p.weekendTimes)[0] || null) : null,
     grace_minutes: p.grace,
     special_behavior: p.specialBehavior || "normal",
+    start_date: p.startDate || null,
+    end_date: p.endDate || null,
   }).select("id").single();
   if (e1) throw e1;
 
@@ -862,6 +897,8 @@ export async function updateRuleFields(id, f) {
     weekend_time: f.mode === "schedule" ? (normTimes(f.weekendTimes)[0] || null) : null,
     grace_minutes: f.grace,
     special_behavior: f.specialBehavior || "normal",
+    start_date: f.startDate || null,
+    end_date: f.endDate || null,
   }).eq("id", id);
   if (error) throw error;
   // Stories-per-run lives on each pool (role-scoped). Update whatever pools exist.

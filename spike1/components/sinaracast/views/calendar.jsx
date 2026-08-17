@@ -29,14 +29,22 @@ const platMeta = (p) => PLATFORM[p] || { label: p || "—", accent: "var(--ink-5
 const tint = (c, pct = 10) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
 
 // Does a rule fire on this calendar day? Mirrors /api/cron isFireDay (WIB, JS day-of-week 0=Sun..6=Sat).
+const ymdOf = (Y, M, day) => `${Y}-${String(M + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 function ruleFires(rule, Y, M, day) {
+  // Masa berlaku: di luar rentang tanggalnya jadwal tidak memproyeksikan apa pun.
+  const ymd = ymdOf(Y, M, day);
+  if (rule.startDate && ymd < rule.startDate) return false;
+  if (rule.endDate && ymd > rule.endDate) return false;
   const jsDow = new Date(Date.UTC(Y, M, day)).getUTCDay();
   if (rule.cadenceType === "daily") return true;
   if (rule.cadenceType === "weekdays") return (rule.weekdaysDb || []).includes(jsDow);
   if (rule.cadenceType === "every_n_days") {
     const n = rule.intervalDays || 2;
-    if (!rule.createdAt) return false;
-    const anchor = new Date(new Date(rule.createdAt).getTime() + 7 * 3600 * 1000); // WIB
+    if (!rule.startDate && !rule.createdAt) return false;
+    // Berpatokan pada tanggal mulai kalau ada, kalau tidak pada tanggal jadwal dibuat.
+    const anchor = rule.startDate
+      ? new Date(`${rule.startDate}T00:00:00Z`)
+      : new Date(new Date(rule.createdAt).getTime() + 7 * 3600 * 1000); // WIB
     const a = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate());
     const t = Date.UTC(Y, M, day);
     const diff = Math.round((t - a) / 86400000);

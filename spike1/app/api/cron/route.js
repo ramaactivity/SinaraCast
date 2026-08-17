@@ -31,12 +31,23 @@ function slotTimesFor(rule, isWeekend) {
   return [...new Set(norm)].sort();
 }
 
+// Masa berlaku: sebuah rule hanya boleh jalan di dalam [start_date, end_date] (WIB).
+// Keduanya opsional — NULL berarti tanpa batas di sisi itu. Tanggal disimpan sebagai
+// "YYYY-MM-DD" sehingga perbandingan string sudah urut secara kronologis.
+const inDateWindow = (rule, today) =>
+  (!rule.start_date || today >= String(rule.start_date).slice(0, 10)) &&
+  (!rule.end_date || today <= String(rule.end_date).slice(0, 10));
+
 function isFireDay(rule, dow, today, nowWib) {
+  if (!inDateWindow(rule, today)) return false;
   if (rule.cadence_type === "daily") return true;
   if (rule.cadence_type === "weekdays") return Array.isArray(rule.weekdays) && rule.weekdays.includes(dow);
   if (rule.cadence_type === "every_n_days") {
     const n = rule.interval_days || 2;
-    const anchor = new Date(new Date(rule.created_at).getTime() + 7 * 3600 * 1000);
+    // Hitung dari tanggal mulai kalau masa berlakunya diatur — kalau tidak, dari
+    // tanggal jadwal dibuat (perilaku lama).
+    const anchorSrc = rule.start_date ? `${String(rule.start_date).slice(0, 10)}T00:00:00+07:00` : rule.created_at;
+    const anchor = new Date(new Date(anchorSrc).getTime() + 7 * 3600 * 1000);
     const a = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate());
     const t = Date.UTC(nowWib.getUTCFullYear(), nowWib.getUTCMonth(), nowWib.getUTCDate());
     const days = Math.round((t - a) / 86400000);
@@ -113,7 +124,7 @@ export async function POST(request) {
   const ttById = Object.fromEntries(ttChannels.filter((c) => !pausedOwners.has(c.owner_id)).map((c) => [c.id, c]));
 
   const { data: rules = [] } = await svc.from("recurring_rule")
-    .select("id, channel_id, name, mode, active, cadence_type, interval_days, weekdays, post_time, weekday_time, weekend_time, post_times, weekday_times, weekend_times, grace_minutes, special_behavior, created_at")
+    .select("id, channel_id, name, mode, active, cadence_type, interval_days, weekdays, post_time, weekday_time, weekend_time, post_times, weekday_times, weekend_times, grace_minutes, special_behavior, start_date, end_date, created_at")
     .eq("active", true).is("archived_at", null).in("channel_id", Object.keys(chById).length ? Object.keys(chById) : ["00000000-0000-0000-0000-000000000000"]);
 
   // Hari Spesial: today's active special day per owner (Map ownerId → name).
@@ -129,9 +140,23 @@ export async function POST(request) {
   }
 
   const fired = [];
+  const expired = [];
   for (const rule of rules) {
     const channel = chById[rule.channel_id];
     if (!channel) continue;
+    // Masa berlaku sudah lewat → nonaktifkan jadwalnya (sekali saja: tick berikutnya
+    // rule ini tidak lagi ikut terambil karena query di atas menyaring active=true),
+    // lalu kabari pemiliknya supaya tahu jadwalnya berhenti bukan karena error.
+    if (rule.end_date && today > String(rule.end_date).slice(0, 10)) {
+      try {
+        await svc.from("recurring_rule").update({ active: false }).eq("id", rule.id);
+        await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "info",
+          title: `Masa berlaku jadwal selesai — ${channel.handle || channel.slug}`,
+          body: `Jadwal “${rule.name}” berhenti otomatis karena sudah sampai tanggal terakhirnya. Aktifkan lagi kalau mau dilanjutkan.` });
+        expired.push({ rule: rule.name, channel: channel.slug, endDate: String(rule.end_date).slice(0, 10) });
+      } catch (_) { /* jangan gagalkan tick karena ini */ }
+      continue;
+    }
     if (!isFireDay(rule, dow, today, nowWib)) continue;
     const ov = overrides[rule.id];
     const isWeekend = dow === 0 || dow === 6;
@@ -323,7 +348,7 @@ export async function POST(request) {
     try { specialDays.reminders = await specialDayRemindersDue(svc); } catch (e) { specialDays.reminders = { error: String(e?.message || e) }; }
   }
 
-  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, resumed, oneoffs, tiktoks, planMetrics, runMetrics, followers, specialDays });
+  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, expired, resumed, oneoffs, tiktoks, planMetrics, runMetrics, followers, specialDays });
 }
 
 // allow GET for a quick manual ping/health (still secret-gated)

@@ -4,7 +4,7 @@ import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import {
-  BRANDS, BrandAvatar, Panel, Button, Field, Input, Select, TimeField,
+  BRANDS, BrandAvatar, Panel, Button, Field, Input, Select, TimeField, DateField,
   Segmented, EmptyState, Chip, SectionTitle, Banner, Spinner, Slider, NumberField,
 } from "../ui";
 import {
@@ -34,6 +34,52 @@ const CADENCE = [
 const WD = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"]; // editor idx 0=Mon..6=Sun
 const toDow = (i) => (i + 1) % 7;   // editor idx -> schema dow (0=Sun..6=Sat)
 const fromDow = (d) => (d + 6) % 7; // schema dow -> editor idx
+
+/* ---------------- Masa berlaku (rentang tanggal jadwal) ----------------
+   Dua tanggal, keduanya opsional: kosong = tanpa batas di sisi itu. Kosong
+   dua-duanya (bawaan) berarti jadwal jalan terus sampai dihentikan sendiri. */
+const MON_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const pad2 = (n) => String(n).padStart(2, "0");
+const todayWib = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`; };
+const fmtDay = (ymd) => { if (!ymd) return ""; const [y, m, d] = ymd.split("-").map(Number); return `${d} ${MON_ID[m - 1]} ${y}`; };
+const shiftDays = (ymd, n) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + n));
+  return `${t.getUTCFullYear()}-${pad2(t.getUTCMonth() + 1)}-${pad2(t.getUTCDate())}`;
+};
+// Tambah n bulan, lalu jepit ke hari terakhir bulan itu (31 Jan + 1 bulan = 28/29 Feb).
+const shiftMonths = (ymd, n) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate();
+  const t = new Date(Date.UTC(y, m - 1 + n, Math.min(d, last)));
+  return `${t.getUTCFullYear()}-${pad2(t.getUTCMonth() + 1)}-${pad2(t.getUTCDate())}`;
+};
+const daysInclusive = (a, z) => {
+  const [y1, m1, d1] = a.split("-").map(Number), [y2, m2, d2] = z.split("-").map(Number);
+  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000) + 1;
+};
+// Pilihan lama berjalan. Tanggal terakhir = hari mulai + durasi - 1 hari, supaya
+// "1 bulan" berarti tepat satu bulan penuh (17 Agu → 16 Sep), bukan sebulan lebih sehari.
+const DURATIONS = [
+  { value: "forever", label: "Tidak dibatasi — sampai saya hentikan sendiri" },
+  { value: "7d",  label: "1 minggu" },
+  { value: "14d", label: "2 minggu" },
+  { value: "1m",  label: "1 bulan" },
+  { value: "3m",  label: "3 bulan" },
+  { value: "6m",  label: "6 bulan" },
+  { value: "1y",  label: "1 tahun" },
+  { value: "custom", label: "Sampai tanggal tertentu" },
+];
+function endFromDuration(startYmd, dur) {
+  const s = startYmd || todayWib();
+  if (dur === "7d")  return shiftDays(s, 6);
+  if (dur === "14d") return shiftDays(s, 13);
+  if (dur === "1m")  return shiftDays(shiftMonths(s, 1), -1);
+  if (dur === "3m")  return shiftDays(shiftMonths(s, 3), -1);
+  if (dur === "6m")  return shiftDays(shiftMonths(s, 6), -1);
+  if (dur === "1y")  return shiftDays(shiftMonths(s, 12), -1);
+  return null;
+}
 
 function readDims(file) {
   return new Promise((res, rej) => {
@@ -104,6 +150,11 @@ export function EditorView() {
   const [weekendTimes, setWeekendTimes] = uEd(["09:00"]);
   const [grace, setGrace] = uEd(app.settings.defaultGrace || 30);
   const [specialBehavior, setSpecialBehavior] = uEd("normal");
+  // Masa berlaku. Bawaannya: mulai langsung, tanpa tanggal berhenti.
+  const [startMode, setStartMode] = uEd("now");      // "now" | "date"
+  const [startDate, setStartDate] = uEd("");
+  const [duration, setDuration] = uEd("forever");    // lihat DURATIONS
+  const [endDate, setEndDate] = uEd("");
   const [images, setImages] = uEd({ weekday: [], weekend: [], single: [], special: [] });
   const [poolIdByRole, setPoolIdByRole] = uEd({});
   const [tab, setTab] = uEd("weekday");
@@ -131,6 +182,12 @@ export function EditorView() {
         const wdt = timeList(rule.weekday_times, rule.weekday_time); if (wdt) setWeekdayTimes(wdt);
         const wet = timeList(rule.weekend_times, rule.weekend_time); if (wet) setWeekendTimes(wet);
         setGrace(rule.grace_minutes);
+        // Masa berlaku tersimpan sebagai dua tanggal saja — pilihan durasi yang dulu
+        // dipakai tidak ikut disimpan, jadi saat dibuka lagi tampil sebagai tanggal.
+        const sd = (rule.start_date || "").slice(0, 10);
+        const ed = (rule.end_date || "").slice(0, 10);
+        if (sd) { setStartMode("date"); setStartDate(sd); }
+        if (ed) { setDuration("custom"); setEndDate(ed); }
       }
       setImages({ weekday: im.weekday, weekend: im.weekend, single: im.single, special: im.special || [] });
       setPoolIdByRole(pr);
@@ -158,9 +215,36 @@ export function EditorView() {
   const overSlots = mode === "schedule"
     ? (images.weekday.length > 0 && weekdayTimes.length > images.weekday.length) || (images.weekend.length > 0 && weekendTimes.length > images.weekend.length)
     : images.single.length > 0 && postTimes.length > images.single.length;
+  // Masa berlaku: nilai yang benar-benar dikirim ke database (string kosong → NULL).
+  const effStart = startMode === "date" ? startDate : "";
+  const effEnd = duration === "forever" ? "" : endDate;
+  const startAnchor = effStart || todayWib();
+  const rangeInvalid = !!(effEnd && effEnd < startAnchor);
+  const alreadyOver = !!(effEnd && effEnd < todayWib());
+  // Ganti pilihan lama berjalan → hitung ulang tanggal berhentinya dari tanggal mulai.
+  function pickDuration(v) {
+    setDuration(v);
+    if (v === "forever") { setEndDate(""); return; }
+    if (v === "custom") { if (!endDate) setEndDate(shiftDays(startAnchor, 29)); return; }
+    setEndDate(endFromDuration(startAnchor, v));
+  }
+  function pickStart(v) {
+    setStartDate(v);
+    if (duration !== "forever" && duration !== "custom") setEndDate(endFromDuration(v, duration));
+  }
+  function pickStartMode(v) {
+    setStartMode(v);
+    const anchor = v === "date" ? (startDate || todayWib()) : todayWib();
+    if (v === "date" && !startDate) setStartDate(todayWib());
+    if (duration !== "forever" && duration !== "custom") setEndDate(endFromDuration(anchor, duration));
+  }
+
   const errors = {};
   if (touched && !name.trim()) errors.name = "Beri nama jadwalnya dulu.";
   if (touched && emptyRole) errors.pool = `Kumpulan ${emptyRole === "weekday" ? "hari kerja " : emptyRole === "weekend" ? "akhir pekan " : ""}masih kosong, minimal 1 gambar.`;
+  if (touched && startMode === "date" && !startDate) errors.range = "Pilih tanggal mulainya dulu.";
+  else if (touched && duration !== "forever" && !endDate) errors.range = "Pilih tanggal berhentinya dulu.";
+  else if (touched && rangeInvalid) errors.range = "Tanggal berhenti tidak boleh sebelum tanggal mulai.";
 
   // On an existing rule, every upload persists immediately — which needs the
   // role's pool row. Older rules have no 'special' pool yet, so create it on
@@ -238,6 +322,9 @@ export function EditorView() {
   async function save() {
     setTouched(true);
     if (!name.trim() || emptyRole) { app.toast("Lengkapi data yang wajib diisi", "error"); return; }
+    if (startMode === "date" && !startDate) { app.toast("Pilih tanggal mulainya dulu", "error"); return; }
+    if (duration !== "forever" && !endDate) { app.toast("Pilih tanggal berhentinya dulu", "error"); return; }
+    if (rangeInvalid) { app.toast("Tanggal berhenti tidak boleh sebelum tanggal mulai", "error"); return; }
     const payload = {
       channelDbId: channel?._id, name: name.trim(), mode,
       cadenceType: cadence === "daily" ? "daily" : cadence === "everyN" ? "every_n_days" : "weekdays",
@@ -245,6 +332,7 @@ export function EditorView() {
       weekdaysDb: cadence === "weekdays" ? days.map(toDow).sort((a, z) => a - z) : null,
       postTimes, weekdayTimes, weekendTimes, grace,
       specialBehavior,
+      startDate: effStart || null, endDate: effEnd || null,
       images: {
         ...(mode === "schedule" ? { weekday: images.weekday, weekend: images.weekend } : { single: images.single }),
         ...(images.special?.length ? { special: images.special } : {}),
@@ -360,6 +448,28 @@ export function EditorView() {
           </Panel>
 
           <Panel>
+            <SectionTitle sub="Sampai kapan jadwal ini jalan">Masa berlaku</SectionTitle>
+            <Field label="Mulai jalan">
+              <Segmented full options={[{ value: "now", label: "Langsung" }, { value: "date", label: "Tanggal tertentu" }]} value={startMode} onChange={pickStartMode} />
+            </Field>
+            {startMode === "date" && (
+              <div style={{ marginTop: 10 }}><DateField value={startDate} min={todayWib()} onChange={pickStart} /></div>
+            )}
+            <Field label="Lama berjalan" style={{ marginTop: 14 }}>
+              <Select options={DURATIONS} value={duration} onChange={pickDuration} />
+            </Field>
+            {duration === "custom" && (
+              <div style={{ marginTop: 10 }}><DateField value={endDate} min={startAnchor} onChange={setEndDate} /></div>
+            )}
+            {errors.range && (
+              <div style={{ display: "flex", gap: 7, marginTop: 10, fontFamily: FE, fontSize: 11.5, color: "var(--danger)", lineHeight: 1.5 }}>
+                <Icons.warn size={14} style={{ flex: "0 0 auto", marginTop: 1 }} /><span>{errors.range}</span>
+              </div>
+            )}
+            <RangeNote start={effStart} end={effEnd} invalid={rangeInvalid} over={alreadyOver} accent={b.accent} />
+          </Panel>
+
+          <Panel>
             <SectionTitle sub="Apa yang jadwal ini lakukan saat hari besar atau tanggal spesialmu">Hari spesial</SectionTitle>
             <Select value={specialBehavior} onChange={(v) => { setSpecialBehavior(v); if (v === "special_pool") setTab("special"); }} options={[
               { value: "normal", label: "Posting seperti biasa" },
@@ -439,6 +549,26 @@ function TimeList({ times, onChange, b }) {
         style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, border: "1.5px dashed var(--line)", background: "var(--raise)", cursor: "pointer", fontFamily: FE, fontSize: 12.5, fontWeight: 600, color: b.accent }}>
         <Icons.plus size={16} /> Tambah jam
       </button>
+    </div>
+  );
+}
+
+// Ringkasan masa berlaku dalam satu kalimat, supaya pilihan durasi + tanggal langsung
+// terbaca sebagai rentang nyata ("17 Agu 2026 sampai 16 Sep 2026 · 31 hari").
+function RangeNote({ start, end, invalid, over, accent }) {
+  if (invalid) return null;
+  let text;
+  if (!start && !end) text = "Jadwal ini jalan terus tanpa batas waktu, sampai kamu matikan atau hapus sendiri.";
+  else if (start && end) text = `Jalan ${fmtDay(start)} sampai ${fmtDay(end)} · ${daysInclusive(start, end)} hari, lalu berhenti sendiri.`;
+  else if (end) text = `Jalan mulai hari ini sampai ${fmtDay(end)} · ${daysInclusive(todayWib(), end)} hari, lalu berhenti sendiri.`;
+  else text = `Mulai jalan ${fmtDay(start)}, lalu terus tanpa batas waktu.`;
+  return (
+    <div style={{ display: "flex", gap: 7, marginTop: 12, background: over ? "var(--st-publishing-bg)" : "var(--line-soft)", borderRadius: 10, padding: "9px 11px",
+      fontFamily: FE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>
+      {over
+        ? <Icons.warn size={14} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
+        : <Icons.calendar size={14} style={{ color: accent, flex: "0 0 auto", marginTop: 1 }} />}
+      <span>{over ? `Tanggal berhentinya (${fmtDay(end)}) sudah lewat, jadi jadwal ini tidak akan menerbitkan apa pun.` : text}</span>
     </div>
   );
 }
