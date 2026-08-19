@@ -708,7 +708,7 @@ export function ComposerView() {
             )}
             <Field label={t("Jam")} style={{ marginTop: 14 }}><TimeField value={time} onChange={setTime} /></Field>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 8 }}>
-              {["07:00", "09:00", "12:00", "17:00", "19:00", "21:00"].map((hh) => (
+              {["07:00", "09:00", "12:00", "15:00", "17:00", "19:00"].map((hh) => (
                 <QuickChip key={hh} on={time === hh} onClick={() => setTime(hh)}>{hh.replace(":", ".")}</QuickChip>
               ))}
             </div>
