@@ -6,12 +6,13 @@ import { Topbar } from "../shell";
 import { BrandAvatar, Panel, Card, Button, Select, Input, EmptyState, Skeleton, Segmented, PlatIcon, Modal, Field, Textarea, Checkbox, Spinner, NumberField } from "../ui";
 import { PLATFORM } from "./contentEditor";
 import { createContentPlansBatch, updateContentPlansStatus, deleteContentPlansBatch } from "../dataLayer";
+import { t } from "../i18n";
 const { useState: uPl } = React;
 const FPl = "var(--font)";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 const MONTH_FULL = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-const fmtDate = (ymd) => { if (!ymd) return "—"; const [Y, M, D] = ymd.split("-").map(Number); return `${D} ${MONTHS[M - 1]} ${Y}`; };
+const fmtDate = (ymd) => { if (!ymd) return "—"; const [Y, M, D] = ymd.split("-").map(Number); return `${D} ${t(MONTHS[M - 1])} ${Y}`; };
 const platMeta = (p) => PLATFORM[p] || { label: p || "—", accent: "var(--ink-500)" };
 const tint = (c, pct = 12) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
 const brandAv = (name) => ({ name: name || "—", short: (name || "?").slice(0, 2).toUpperCase(), grad: "var(--primary-grad)" });
@@ -25,12 +26,12 @@ const PLAN_ST_COLOR = {
 };
 const StatusChip = ({ s }) => (
   <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: FPl, fontSize: 11.5, fontWeight: 600, color: PLAN_ST_COLOR[s] || "var(--ink-500)", background: tint(PLAN_ST_COLOR[s] || "var(--ink-500)", 14), padding: "3px 9px", borderRadius: 999, whiteSpace: "nowrap" }}>
-    <span style={{ width: 6, height: 6, borderRadius: "50%", background: PLAN_ST_COLOR[s] || "var(--ink-500)" }} />{PLAN_LABEL[s] || s}
+    <span style={{ width: 6, height: 6, borderRadius: "50%", background: PLAN_ST_COLOR[s] || "var(--ink-500)" }} />{t(PLAN_LABEL[s]) || s}
   </span>
 );
 const PlatTag = ({ p, big }) => { const m = platMeta(p); return (
   <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: FPl, fontSize: big ? 13 : 12, fontWeight: big ? 600 : 500, color: "var(--ink-800)", whiteSpace: "nowrap" }}>
-    <PlatIcon p={p} size={big ? 16 : 14} />{m.label}
+    <PlatIcon p={p} size={big ? 16 : 14} />{t(m.label)}
   </span>
 ); };
 
@@ -67,9 +68,9 @@ export function PlannerView() {
 
   const brandPlans = (app.plans || []).filter(p => p.brandId === brandId);
   const monthsPresent = [...new Set(brandPlans.map(p => p.ym).filter(Boolean))].sort();
-  const monthOpts = [{ value: "all", label: "Semua bulan" }, ...monthsPresent.map(ym => { const [Y, M] = ym.split("-"); return { value: ym, label: `${MONTH_FULL[+M - 1]} ${Y}` }; })];
-  const platOpts = [{ value: "all", label: "Semua platform" }, ...Object.entries(PLATFORM).map(([v, m]) => ({ value: v, label: m.label }))];
-  const statOpts = [{ value: "all", label: "Semua status" }, ...PLAN_ORDER.map(s => ({ value: s, label: PLAN_LABEL[s] }))];
+  const monthOpts = [{ value: "all", label: t("Semua bulan") }, ...monthsPresent.map(ym => { const [Y, M] = ym.split("-"); return { value: ym, label: `${t(MONTH_FULL[+M - 1])} ${Y}` }; })];
+  const platOpts = [{ value: "all", label: t("Semua platform") }, ...Object.entries(PLATFORM).map(([v, m]) => ({ value: v, label: m.label }))];
+  const statOpts = [{ value: "all", label: t("Semua status") }, ...PLAN_ORDER.map(s => ({ value: s, label: t(PLAN_LABEL[s]) }))];
 
   const qn = q.trim().toLowerCase();
   const rows = brandPlans
@@ -85,7 +86,7 @@ export function PlannerView() {
   const create = (platform) => app.go("contentEditor", { brand: brandId, platform });
   const open = (p) => app.go("contentEditor", { id: p.id });
   const anyFilter = plat !== "all" || stat !== "all" || month !== "all" || !!qn;
-  const acctSub = accounts.length === 1 ? accounts[0].handle : `${accounts.length} akun sosial media`;
+  const acctSub = accounts.length === 1 ? accounts[0].handle : t("{0} akun sosial media", [accounts.length]);
 
   // ---- bulk selection ----
   const toggle = (id) => setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -94,35 +95,35 @@ export function PlannerView() {
   async function bulkStatus(status) {
     if (!sel.length || busyBulk) return;
     setBusyBulk(true);
-    try { await updateContentPlansStatus(sel, status); await app.reload(); app.toast(`${sel.length} konten → ${PLAN_LABEL[status]}`, "success"); setSel([]); }
-    catch (e) { app.toast("Gagal: " + (e.message || e), "error"); }
+    try { await updateContentPlansStatus(sel, status); await app.reload(); app.toast(t("{0} konten → {1}", [sel.length, t(PLAN_LABEL[status])]), "success"); setSel([]); }
+    catch (e) { app.toast(t("Gagal: {0}", [e.message || e]), "error"); }
     finally { setBusyBulk(false); }
   }
   function bulkDelete() {
     if (!sel.length) return;
     app.confirm({
-      title: `Hapus ${sel.length} konten?`, danger: true, confirmLabel: "Hapus",
-      body: "Semua entri rencana yang dipilih akan dihapus.", consequence: "Tindakan ini tidak bisa dibatalkan.",
+      title: t("Hapus {0} konten?", [sel.length]), danger: true, confirmLabel: t("Hapus"),
+      body: t("Semua entri rencana yang dipilih akan dihapus."), consequence: t("Tindakan ini tidak bisa dibatalkan."),
       onConfirm: async () => {
-        try { await deleteContentPlansBatch(sel); await app.reload(); app.toast(`${sel.length} konten dihapus`, "success"); setSel([]); }
-        catch (e) { app.toast("Gagal menghapus: " + (e.message || e), "error"); }
+        try { await deleteContentPlansBatch(sel); await app.reload(); app.toast(t("{0} konten dihapus", [sel.length]), "success"); setSel([]); }
+        catch (e) { app.toast(t("Gagal menghapus: {0}", [e.message || e]), "error"); }
       },
     });
   }
 
   const right = (
     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-      {!app.isMobile && <Segmented options={[{ value: "table", label: "Tabel" }, { value: "lanes", label: "Per platform" }]} value={mode} onChange={setMode} />}
-      <Button variant="secondary" size="sm" icon={<Icons.sparkle size={16} />} onClick={() => setGenOpen(true)}>Ide AI</Button>
-      <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => create()}>Buat konten</Button>
+      {!app.isMobile && <Segmented options={[{ value: "table", label: t("Tabel") }, { value: "lanes", label: t("Per platform") }]} value={mode} onChange={setMode} />}
+      <Button variant="secondary" size="sm" icon={<Icons.sparkle size={16} />} onClick={() => setGenOpen(true)}>{t("Ide AI")}</Button>
+      <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => create()}>{t("Buat konten")}</Button>
     </div>
   );
 
   if (phase === "ready" && !brand) {
     return (
       <div>
-        <Topbar title="Rencana Konten" />
-        <Panel pad={0}><EmptyState icon={<Icons.layers size={28} />} title="Belum ada brand" body="Tambahkan akun sosial media dulu. Tiap akun jadi sebuah brand yang bisa kamu kelola di sini." action={<Button variant="amber" onClick={() => app.go("connections")}>Buka Manajemen Akun</Button>} />
+        <Topbar title={t("Rencana Konten")} />
+        <Panel pad={0}><EmptyState icon={<Icons.layers size={28} />} title={t("Belum ada brand")} body={t("Tambahkan akun sosial media dulu. Tiap akun jadi sebuah brand yang bisa kamu kelola di sini.")} action={<Button variant="amber" onClick={() => app.go("connections")}>{t("Buka Manajemen Akun")}</Button>} />
         </Panel>
       </div>
     );
@@ -138,9 +139,9 @@ export function PlannerView() {
           <span style={{ fontFamily: FPl, fontSize: 11.5, fontWeight: 700, color: "var(--ink-500)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", flex: "0 0 auto", minWidth: 60 }}>{fmtDate(p.plannedDate)}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: FPl, fontWeight: 600, fontSize: 13.5, color: p.title ? "var(--ink-900)" : "var(--ink-300)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {p.linked && <Icons.sparkle size={12} style={{ color: "var(--st-publishing)", marginRight: 5 }} />}{p.title || "(tanpa judul)"}
+              {p.linked && <Icons.sparkle size={12} style={{ color: "var(--st-publishing)", marginRight: 5 }} />}{p.title || t("(tanpa judul)")}
             </div>
-            {!compact && <div style={{ fontFamily: FPl, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.label}{p.format ? ` · ${FORMAT_LABEL[p.format] || p.format}` : ""}{p.contentType ? ` · ${p.contentType}` : ""}{p.plannedTime ? ` · ${p.plannedTime} WIB` : ""}</div>}
+            {!compact && <div style={{ fontFamily: FPl, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t(m.label)}{p.format ? ` · ${FORMAT_LABEL[p.format] || p.format}` : ""}{p.contentType ? ` · ${p.contentType}` : ""}{p.plannedTime ? t(" · {0} WIB", [p.plannedTime]) : ""}</div>}
           </div>
           <StatusChip s={p.status} />
         </div>
@@ -150,21 +151,21 @@ export function PlannerView() {
 
   return (
     <div>
-      <Topbar title="Rencana Konten"
-        sub={brand ? <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={brandAv(brand.name)} size={18} /> {brand.name} · {acctSub} · WIB</span> : "·"}
+      <Topbar title={t("Rencana Konten")}
+        sub={brand ? <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={brandAv(brand.name)} size={18} /> {brand.name} · {acctSub} {t("· WIB")}</span> : "·"}
         right={right} />
 
       {/* stat strip — only when there's content (mirrors Jadwal Otomatis) */}
       {phase === "ready" && brandPlans.length > 0 && (
         <Panel pad={18} style={{ marginBottom: 16 }}>
           <div style={app.isMobile ? { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 } : { display: "flex", alignItems: "center", gap: 26 }}>
-            <Stat label={month === "all" ? "Total konten" : "Konten bulan ini"} value={base.length} sub={month === "all" ? `${accounts.length} akun · semua bulan` : monthOpts.find(o => o.value === month)?.label} />
+            <Stat label={month === "all" ? t("Total konten") : t("Konten bulan ini")} value={base.length} sub={month === "all" ? t("{0} akun · semua bulan", [accounts.length]) : monthOpts.find(o => o.value === month)?.label} />
             {!app.isMobile && <Div />}
-            <Stat label="Ide & draf" value={ct(["idea", "draft"])} sub="perlu digarap" />
+            <Stat label={t("Ide & draf")} value={ct(["idea", "draft"])} sub={t("perlu digarap")} />
             {!app.isMobile && <Div />}
-            <Stat label="Siap terbit" value={ct(["review", "approved", "revision", "ready"])} sub="dalam antrean" />
+            <Stat label={t("Siap terbit")} value={ct(["review", "approved", "revision", "ready"])} sub={t("dalam antrean")} />
             {!app.isMobile && <Div />}
-            <Stat label="Sudah posted" value={ct(["posted"])} sub="terbit" color="var(--st-success)" />
+            <Stat label={t("Sudah posted")} value={ct(["posted"])} sub={t("terbit")} color="var(--st-success)" />
           </div>
         </Panel>
       )}
@@ -172,14 +173,14 @@ export function PlannerView() {
       {/* multi-account brands: show which socials this workspace covers */}
       {phase === "ready" && accounts.length > 1 && (
         <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 14 }}>
-          {accounts.map(a => <span key={a.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: FPl, fontSize: 11.5, color: "var(--ink-600)", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 999, padding: "4px 10px", boxShadow: "var(--shadow-sm)" }}><PlatIcon p={a.platform} size={13} />{platMeta(a.platform).label} · {a.handle}</span>)}
+          {accounts.map(a => <span key={a.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: FPl, fontSize: 11.5, color: "var(--ink-600)", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 999, padding: "4px 10px", boxShadow: "var(--shadow-sm)" }}><PlatIcon p={a.platform} size={13} />{t(platMeta(a.platform).label)} · {a.handle}</span>)}
         </div>
       )}
 
       {/* filters (only when there's something to filter) */}
       {phase === "ready" && brandPlans.length > 0 && (
         <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: app.isMobile ? "1 1 100%" : "1 1 240px", minWidth: 0, maxWidth: app.isMobile ? "none" : 300 }}><Input icon={<Icons.search size={16} />} value={q} onChange={e => setQ(e.target.value)} placeholder="Cari judul, tipe, atau pilar…" /></div>
+          <div style={{ flex: app.isMobile ? "1 1 100%" : "1 1 240px", minWidth: 0, maxWidth: app.isMobile ? "none" : 300 }}><Input icon={<Icons.search size={16} />} value={q} onChange={e => setQ(e.target.value)} placeholder={t("Cari judul, tipe, atau pilar…")} /></div>
           <div style={{ width: app.isMobile ? "31%" : 172 }}><Select value={plat} onChange={setPlat} options={platOpts} /></div>
           <div style={{ width: app.isMobile ? "31%" : 160 }}><Select value={stat} onChange={setStat} options={statOpts} /></div>
           <div style={{ width: app.isMobile ? "31%" : 178 }}><Select value={month} onChange={setMonth} options={monthOpts} /></div>
@@ -190,12 +191,12 @@ export function PlannerView() {
       {phase === "ready" && sel.length > 0 && (
         <Panel pad={0} style={{ marginBottom: 14, border: "1px solid var(--primary-300)", background: "var(--primary-100)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", flexWrap: "wrap" }}>
-            <span style={{ fontFamily: FPl, fontWeight: 600, fontSize: 13, color: "var(--ink-900)" }}>{sel.length} dipilih</span>
+            <span style={{ fontFamily: FPl, fontWeight: 600, fontSize: 13, color: "var(--ink-900)" }}>{sel.length} {t("dipilih")}</span>
             <div style={{ width: app.isMobile ? "100%" : 190 }}>
-              <Select value="" placeholder="Ubah status…" onChange={(v) => v && bulkStatus(v)} options={PLAN_ORDER.map((s) => ({ value: s, label: PLAN_LABEL[s] }))} />
+              <Select value="" placeholder={t("Ubah status…")} onChange={(v) => v && bulkStatus(v)} options={PLAN_ORDER.map((s) => ({ value: s, label: t(PLAN_LABEL[s]) }))} />
             </div>
-            <Button size="sm" variant="danger" icon={busyBulk ? <Spinner size={14} /> : <Icons.trash size={14} />} disabled={busyBulk} onClick={bulkDelete}>Hapus</Button>
-            <Button size="sm" variant="ghost" onClick={() => setSel([])} style={{ marginLeft: app.isMobile ? 0 : "auto" }}>Batal pilih</Button>
+            <Button size="sm" variant="danger" icon={busyBulk ? <Spinner size={14} /> : <Icons.trash size={14} />} disabled={busyBulk} onClick={bulkDelete}>{t("Hapus")}</Button>
+            <Button size="sm" variant="ghost" onClick={() => setSel([])} style={{ marginLeft: app.isMobile ? 0 : "auto" }}>{t("Batal pilih")}</Button>
           </div>
         </Panel>
       )}
@@ -204,19 +205,19 @@ export function PlannerView() {
 
       {/* empty: no content at all in this brand */}
       {phase === "ready" && brandPlans.length === 0 && (
-        <Panel pad={0}><EmptyState icon={<Icons.layers size={28} />} title="Belum ada konten"
-          body={`Mulai rencanakan konten untuk ${brand?.name || "brand ini"} — judul, jadwal, status, semua platform di satu tempat. Atau biar AI yang usulkan ide dulu.`}
+        <Panel pad={0}><EmptyState icon={<Icons.layers size={28} />} title={t("Belum ada konten")}
+          body={t("Mulai rencanakan konten untuk {0} — judul, jadwal, status, semua platform di satu tempat. Atau biar AI yang usulkan ide dulu.", [brand?.name || t("brand ini")])}
           action={<div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
-            <Button variant="amber" icon={<Icons.sparkle size={16} />} onClick={() => setGenOpen(true)}>Buatkan ide dengan AI</Button>
-            <Button variant="secondary" icon={<Icons.plus size={16} sw={2} />} onClick={() => create()}>Buat manual</Button>
+            <Button variant="amber" icon={<Icons.sparkle size={16} />} onClick={() => setGenOpen(true)}>{t("Buatkan ide dengan AI")}</Button>
+            <Button variant="secondary" icon={<Icons.plus size={16} sw={2} />} onClick={() => create()}>{t("Buat manual")}</Button>
           </div>} />
         </Panel>
       )}
 
       {/* empty: filters exclude everything */}
       {phase === "ready" && brandPlans.length > 0 && rows.length === 0 && (
-        <Panel pad={0}><EmptyState icon={<Icons.search size={26} />} title="Tidak ada yang cocok" body="Coba ubah atau hapus filter."
-          action={<Button variant="secondary" onClick={() => { setPlat("all"); setStat("all"); setMonth("all"); setQ(""); }}>Hapus filter</Button>} compact />
+        <Panel pad={0}><EmptyState icon={<Icons.search size={26} />} title={t("Tidak ada yang cocok")} body={t("Coba ubah atau hapus filter.")}
+          action={<Button variant="secondary" onClick={() => { setPlat("all"); setStat("all"); setMonth("all"); setQ(""); }}>{t("Hapus filter")}</Button>} compact />
         </Panel>
       )}
 
@@ -229,7 +230,7 @@ export function PlannerView() {
                 <th style={{ padding: "12px 8px 12px 16px", width: 42 }}><div onClick={(e) => e.stopPropagation()}><Checkbox checked={allSel} onChange={toggleAll} size={17} /></div></th>
                 {[["Tanggal", 140, true], ["Platform", 140], ["Tipe", 130], ["Format", 140], ["Judul", null], ["Status", 112]].map(([label, w, sortable]) => (
                   <th key={label} onClick={sortable ? () => setSortDir(d => d === "asc" ? "desc" : "asc") : undefined} style={{ textAlign: "left", padding: "12px 14px", fontFamily: FPl, fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--ink-400)", whiteSpace: "nowrap", width: w || undefined, cursor: sortable ? "pointer" : "default", userSelect: "none" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{label}{sortable && <Icons.chevDown size={13} style={{ transform: sortDir === "asc" ? "none" : "rotate(180deg)", transition: "transform .15s", color: "var(--ink-300)" }} />}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{t(label)}{sortable && <Icons.chevDown size={13} style={{ transform: sortDir === "asc" ? "none" : "rotate(180deg)", transition: "transform .15s", color: "var(--ink-300)" }} />}</span>
                   </th>
                 ))}
               </tr></thead>
@@ -243,7 +244,7 @@ export function PlannerView() {
                     <td style={{ padding: "12px 14px", fontFamily: FPl, fontSize: 12.5, color: p.contentType ? "var(--ink-700)" : "var(--ink-300)", whiteSpace: "nowrap" }}>{p.contentType || "—"}</td>
                     <td style={{ padding: "12px 14px", fontFamily: FPl, fontSize: 12.5, color: p.format ? "var(--ink-700)" : "var(--ink-300)", whiteSpace: "nowrap" }}>{p.format ? (FORMAT_LABEL[p.format] || p.format) : "—"}</td>
                     <td style={{ padding: "12px 14px", fontFamily: FPl, fontSize: 13, fontWeight: 500, color: p.title ? "var(--ink-900)" : "var(--ink-300)", maxWidth: 340, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>{p.linked && <Icons.sparkle size={13} style={{ color: "var(--st-publishing)" }} />}{p.title || "(tanpa judul)"}</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>{p.linked && <Icons.sparkle size={13} style={{ color: "var(--st-publishing)" }} />}{p.title || t("(tanpa judul)")}</span>
                     </td>
                     <td style={{ padding: "12px 14px" }}><StatusChip s={p.status} /></td>
                   </tr>
@@ -302,17 +303,17 @@ function IdeaGenerator({ open, onClose, brandId, brandName, accounts, token, toa
         body: JSON.stringify({ task: "ideas", brandName, platform, persona, count, seed, pillars }),
       });
       const j = await r.json();
-      if (!j.ok) { toast(j.error || "Gagal membuat ide", "error"); return; }
+      if (!j.ok) { toast(j.error || t("Gagal membuat ide"), "error"); return; }
       setIdeas(j.ideas || []);
       setPicked(Object.fromEntries((j.ideas || []).map((_, i) => [i, true])));
-    } catch (e) { toast("Gagal: " + (e.message || e), "error"); }
+    } catch (e) { toast(t("Gagal: {0}", [e.message || e]), "error"); }
     finally { setBusy(false); }
   }
 
   async function savePicked() {
     if (saving) return;
     const chosen = (ideas || []).filter((_, i) => picked[i]);
-    if (!chosen.length) { toast("Pilih minimal satu ide.", "info"); return; }
+    if (!chosen.length) { toast(t("Pilih minimal satu ide."), "info"); return; }
     setSaving(true);
     try {
       const channelDbId = accounts.find((a) => a.platform === platform)?._id || null;
@@ -326,9 +327,9 @@ function IdeaGenerator({ open, onClose, brandId, brandName, accounts, token, toa
       }));
       await createContentPlansBatch(items);
       await reload();
-      toast(`${items.length} ide ditambahkan ke rencana ✓`, "success");
+      toast(t("{0} ide ditambahkan ke rencana ✓", [items.length]), "success");
       onClose();
-    } catch (e) { toast("Gagal menyimpan: " + (e.message || e), "error"); }
+    } catch (e) { toast(t("Gagal menyimpan: {0}", [e.message || e]), "error"); }
     finally { setSaving(false); }
   }
 
@@ -339,36 +340,36 @@ function IdeaGenerator({ open, onClose, brandId, brandName, accounts, token, toa
       <div style={{ padding: 22 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 4 }}>
           <span style={{ color: "var(--st-publishing)", display: "inline-flex" }}><Icons.sparkle size={18} /></span>
-          <span style={{ fontFamily: FPl, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>Buatkan ide konten dengan AI</span>
+          <span style={{ fontFamily: FPl, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>{t("Buatkan ide konten dengan AI")}</span>
         </div>
-        <div style={{ fontFamily: FPl, fontSize: 12.5, color: "var(--ink-500)", marginBottom: 16 }}>Untuk {brandName || "brand ini"}. Ide mengikuti karakter akun bila sudah diatur.</div>
+        <div style={{ fontFamily: FPl, fontSize: 12.5, color: "var(--ink-500)", marginBottom: 16 }}>{t("Untuk")} {brandName || t("brand ini")}{t(". Ide mengikuti karakter akun bila sudah diatur.")}</div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12 }}>
-          <Field label="Platform"><Select value={platform} onChange={setPlatform} options={platOpts} /></Field>
-          <Field label="Jumlah ide"><NumberField value={count} onChange={setCount} min={3} max={14} /></Field>
+          <Field label={t("Platform")}><Select value={platform} onChange={setPlatform} options={platOpts} /></Field>
+          <Field label={t("Jumlah ide")}><NumberField value={count} onChange={setCount} min={3} max={14} /></Field>
         </div>
-        <Field label="Tema / arahan (opsional)" style={{ marginTop: 12 }}>
-          <Textarea value={seed} onChange={(e) => setSeed(e.target.value)} style={{ minHeight: 48 }} placeholder="Mis. sambut bulan Ramadan, promo paket keluarga…" />
+        <Field label={t("Tema / arahan (opsional)")} style={{ marginTop: 12 }}>
+          <Textarea value={seed} onChange={(e) => setSeed(e.target.value)} style={{ minHeight: 48 }} placeholder={t("Mis. sambut bulan Ramadan, promo paket keluarga…")} />
         </Field>
-        <Field label="Pilar konten (opsional, pisah koma)" style={{ marginTop: 12 }}>
-          <Input value={pillars} onChange={(e) => setPillars(e.target.value)} placeholder="Edukasi, Testimoni, Di balik layar" />
+        <Field label={t("Pilar konten (opsional, pisah koma)")} style={{ marginTop: 12 }}>
+          <Input value={pillars} onChange={(e) => setPillars(e.target.value)} placeholder={t("Edukasi, Testimoni, Di balik layar")} />
         </Field>
 
         <div style={{ marginTop: 14 }}>
           <Button variant="primary" full disabled={busy} icon={busy ? <Spinner size={15} color="#fff" /> : <Icons.sparkle size={16} />} onClick={generate}>
-            {ideas ? "Buat ulang" : "Buatkan ide"}
+            {ideas ? t("Buat ulang") : t("Buatkan ide")}
           </Button>
         </div>
 
         {ideas && (
           <div style={{ marginTop: 16 }}>
             {ideas.length === 0 ? (
-              <div style={{ fontFamily: FPl, fontSize: 13, color: "var(--ink-400)", textAlign: "center", padding: 16 }}>Tidak ada ide dihasilkan. Coba lagi.</div>
+              <div style={{ fontFamily: FPl, fontSize: 13, color: "var(--ink-400)", textAlign: "center", padding: 16 }}>{t("Tidak ada ide dihasilkan. Coba lagi.")}</div>
             ) : (
               <>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontFamily: FPl, fontSize: 12, fontWeight: 600, color: "var(--ink-600)" }}>{pickedCount} dari {ideas.length} dipilih</span>
-                  <button onClick={() => setPicked(Object.fromEntries(ideas.map((_, i) => [i, pickedCount !== ideas.length])))} style={{ border: "none", background: "none", cursor: "pointer", fontFamily: FPl, fontSize: 12, fontWeight: 600, color: "var(--primary-500)" }}>{pickedCount === ideas.length ? "Batal semua" : "Pilih semua"}</button>
+                  <span style={{ fontFamily: FPl, fontSize: 12, fontWeight: 600, color: "var(--ink-600)" }}>{pickedCount} {t("dari")} {ideas.length} {t("dipilih")}</span>
+                  <button onClick={() => setPicked(Object.fromEntries(ideas.map((_, i) => [i, pickedCount !== ideas.length])))} style={{ border: "none", background: "none", cursor: "pointer", fontFamily: FPl, fontSize: 12, fontWeight: 600, color: "var(--primary-500)" }}>{pickedCount === ideas.length ? t("Batal semua") : t("Pilih semua")}</button>
                 </div>
                 <div className="sc-scroll" style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto" }}>
                   {ideas.map((idea, i) => (
@@ -387,16 +388,16 @@ function IdeaGenerator({ open, onClose, brandId, brandName, accounts, token, toa
                     </div>
                   ))}
                 </div>
-                <div style={{ fontFamily: FPl, fontSize: 11.5, color: "var(--ink-400)", marginTop: 10 }}>Ide tersimpan sebagai status <b>Ide</b>, tanggal disebar mulai besok. Buka salah satu untuk kembangkan konsep, script, & caption.</div>
+                <div style={{ fontFamily: FPl, fontSize: 11.5, color: "var(--ink-400)", marginTop: 10 }}>{t("Ide tersimpan sebagai status")} <b>{t("Ide")}</b>{t(", tanggal disebar mulai besok. Buka salah satu untuk kembangkan konsep, script, & caption.")}</div>
               </>
             )}
           </div>
         )}
 
         <div style={{ display: "flex", gap: 10, marginTop: 18, justifyContent: "flex-end" }}>
-          <Button variant="ghost" disabled={busy || saving} onClick={onClose}>Tutup</Button>
+          <Button variant="ghost" disabled={busy || saving} onClick={onClose}>{t("Tutup")}</Button>
           {ideas && ideas.length > 0 && (
-            <Button variant="primary" disabled={saving || busy || pickedCount === 0} icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.check size={16} />} onClick={savePicked}>Tambahkan {pickedCount} ke rencana</Button>
+            <Button variant="primary" disabled={saving || busy || pickedCount === 0} icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.check size={16} />} onClick={savePicked}>{t("Tambahkan")} {pickedCount} {t("ke rencana")}</Button>
           )}
         </div>
       </div>
@@ -414,10 +415,10 @@ function LaneGrid({ lanePlatforms, rows, Row, create, mobile }) {
           <Panel key={pf} pad={14}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <PlatTag p={pf} big />
-              <Button size="sm" variant="ghost" icon={<Icons.plus size={14} />} onClick={() => create(pf)}>Konten</Button>
+              <Button size="sm" variant="ghost" icon={<Icons.plus size={14} />} onClick={() => create(pf)}>{t("Konten")}</Button>
             </div>
             {laneRows.length === 0
-              ? <div style={{ fontFamily: FPl, fontSize: 12, color: "var(--ink-300)", padding: "14px 2px" }}>Belum ada konten {m.label}.</div>
+              ? <div style={{ fontFamily: FPl, fontSize: 12, color: "var(--ink-300)", padding: "14px 2px" }}>{t("Belum ada konten")} {t(m.label)}.</div>
               : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{laneRows.map(p => <Row key={p.id} p={p} compact />)}</div>}
           </Panel>
         );

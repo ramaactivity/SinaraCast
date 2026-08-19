@@ -5,6 +5,7 @@ import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { BRANDS, BrandAvatar, Panel, Button, IconButton, Status, Field, Input, Select, SectionTitle, Skeleton, Modal, PlatIcon } from "../ui";
 import { createBrand, renameBrand, setChannelBrand, deleteBrand } from "../dataLayer";
+import { t } from "../i18n";
 const { useState: uCn } = React;
 const FC = "var(--font)";
 
@@ -23,11 +24,11 @@ export function ConnectionsView() {
 
   const connectedCt = channels.filter(c => c.status === "Connected").length;
   const META_STEPS = [
-    { t: "Akun developer Meta dibuat", done: channels.length > 0 },
-    { t: "Aplikasi dalam Development Mode", done: channels.length > 0 },
-    { t: "IG diubah ke Business + Page tersambung", done: channels.length > 0 },
-    { t: `Akun terhubung (${connectedCt})`, done: connectedCt > 0 },
-    { t: "Alert Telegram tersambung", done: !!app.settings.telegram.connected },
+    { t: t("Akun developer Meta dibuat"), done: channels.length > 0 },
+    { t: t("Aplikasi dalam Development Mode"), done: channels.length > 0 },
+    { t: t("IG diubah ke Business + Page tersambung"), done: channels.length > 0 },
+    { t: t("Akun terhubung ({0})", [connectedCt]), done: connectedCt > 0 },
+    { t: t("Alert Telegram tersambung"), done: !!app.settings.telegram.connected },
   ];
 
   const nameOf = (c) => acctStyle(c).name;
@@ -35,21 +36,21 @@ export function ConnectionsView() {
 
   const saveBrandName = async (name, brandObj) => {
     try {
-      if (brandObj) { await renameBrand(brandObj.id, name); await app.reload(); app.toast("Nama brand diperbarui", "success"); }
-      else { const id = await createBrand(name); await app.reload(); app.selectBrand?.(id); app.toast("Brand dibuat", "success"); }
-    } catch (e) { app.toast("Gagal: " + (e.message || e), "error"); }
+      if (brandObj) { await renameBrand(brandObj.id, name); await app.reload(); app.toast(t("Nama brand diperbarui"), "success"); }
+      else { const id = await createBrand(name); await app.reload(); app.selectBrand?.(id); app.toast(t("Brand dibuat"), "success"); }
+    } catch (e) { app.toast(t("Gagal: {0}", [e.message || e]), "error"); }
     setNameModal(null);
   };
   const moveToBrand = async (c, brandId) => {
-    try { await setChannelBrand(c._id, brandId); await app.reload(); app.toast(`${nameOf(c)} dipindahkan`, "success"); }
-    catch (e) { app.toast("Gagal memindahkan: " + (e.message || e), "error"); }
+    try { await setChannelBrand(c._id, brandId); await app.reload(); app.toast(t("{0} dipindahkan", [nameOf(c)]), "success"); }
+    catch (e) { app.toast(t("Gagal memindahkan: {0}", [e.message || e]), "error"); }
     setMoveAcct(null);
   };
   const removeBrand = (br) => app.confirm({
-    title: `Hapus brand "${br.name}"?`, danger: true, confirmLabel: "Hapus brand",
-    body: br.accounts.length ? `${br.accounts.length} akun akan lepas dari brand ini (akunnya tidak ikut terhapus).` : "Brand kosong ini akan dihapus.",
-    consequence: "Rencana konten milik brand ini ikut terhapus. Tindakan ini tidak bisa dibatalkan.",
-    onConfirm: async () => { try { await deleteBrand(br.id); await app.reload(); app.toast("Brand dihapus", "success"); } catch (e) { app.toast("Gagal: " + (e.message || e), "error"); } },
+    title: t("Hapus brand \"{0}\"?", [br.name]), danger: true, confirmLabel: t("Hapus brand"),
+    body: br.accounts.length ? t("{0} akun akan lepas dari brand ini (akunnya tidak ikut terhapus).", [br.accounts.length]) : t("Brand kosong ini akan dihapus."),
+    consequence: t("Rencana konten milik brand ini ikut terhapus. Tindakan ini tidak bisa dibatalkan."),
+    onConfirm: async () => { try { await deleteBrand(br.id); await app.reload(); app.toast(t("Brand dihapus"), "success"); } catch (e) { app.toast(t("Gagal: {0}", [e.message || e]), "error"); } },
   });
 
   // One account, rendered as a row inside its brand's panel.
@@ -67,33 +68,33 @@ export function ConnectionsView() {
               <span style={{ flex: "0 0 auto" }}><Status s={c.paused ? "Paused" : c.status} pulse={c.status === "Needs reconnect"} /></span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 4, fontFamily: FC, fontSize: 11.5, color: "var(--ink-400)", flexWrap: "wrap", rowGap: 2 }}>
-              <span>{c.followers} pengikut</span><span style={{ color: "var(--ink-300)" }}>·</span><span>Aktif s/d {c.tokenExpires}</span>
+              <span>{c.followers} {t("pengikut")}</span><span style={{ color: "var(--ink-300)" }}>·</span><span>{t("Aktif s/d")} {c.tokenExpires}</span>
             </div>
           </div>
           <div style={{ display: "flex", gap: 5, alignItems: "center", flex: "0 0 auto", marginLeft: app.isMobile ? 0 : "auto", marginTop: app.isMobile ? 6 : 0, width: app.isMobile ? "100%" : "auto", justifyContent: app.isMobile ? "flex-start" : "flex-end" }}>
             {c.status === "Needs reconnect" || c.status === "Expiring"
-              ? <Button size="sm" variant={c.status === "Needs reconnect" ? "danger" : "secondary"} icon={<Icons.retry size={15} />} onClick={() => reconnect(c)}>Sambungkan ulang</Button>
-              : <Button size="sm" variant={c.paused ? "primary" : "secondary"} icon={c.paused ? <Icons.play size={15} /> : <Icons.pause size={15} />} onClick={() => app.toggleChannelPause(c, nameOf(c))}>{c.paused ? "Lanjutkan" : "Jeda"}</Button>}
-            {c.status === "Connected" && <IconButton size={34} icon={<Icons.retry size={16} />} tip="Sambungkan ulang (perbarui izin)" onClick={() => reconnect(c)} />}
-            <IconButton size={34} icon={<Icons.swap size={16} />} tip="Pindahkan ke brand lain" onClick={() => setMoveAcct(c)} />
-            <IconButton size={34} icon={<Icons.edit size={16} />} tip="Ubah nama akun" onClick={() => setEditAcct(c)} />
-            <IconButton size={34} icon={<Icons.trash size={16} />} tone="danger" tip="Hapus akun" onClick={() => app.confirm({
-              title: `Hapus ${c.handle}?`, danger: true, confirmLabel: "Hapus akun", body: "Akun ini diputus dari SinaraCast.",
-              consequence: "Jadwal & postingannya berhenti. Akun disembunyikan, bukan dihapus permanen.", onConfirm: () => app.archiveChannel(c) })} />
+              ? <Button size="sm" variant={c.status === "Needs reconnect" ? "danger" : "secondary"} icon={<Icons.retry size={15} />} onClick={() => reconnect(c)}>{t("Sambungkan ulang")}</Button>
+              : <Button size="sm" variant={c.paused ? "primary" : "secondary"} icon={c.paused ? <Icons.play size={15} /> : <Icons.pause size={15} />} onClick={() => app.toggleChannelPause(c, nameOf(c))}>{c.paused ? t("Lanjutkan") : t("Jeda")}</Button>}
+            {c.status === "Connected" && <IconButton size={34} icon={<Icons.retry size={16} />} tip={t("Sambungkan ulang (perbarui izin)")} onClick={() => reconnect(c)} />}
+            <IconButton size={34} icon={<Icons.swap size={16} />} tip={t("Pindahkan ke brand lain")} onClick={() => setMoveAcct(c)} />
+            <IconButton size={34} icon={<Icons.edit size={16} />} tip={t("Ubah nama akun")} onClick={() => setEditAcct(c)} />
+            <IconButton size={34} icon={<Icons.trash size={16} />} tone="danger" tip={t("Hapus akun")} onClick={() => app.confirm({
+              title: t("Hapus {0}?", [c.handle]), danger: true, confirmLabel: t("Hapus akun"), body: t("Akun ini diputus dari SinaraCast."),
+              consequence: t("Jadwal & postingannya berhenti. Akun disembunyikan, bukan dihapus permanen."), onConfirm: () => app.archiveChannel(c) })} />
           </div>
         </div>
-        {c.status === "Needs reconnect" && <div style={{ marginTop: 11, background: "var(--danger-bg)", borderRadius: 11, padding: "9px 12px", fontFamily: FC, fontSize: 11.5, color: "var(--danger)", display: "flex", gap: 8 }}><Icons.alert size={15} style={{ flex: "0 0 auto" }} />Koneksi ke {PLAT[c.platform]?.l || c.platform} putus. Posting dihentikan sampai disambungkan kembali.</div>}
+        {c.status === "Needs reconnect" && <div style={{ marginTop: 11, background: "var(--danger-bg)", borderRadius: 11, padding: "9px 12px", fontFamily: FC, fontSize: 11.5, color: "var(--danger)", display: "flex", gap: 8 }}><Icons.alert size={15} style={{ flex: "0 0 auto" }} />{t("Koneksi ke")} {PLAT[c.platform]?.l || c.platform} {t("putus. Posting dihentikan sampai disambungkan kembali.")}</div>}
       </div>
     );
   };
 
   return (
     <div>
-      <Topbar title="Manajemen Akun" sub="Brand, akun sosial media, koneksi, dan Telegram"
+      <Topbar title={t("Manajemen Akun")} sub={t("Brand, akun sosial media, koneksi, dan Telegram")}
         right={<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="ghost" icon={<Icons.layers size={17} sw={2} />} onClick={() => setNameModal({ mode: "create" })}>Brand baru</Button>
-          <Button variant="secondary" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.connectTikTokChannel()}>Sambungkan TikTok</Button>
-          <Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.connectChannel()}>Tambah Instagram</Button>
+          <Button variant="ghost" icon={<Icons.layers size={17} sw={2} />} onClick={() => setNameModal({ mode: "create" })}>{t("Brand baru")}</Button>
+          <Button variant="secondary" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.connectTikTokChannel()}>{t("Sambungkan TikTok")}</Button>
+          <Button variant="amber" icon={<Icons.plus size={18} sw={2} />} onClick={() => app.connectChannel()}>{t("Tambah Instagram")}</Button>
         </div>} />
 
       <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr" : "minmax(0,1fr) 340px", gap: 18, alignItems: "start" }}>
@@ -104,11 +105,11 @@ export function ConnectionsView() {
             <Panel pad={28}>
               <div style={{ textAlign: "center", maxWidth: 420, margin: "0 auto" }}>
                 <div style={{ width: 52, height: 52, borderRadius: 16, background: "var(--primary-100)", color: "var(--primary-500)", display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Icons.connections size={26} /></div>
-                <div style={{ fontFamily: FC, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>Belum ada akun di sini</div>
-                <div style={{ fontFamily: FC, fontSize: 13, color: "var(--ink-500)", marginTop: 6, lineHeight: 1.5 }}>Kamu masuk sebagai <b style={{ color: "var(--ink-900)" }}>{app.profile.email || "—"}</b>. Kalau akunmu seharusnya sudah ada, mungkin emailnya berbeda.</div>
+                <div style={{ fontFamily: FC, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>{t("Belum ada akun di sini")}</div>
+                <div style={{ fontFamily: FC, fontSize: 13, color: "var(--ink-500)", marginTop: 6, lineHeight: 1.5 }}>{t("Kamu masuk sebagai")} <b style={{ color: "var(--ink-900)" }}>{app.profile.email || "—"}</b>{t(". Kalau akunmu seharusnya sudah ada, mungkin emailnya berbeda.")}</div>
                 <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 18 }}>
-                  <Button variant="secondary" icon={<Icons.logout size={16} />} onClick={() => app.confirm({ title: "Keluar & ganti akun?", confirmLabel: "Keluar", body: "Masuk lagi dengan email yang benar.", onConfirm: () => app.signOut() })}>Keluar / ganti email</Button>
-                  <Button variant="amber" icon={<Icons.plus size={16} sw={2} />} onClick={() => app.connectChannel()}>Tambah akun</Button>
+                  <Button variant="secondary" icon={<Icons.logout size={16} />} onClick={() => app.confirm({ title: t("Keluar & ganti akun?"), confirmLabel: t("Keluar"), body: t("Masuk lagi dengan email yang benar."), onConfirm: () => app.signOut() })}>{t("Keluar / ganti email")}</Button>
+                  <Button variant="amber" icon={<Icons.plus size={16} sw={2} />} onClick={() => app.connectChannel()}>{t("Tambah akun")}</Button>
                 </div>
               </div>
             </Panel>
@@ -121,15 +122,15 @@ export function ConnectionsView() {
                 <BrandAvatar brand={brandAv(br.name)} size={32} />
                 <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", rowGap: 4 }}>
                   <span style={{ fontFamily: FC, fontWeight: 700, fontSize: 15.5, color: "var(--ink-900)", letterSpacing: "-.01em" }}>{br.name}</span>
-                  <span style={{ fontFamily: FC, fontSize: 11, fontWeight: 600, color: "var(--ink-500)", background: "rgba(140,144,158,.13)", padding: "2px 9px", borderRadius: 999 }}>{br.accounts.length} akun</span>
-                  {br.id === app.brand && <span style={{ fontFamily: FC, fontSize: 10.5, fontWeight: 600, color: "var(--primary-600, #b8338a)", background: "var(--primary-100)", padding: "2px 8px", borderRadius: 999 }}>aktif</span>}
+                  <span style={{ fontFamily: FC, fontSize: 11, fontWeight: 600, color: "var(--ink-500)", background: "rgba(140,144,158,.13)", padding: "2px 9px", borderRadius: 999 }}>{t("{0} akun", [br.accounts.length])}</span>
+                  {br.id === app.brand && <span style={{ fontFamily: FC, fontSize: 10.5, fontWeight: 600, color: "var(--primary-600, #b8338a)", background: "var(--primary-100)", padding: "2px 8px", borderRadius: 999 }}>{t("aktif")}</span>}
                 </div>
                 <span style={{ flex: 1 }} />
-                <IconButton size={32} icon={<Icons.edit size={16} />} tip="Ubah nama brand" onClick={() => setNameModal({ mode: "rename", brand: br })} />
-                <IconButton size={32} icon={<Icons.trash size={16} />} tone="danger" tip="Hapus brand" onClick={() => removeBrand(br)} />
+                <IconButton size={32} icon={<Icons.edit size={16} />} tip={t("Ubah nama brand")} onClick={() => setNameModal({ mode: "rename", brand: br })} />
+                <IconButton size={32} icon={<Icons.trash size={16} />} tone="danger" tip={t("Hapus brand")} onClick={() => removeBrand(br)} />
               </div>
               {br.accounts.length === 0
-                ? <div style={{ borderTop: "1px solid var(--line-soft)", padding: "14px 18px", fontFamily: FC, fontSize: 12.5, color: "var(--ink-400)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>Belum ada akun di brand ini.<Button size="sm" variant="secondary" icon={<Icons.plus size={14} />} onClick={() => app.connectChannel()}>Tambah Instagram</Button><Button size="sm" variant="secondary" icon={<Icons.plus size={14} />} onClick={() => app.connectTikTokChannel()}>TikTok</Button></div>
+                ? <div style={{ borderTop: "1px solid var(--line-soft)", padding: "14px 18px", fontFamily: FC, fontSize: 12.5, color: "var(--ink-400)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>{t("Belum ada akun di brand ini.")}<Button size="sm" variant="secondary" icon={<Icons.plus size={14} />} onClick={() => app.connectChannel()}>{t("Tambah Instagram")}</Button><Button size="sm" variant="secondary" icon={<Icons.plus size={14} />} onClick={() => app.connectTikTokChannel()}>TikTok</Button></div>
                 : br.accounts.map(c => <AccountRow key={c.id} c={c} />)}
             </Panel>
           ))}
@@ -139,7 +140,7 @@ export function ConnectionsView() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <TelegramCard />
           <Panel>
-            <SectionTitle sub="Sekali saja di awal">Langkah penyiapan</SectionTitle>
+            <SectionTitle sub={t("Sekali saja di awal")}>{t("Langkah penyiapan")}</SectionTitle>
             <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
               {META_STEPS.map((s, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 11 }}>
@@ -149,13 +150,13 @@ export function ConnectionsView() {
                 </div>
               ))}
             </div>
-            <Button size="sm" variant="ghost" full icon={<Icons.external size={15} />} style={{ marginTop: 14, justifyContent: "flex-start" }} onClick={() => app.go("onboarding")}>Buka panduan lengkap</Button>
+            <Button size="sm" variant="ghost" full icon={<Icons.external size={15} />} style={{ marginTop: 14, justifyContent: "flex-start" }} onClick={() => app.go("onboarding")}>{t("Buka panduan lengkap")}</Button>
           </Panel>
         </div>
       </div>
 
       <AccountRenameModal c={editAcct} onClose={() => setEditAcct(null)} />
-      <MoveBrandModal c={moveAcct} brands={brands} onClose={() => setMoveAcct(null)} onMove={moveToBrand} onCreateMove={async (c, name) => { try { const id = await createBrand(name); await setChannelBrand(c._id, id); await app.reload(); app.toast("Brand dibuat & akun dipindahkan", "success"); } catch (e) { app.toast("Gagal: " + (e.message || e), "error"); } setMoveAcct(null); }} />
+      <MoveBrandModal c={moveAcct} brands={brands} onClose={() => setMoveAcct(null)} onMove={moveToBrand} onCreateMove={async (c, name) => { try { const id = await createBrand(name); await setChannelBrand(c._id, id); await app.reload(); app.toast(t("Brand dibuat & akun dipindahkan"), "success"); } catch (e) { app.toast(t("Gagal: {0}", [e.message || e]), "error"); } setMoveAcct(null); }} />
       <NameModal cfg={nameModal} onClose={() => setNameModal(null)} onSave={saveBrandName} />
     </div>
   );
@@ -166,21 +167,21 @@ function TelegramCard() {
   const tg = app.settings.telegram;
   return (
     <Panel strong>
-      <SectionTitle sub="Pemberitahuan gagal selalu aktif">Telegram</SectionTitle>
+      <SectionTitle sub={t("Pemberitahuan gagal selalu aktif")}>Telegram</SectionTitle>
       {tg.connected ? (
         <div style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--green-100)", borderRadius: 13, padding: "12px 14px" }}>
           <span style={{ width: 36, height: 36, borderRadius: 11, background: "var(--green-grad)", color: "#fff", display: "grid", placeItems: "center", flex: "0 0 auto" }}><Icons.telegram size={19} /></span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: FC, fontWeight: 600, fontSize: 13, color: "var(--ink-900)" }}>Terhubung</div>
+            <div style={{ fontFamily: FC, fontWeight: 600, fontSize: 13, color: "var(--ink-900)" }}>{t("Terhubung")}</div>
             <div style={{ fontFamily: FC, fontSize: 11.5, color: "var(--ink-500)" }}>{tg.handle}</div>
           </div>
-          <Button size="sm" variant="secondary" onClick={() => app.testTelegram()}>Kirim tes</Button>
-          <IconButton icon={<Icons.x size={16} />} tip="Putuskan" onClick={() => app.confirm({ title: "Putuskan Telegram?", danger: true, confirmLabel: "Putuskan", body: "Pemberitahuan tetap muncul di aplikasi, tapi tidak dikirim ke Telegram.", onConfirm: () => app.disconnectTelegram() })} />
+          <Button size="sm" variant="secondary" onClick={() => app.testTelegram()}>{t("Kirim tes")}</Button>
+          <IconButton icon={<Icons.x size={16} />} tip={t("Putuskan")} onClick={() => app.confirm({ title: t("Putuskan Telegram?"), danger: true, confirmLabel: t("Putuskan"), body: t("Pemberitahuan tetap muncul di aplikasi, tapi tidak dikirim ke Telegram."), onConfirm: () => app.disconnectTelegram() })} />
         </div>
       ) : (
         <div>
-          <p style={{ fontFamily: FC, fontSize: 12.5, color: "var(--ink-500)", lineHeight: 1.5, margin: "0 0 12px" }}>Hubungkan Telegram untuk dapat pemberitahuan saat posting gagal, koneksi bermasalah, atau jadwal terlewat.</p>
-          <Button size="sm" variant="primary" full icon={<Icons.telegram size={16} />} onClick={() => app.connectTelegram()}>Hubungkan Telegram</Button>
+          <p style={{ fontFamily: FC, fontSize: 12.5, color: "var(--ink-500)", lineHeight: 1.5, margin: "0 0 12px" }}>{t("Hubungkan Telegram untuk dapat pemberitahuan saat posting gagal, koneksi bermasalah, atau jadwal terlewat.")}</p>
+          <Button size="sm" variant="primary" full icon={<Icons.telegram size={16} />} onClick={() => app.connectTelegram()}>{t("Hubungkan Telegram")}</Button>
         </div>
       )}
     </Panel>
@@ -197,13 +198,13 @@ function AccountRenameModal({ c, onClose }) {
   return (
     <Modal open={!!c} onClose={onClose} width={440}>
       <div style={{ padding: 24 }}>
-        <SectionTitle sub="Ubah nama tampilan akun">Identitas akun</SectionTitle>
+        <SectionTitle sub={t("Ubah nama tampilan akun")}>{t("Identitas akun")}</SectionTitle>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}><BrandAvatar brand={acctStyle(c)} src={c.avatarUrl} size={64} ring /></div>
-        <Field label="Nama akun"><Input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") save(); }} /></Field>
-        <Field label="Handle" style={{ marginTop: 14 }}><Input value={c.handle} icon={<Icons.connections size={17} />} readOnly /></Field>
+        <Field label={t("Nama akun")}><Input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") save(); }} /></Field>
+        <Field label={t("Handle")} style={{ marginTop: 14 }}><Input value={c.handle} icon={<Icons.connections size={17} />} readOnly /></Field>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
-          <Button variant="secondary" onClick={onClose}>Batal</Button>
-          <Button variant="primary" icon={<Icons.check size={17} />} disabled={!name.trim()} onClick={save}>Simpan</Button>
+          <Button variant="secondary" onClick={onClose}>{t("Batal")}</Button>
+          <Button variant="primary" icon={<Icons.check size={17} />} disabled={!name.trim()} onClick={save}>{t("Simpan")}</Button>
         </div>
       </div>
     </Modal>
@@ -220,11 +221,11 @@ function NameModal({ cfg, onClose, onSave }) {
   return (
     <Modal open={!!cfg} onClose={onClose} width={420}>
       <div style={{ padding: 24 }}>
-        <SectionTitle sub={isRename ? "Ubah nama brand" : "Buat workspace brand baru"}>{isRename ? "Ubah brand" : "Brand baru"}</SectionTitle>
-        <Field label="Nama brand"><Input autoFocus value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") save(); }} placeholder="mis. Mahakan Coffee" /></Field>
+        <SectionTitle sub={isRename ? t("Ubah nama brand") : t("Buat workspace brand baru")}>{isRename ? t("Ubah brand") : t("Brand baru")}</SectionTitle>
+        <Field label={t("Nama brand")}><Input autoFocus value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") save(); }} placeholder={t("mis. Mahakan Coffee")} /></Field>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
-          <Button variant="secondary" onClick={onClose}>Batal</Button>
-          <Button variant="primary" icon={<Icons.check size={17} />} disabled={!name.trim()} onClick={save}>{isRename ? "Simpan" : "Buat"}</Button>
+          <Button variant="secondary" onClick={onClose}>{t("Batal")}</Button>
+          <Button variant="primary" icon={<Icons.check size={17} />} disabled={!name.trim()} onClick={save}>{isRename ? t("Simpan") : t("Buat")}</Button>
         </div>
       </div>
     </Modal>
@@ -241,17 +242,17 @@ function MoveBrandModal({ c, brands, onClose, onMove, onCreateMove }) {
   return (
     <Modal open={!!c} onClose={onClose} width={440}>
       <div style={{ padding: 24 }}>
-        <SectionTitle sub={`${c.handle} (${PLAT[c.platform]?.l || c.platform})`}>Pindahkan ke brand</SectionTitle>
-        <Field label="Brand tujuan">
-          <Select value={pick} onChange={setPick} placeholder="Pilih brand…" options={brands.map(b => ({ value: b.id, label: `${b.name}${b.id === c.brandId ? " (sekarang)" : ""}` }))} />
+        <SectionTitle sub={`${c.handle} (${PLAT[c.platform]?.l || c.platform})`}>{t("Pindahkan ke brand")}</SectionTitle>
+        <Field label={t("Brand tujuan")}>
+          <Select value={pick} onChange={setPick} placeholder={t("Pilih brand…")} options={brands.map(b => ({ value: b.id, label: `${b.name}${b.id === c.brandId ? t(" (sekarang)") : ""}` }))} />
         </Field>
-        <div style={{ fontFamily: FC, fontSize: 11.5, color: "var(--ink-400)", margin: "14px 0 6px", fontWeight: 600 }}>atau buat brand baru</div>
-        <Field><Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nama brand baru…" /></Field>
+        <div style={{ fontFamily: FC, fontSize: 11.5, color: "var(--ink-400)", margin: "14px 0 6px", fontWeight: 600 }}>{t("atau buat brand baru")}</div>
+        <Field><Input value={newName} onChange={e => setNewName(e.target.value)} placeholder={t("Nama brand baru…")} /></Field>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
-          <Button variant="secondary" onClick={onClose}>Batal</Button>
+          <Button variant="secondary" onClick={onClose}>{t("Batal")}</Button>
           {newName.trim()
-            ? <Button variant="primary" icon={<Icons.check size={17} />} onClick={() => onCreateMove(c, newName.trim())}>Buat & pindahkan</Button>
-            : <Button variant="primary" icon={<Icons.swap size={16} />} disabled={!pick || pick === c.brandId} onClick={() => onMove(c, pick)}>Pindahkan</Button>}
+            ? <Button variant="primary" icon={<Icons.check size={17} />} onClick={() => onCreateMove(c, newName.trim())}>{t("Buat & pindahkan")}</Button>
+            : <Button variant="primary" icon={<Icons.swap size={16} />} disabled={!pick || pick === c.brandId} onClick={() => onMove(c, pick)}>{t("Pindahkan")}</Button>}
         </div>
       </div>
     </Modal>

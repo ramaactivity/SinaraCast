@@ -5,6 +5,7 @@ import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { Panel, Button, Select, Skeleton, EmptyState, Sparkline, PlatIcon } from "../ui";
 import { PLATFORM } from "./contentEditor";
+import { t } from "../i18n";
 const { useState: uRk } = React;
 const FRk = "var(--font)";
 
@@ -37,8 +38,8 @@ function deltaLastDays(series, n) {
 }
 
 function DeltaText({ delta, sub }) {
-  if (delta == null) return <div style={{ fontFamily: FRk, fontSize: 11, color: "var(--ink-400)" }}>followers</div>;
-  if (delta === 0) return <div style={{ fontFamily: FRk, fontSize: 11, color: "var(--ink-400)" }}>stabil · {sub}</div>;
+  if (delta == null) return <div style={{ fontFamily: FRk, fontSize: 11, color: "var(--ink-400)" }}>{t("followers")}</div>;
+  if (delta === 0) return <div style={{ fontFamily: FRk, fontSize: 11, color: "var(--ink-400)" }}>{t("stabil ·")} {sub}</div>;
   const up = delta > 0;
   return <div style={{ fontFamily: FRk, fontSize: 11.5, fontWeight: 600, color: up ? "var(--st-success)" : "var(--st-failed)" }}>{up ? "↑ +" : "↓ -"}{fmtCompact(Math.abs(delta))} <span style={{ fontWeight: 500, color: "var(--ink-400)" }}>{sub}</span></div>;
 }
@@ -79,7 +80,7 @@ export function RingkasanView() {
 
   const brandPlans = (app.plans || []).filter(p => p.brandId === app.brand);
   const monthsPresent = [...new Set(brandPlans.map(p => p.ym).filter(Boolean))].sort().reverse();
-  const monthOpts = [{ value: "all", label: "Semua waktu" }, ...monthsPresent.map(ym => { const [Y, M] = ym.split("-"); return { value: ym, label: `${MONTH_FULL[+M - 1]} ${Y}` }; })];
+  const monthOpts = [{ value: "all", label: t("Semua waktu") }, ...monthsPresent.map(ym => { const [Y, M] = ym.split("-"); return { value: ym, label: `${t(MONTH_FULL[+M - 1])} ${Y}` }; })];
   const scoped = month === "all" ? brandPlans : brandPlans.filter(p => p.ym === month);
 
   const byStatus = {}; PLAN_ORDER.forEach(s => { const n = scoped.filter(p => p.status === s).length; if (n) byStatus[s] = n; });
@@ -112,12 +113,12 @@ export function RingkasanView() {
   const topRun = [...runsWithM].sort((a, z) => (z.m?.views ?? z.m?.reach ?? 0) - (a.m?.views ?? a.m?.reach ?? 0))[0];
 
   if (phase === "ready" && !brand) {
-    return <div><Topbar title="Ringkasan" /><Panel pad={0}><EmptyState icon={<Icons.sparkle size={28} />} title="Belum ada brand" body="Tambahkan akun sosial media dulu untuk melihat ringkasannya." action={<Button variant="amber" onClick={() => app.go("connections")}>Buka Manajemen Akun</Button>} /></Panel></div>;
+    return <div><Topbar title={t("Ringkasan")} /><Panel pad={0}><EmptyState icon={<Icons.sparkle size={28} />} title={t("Belum ada brand")} body={t("Tambahkan akun sosial media dulu untuk melihat ringkasannya.")} action={<Button variant="amber" onClick={() => app.go("connections")}>{t("Buka Manajemen Akun")}</Button>} /></Panel></div>;
   }
 
   return (
     <div>
-      <Topbar title="Ringkasan" sub={brand ? `${brand.name} · laporan konten & followers · WIB` : "·"}
+      <Topbar title={t("Ringkasan")} sub={brand ? t("{0} · laporan konten & followers · WIB", [brand.name]) : "·"}
         right={<div style={{ width: 190 }}><Select size="sm" value={month} onChange={setMonth} options={monthOpts} /></div>} />
 
       {phase === "loading" && <><Panel style={{ marginBottom: 16 }}><Skeleton h={20} w="40%" /><div style={{ height: 14 }} /><Skeleton h={40} /></Panel><Panel><Skeleton h={120} /></Panel></>}
@@ -127,22 +128,22 @@ export function RingkasanView() {
           {/* content totals */}
           <Panel pad={18}>
             <div style={app.isMobile ? { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 } : { display: "flex", alignItems: "center", gap: 26 }}>
-              <Stat label="Total konten" value={scoped.length} sub={month === "all" ? `${accounts.length} akun` : monthOpts.find(o => o.value === month)?.label} />
+              <Stat label={t("Total konten")} value={scoped.length} sub={month === "all" ? t("{0} akun", [accounts.length]) : monthOpts.find(o => o.value === month)?.label} />
               {!app.isMobile && <Div />}
-              <Stat label="Sudah posted" value={postedCt} sub="terbit" color="var(--st-success)" />
+              <Stat label={t("Sudah posted")} value={postedCt} sub={t("terbit")} color="var(--st-success)" />
               {!app.isMobile && <Div />}
-              <Stat label="Dalam proses" value={inProgress} sub="ide → siap" />
+              <Stat label={t("Dalam proses")} value={inProgress} sub={t("ide → siap")} />
               {!app.isMobile && <Div />}
-              <Stat label="Akun" value={accounts.length} sub="sosial media" />
+              <Stat label={t("Akun")} value={accounts.length} sub={t("sosial media")} />
             </div>
           </Panel>
 
           {/* follower trend per account */}
           <Panel>
-            <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>Pertumbuhan followers</div>
-            <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", marginTop: 2, marginBottom: 14 }}>Tercatat otomatis tiap hari per akun</div>
+            <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>{t("Pertumbuhan followers")}</div>
+            <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", marginTop: 2, marginBottom: 14 }}>{t("Tercatat otomatis tiap hari per akun")}</div>
             {accounts.length === 0 ? (
-              <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)" }}>Belum ada akun terhubung di brand ini.</div>
+              <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)" }}>{t("Belum ada akun terhubung di brand ini.")}</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {accounts.map(a => {
@@ -159,23 +160,23 @@ export function RingkasanView() {
                         <PlatIcon p={a.platform} size={20} />
                         <div style={{ minWidth: 0, flex: app.isMobile ? "1 1 60%" : "0 0 auto", width: app.isMobile ? "auto" : 150 }}>
                           <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.handle}</div>
-                          <div style={{ fontFamily: FRk, fontSize: 11, color: "var(--ink-400)" }}>{m.label}</div>
+                          <div style={{ fontFamily: FRk, fontSize: 11, color: "var(--ink-400)" }}>{t(m.label)}</div>
                         </div>
                         <div style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: app.isMobile ? "flex-start" : "center" }}>
                           {series.length >= 2
                             ? <Sparkline data={series.map(s => s.followers)} w={app.isMobile ? 140 : 200} h={34} color={m.accent} />
-                            : <span style={{ fontFamily: FRk, fontSize: 11.5, color: "var(--ink-300)" }}>Tren mulai terkumpul…</span>}
+                            : <span style={{ fontFamily: FRk, fontSize: 11.5, color: "var(--ink-300)" }}>{t("Tren mulai terkumpul…")}</span>}
                         </div>
                         <div style={{ textAlign: "right", flex: "0 0 auto" }}>
                           <div style={{ fontFamily: FRk, fontSize: 18, fontWeight: 700, color: "var(--ink-900)", letterSpacing: "-.01em" }}>{cur != null ? fmtCompact(cur) : a.followers}</div>
-                          <DeltaText delta={scopeDelta} sub={month === "all" ? "sejak tercatat" : "bulan ini"} />
+                          <DeltaText delta={scopeDelta} sub={month === "all" ? t("sejak tercatat") : t("bulan ini")} />
                         </div>
                       </div>
                       {all.length >= 2 && (
                         <div style={{ display: "flex", gap: 8, marginTop: 11, paddingTop: 11, borderTop: "1px solid var(--line-soft, var(--line))", flexWrap: "wrap" }}>
-                          <DeltaChip label="Kemarin" delta={deltaLastDays(all, 1)} />
-                          <DeltaChip label="7 hari" delta={deltaLastDays(all, 7)} />
-                          <DeltaChip label="30 hari" delta={deltaLastDays(all, 30)} />
+                          <DeltaChip label={t("Kemarin")} delta={deltaLastDays(all, 1)} />
+                          <DeltaChip label={t("7 hari")} delta={deltaLastDays(all, 7)} />
+                          <DeltaChip label={t("30 hari")} delta={deltaLastDays(all, 30)} />
                         </div>
                       )}
                     </div>
@@ -189,14 +190,14 @@ export function RingkasanView() {
           {scoped.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
               <Panel>
-                <div style={subhead}>Per status</div>
+                <div style={subhead}>{t("Per status")}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 12 }}>
                   {PLAN_ORDER.filter(s => byStatus[s]).map(s => {
                     const c = PLAN_ST_COLOR[s], pct = Math.round((byStatus[s] / scoped.length) * 100);
                     return (
                       <div key={s} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <span style={{ width: 8, height: 8, borderRadius: "50%", background: c, flex: "0 0 auto" }} />
-                        <span style={{ width: 78, fontFamily: FRk, fontSize: 12.5, color: "var(--ink-700)", flex: "0 0 auto" }}>{PLAN_LABEL[s]}</span>
+                        <span style={{ width: 78, fontFamily: FRk, fontSize: 12.5, color: "var(--ink-700)", flex: "0 0 auto" }}>{t(PLAN_LABEL[s])}</span>
                         <div style={{ flex: 1, height: 7, borderRadius: 999, background: "rgba(140,144,158,.14)", overflow: "hidden" }}><div style={{ width: `${pct}%`, height: "100%", background: c, borderRadius: 999 }} /></div>
                         <span style={{ width: 26, textAlign: "right", fontFamily: FRk, fontSize: 12.5, fontWeight: 700, color: "var(--ink-800)", fontVariantNumeric: "tabular-nums" }}>{byStatus[s]}</span>
                       </div>
@@ -205,14 +206,14 @@ export function RingkasanView() {
                 </div>
               </Panel>
               <Panel>
-                <div style={subhead}>Per platform</div>
+                <div style={subhead}>{t("Per platform")}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 12 }}>
                   {Object.entries(byPlatform).sort((a, b) => b[1] - a[1]).map(([p, n]) => {
                     const m = platMeta(p), pct = Math.round((n / scoped.length) * 100);
                     return (
                       <div key={p} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <PlatIcon p={p} size={15} />
-                        <span style={{ width: 78, fontFamily: FRk, fontSize: 12.5, color: "var(--ink-700)", flex: "0 0 auto" }}>{m.label}</span>
+                        <span style={{ width: 78, fontFamily: FRk, fontSize: 12.5, color: "var(--ink-700)", flex: "0 0 auto" }}>{t(m.label)}</span>
                         <div style={{ flex: 1, height: 7, borderRadius: 999, background: "rgba(140,144,158,.14)", overflow: "hidden" }}><div style={{ width: `${pct}%`, height: "100%", background: m.accent, borderRadius: 999 }} /></div>
                         <span style={{ width: 26, textAlign: "right", fontFamily: FRk, fontSize: 12.5, fontWeight: 700, color: "var(--ink-800)", fontVariantNumeric: "tabular-nums" }}>{n}</span>
                       </div>
@@ -227,13 +228,13 @@ export function RingkasanView() {
           <Panel>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
               <div>
-                <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>Performa konten</div>
-                <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", marginTop: 2 }}>Dijumlahkan dari {metricCt} konten yang metriknya terisi</div>
+                <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>{t("Performa konten")}</div>
+                <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", marginTop: 2 }}>{t("Dijumlahkan dari")} {metricCt} {t("konten yang metriknya terisi")}</div>
               </div>
             </div>
             {metricCt === 0 ? (
               <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", lineHeight: 1.5, background: "rgba(140,144,158,.07)", borderRadius: 12, padding: "14px 16px" }}>
-                Belum ada metrik. Angka tertarik otomatis setelah konten terbit: Story diambil menjelang 24 jam tayang, Feed & Reels diperbarui tiap hari.
+                {t("Belum ada metrik. Angka tertarik otomatis setelah konten terbit: Story diambil menjelang 24 jam tayang, Feed & Reels diperbarui tiap hari.")}
               </div>
             ) : (
               <>
@@ -248,7 +249,7 @@ export function RingkasanView() {
                 {topRun && (
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontFamily: FRk, fontSize: 12, color: "var(--ink-500)" }}>
                     <Icons.sparkle size={14} style={{ color: "#E0922A", flex: "0 0 auto" }} />
-                    <span>Paling banyak dilihat: <b style={{ color: "var(--ink-800)" }}>{topRun.rule}</b> · {fmtCompact(topRun.m?.views ?? topRun.m?.reach)} {topRun.m?.views != null ? "dilihat" : "jangkauan"} · {topRun.dateWib}</span>
+                    <span>{t("Paling banyak dilihat:")} <b style={{ color: "var(--ink-800)" }}>{topRun.rule}</b> · {fmtCompact(topRun.m?.views ?? topRun.m?.reach)} {topRun.m?.views != null ? t("dilihat") : t("jangkauan")} · {topRun.dateWib}</span>
                   </div>
                 )}
               </>
@@ -319,7 +320,7 @@ function PerContent({ runs, isMobile }) {
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
             <span style={{ fontFamily: FRk, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.rule}</span>
-            <span style={{ fontFamily: FRk, fontSize: 9.5, fontWeight: 700, color: km.c, background: km.bg, padding: "1px 8px", borderRadius: 999, flex: "0 0 auto" }}>{km.label}</span>
+            <span style={{ fontFamily: FRk, fontSize: 9.5, fontWeight: 700, color: km.c, background: km.bg, padding: "1px 8px", borderRadius: 999, flex: "0 0 auto" }}>{t(km.label)}</span>
             {r.link && <Icons.external size={12} style={{ color: "var(--ink-300)", flex: "0 0 auto" }} />}
           </div>
           <div style={{ fontFamily: FRk, fontSize: 11.5, color: "var(--ink-400)", marginTop: 3 }}>{r.actual !== "—" ? r.actual : r.sched} WIB</div>
@@ -327,21 +328,21 @@ function PerContent({ runs, isMobile }) {
       </div>
     );
   };
-  const pendingText = (r) => r.metricsPulledAt ? "metrik tidak tersedia" : r.kind === "story" ? "metrik diambil menjelang 24 jam tayang" : "metrik menyusul, diperbarui harian";
+  const pendingText = (r) => r.metricsPulledAt ? t("metrik tidak tersedia") : r.kind === "story" ? t("metrik diambil menjelang 24 jam tayang") : t("metrik menyusul, diperbarui harian");
 
   return (
     <Panel>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <div>
-          <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>Performa per konten</div>
-          <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", marginTop: 2 }}>Metrik tertarik otomatis dari Instagram per postingan</div>
+          <div style={{ fontFamily: FRk, fontWeight: 600, fontSize: 16, color: "var(--ink-900)" }}>{t("Performa per konten")}</div>
+          <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", marginTop: 2 }}>{t("Metrik tertarik otomatis dari Instagram per postingan")}</div>
         </div>
         {runs.length > 1 && <div style={{ width: 178 }}><Select size="sm" value={sort} onChange={setSort} options={SORTS} /></div>}
       </div>
 
       {runs.length === 0 ? (
         <div style={{ fontFamily: FRk, fontSize: 12.5, color: "var(--ink-400)", lineHeight: 1.5, background: "rgba(140,144,158,.07)", borderRadius: 12, padding: "14px 16px" }}>
-          Belum ada konten terbit pada rentang waktu ini.
+          {t("Belum ada konten terbit pada rentang waktu ini.")}
         </div>
       ) : isMobile ? (
         /* mobile: stacked rows, metrics inline below the title */
@@ -364,7 +365,7 @@ function PerContent({ runs, isMobile }) {
         /* desktop: report table with aligned metric columns */
         <div>
           <div style={{ display: "grid", gridTemplateColumns: gridCols, gap: 0, padding: "0 13px 9px", alignItems: "end" }}>
-            <span style={{ fontFamily: FRk, fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--ink-400)" }}>Konten</span>
+            <span style={{ fontFamily: FRk, fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--ink-400)" }}>{t("Konten")}</span>
             {METRIC_COLS.map(({ k, label, icon }) => (
               <span key={k} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, color: "var(--ink-300)" }}>
                 {icon(14)}
@@ -402,7 +403,7 @@ function RowShell({ r, grid, children }) {
     onMouseLeave: (e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "var(--line)"; },
   };
   return r.link
-    ? <a href={`https://${r.link}`} target="_blank" rel="noreferrer" title="Buka di Instagram" {...hover} style={{ ...base, textDecoration: "none", cursor: "pointer" }}>{children}</a>
+    ? <a href={`https://${r.link}`} target="_blank" rel="noreferrer" title={t("Buka di Instagram")} {...hover} style={{ ...base, textDecoration: "none", cursor: "pointer" }}>{children}</a>
     : <div {...hover} style={base}>{children}</div>;
 }
 
@@ -410,7 +411,7 @@ function ShowAllBtn({ sorted, showAll, setShowAll }) {
   if (sorted.length <= 10) return null;
   return (
     <button onClick={() => setShowAll(v => !v)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", fontFamily: FRk, fontSize: 12.5, fontWeight: 600, color: "var(--ink-400)", padding: "10px 0 2px", display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
-      {showAll ? "Tampilkan lebih sedikit" : `Tampilkan semua (${sorted.length})`}
+      {showAll ? t("Tampilkan lebih sedikit") : t("Tampilkan semua ({0})", [sorted.length])}
       <Icons.chevDown size={14} style={{ transform: showAll ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
     </button>
   );

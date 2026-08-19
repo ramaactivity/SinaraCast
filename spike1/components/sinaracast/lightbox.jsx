@@ -2,6 +2,7 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { Icons } from "./icons";
+import { t } from "./i18n";
 const { useEffect, useRef } = React;
 const F = "var(--font)";
 
@@ -52,7 +53,7 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, onRepla
   const vid = isVideoItem(cur);
   const aspect = ratio ? String(1 / ratio) : undefined;
   const thumbAspect = String(1 / (ratio || 1));
-  const kind = vid ? "video" : "gambar";
+  const kind = vid ? t("video") : t("gambar");
 
   // Layered, soft drop shadow so the media floats above the scrim.
   const mediaStyle = { maxHeight: "100%", maxWidth: "100%", aspectRatio: aspect, objectFit: "contain",
@@ -66,7 +67,7 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, onRepla
     fontFamily: F, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "box-shadow .16s, transform .14s" });
 
   const arrow = (dir) => single ? null : (
-    <button onClick={(e) => { e.stopPropagation(); go(dir); }} aria-label={dir < 0 ? "Sebelumnya" : "Berikutnya"}
+    <button onClick={(e) => { e.stopPropagation(); go(dir); }} aria-label={dir < 0 ? t("Sebelumnya") : t("Berikutnya")}
       style={{ ...glass, width: 50, height: 50, borderRadius: "50%", color: "var(--ink-700)", display: "grid", placeItems: "center", cursor: "pointer", flex: "0 0 auto", transition: "box-shadow .16s, transform .16s" }}
       onMouseEnter={(e) => { e.currentTarget.style.boxShadow = gShadowHi; e.currentTarget.style.transform = "scale(1.07)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.boxShadow = gShadow; e.currentTarget.style.transform = "none"; }}>
@@ -87,16 +88,16 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, onRepla
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           {onReplace && (
-            <button onClick={() => onReplace(i)} style={pill(false)} onMouseEnter={lift} onMouseLeave={drop} title={`Ganti ${kind}`}>
-              <Icons.swap size={16} /><span>Ganti</span>
+            <button onClick={() => onReplace(i)} style={pill(false)} onMouseEnter={lift} onMouseLeave={drop} title={t("Ganti {0}", [kind])}>
+              <Icons.swap size={16} /><span>{t("Ganti")}</span>
             </button>
           )}
           {onDelete && (
-            <button onClick={() => onDelete(i)} style={pill(true)} onMouseEnter={lift} onMouseLeave={drop} title={`Hapus ${kind}`}>
-              <Icons.trash size={16} /><span>Hapus</span>
+            <button onClick={() => onDelete(i)} style={pill(true)} onMouseEnter={lift} onMouseLeave={drop} title={t("Hapus {0}", [kind])}>
+              <Icons.trash size={16} /><span>{t("Hapus")}</span>
             </button>
           )}
-          <button onClick={onClose} aria-label="Tutup" style={{ ...glass, width: 42, height: 42, borderRadius: "50%", cursor: "pointer", color: "var(--ink-500)", display: "grid", placeItems: "center", flex: "0 0 auto", transition: "box-shadow .16s, transform .14s" }} onMouseEnter={lift} onMouseLeave={drop}><Icons.x size={20} /></button>
+          <button onClick={onClose} aria-label={t("Tutup")} style={{ ...glass, width: 42, height: 42, borderRadius: "50%", cursor: "pointer", color: "var(--ink-500)", display: "grid", placeItems: "center", flex: "0 0 auto", transition: "box-shadow .16s, transform .14s" }} onMouseEnter={lift} onMouseLeave={drop}><Icons.x size={20} /></button>
         </div>
       </div>
 
@@ -126,7 +127,7 @@ export function Lightbox({ imgs = [], index, onClose, onIndex, onDelete, onRepla
             boxShadow: active ? "0 6px 18px -6px rgba(249,168,38,.6), 0 0 0 3px rgba(249,168,38,.16)" : "0 3px 10px -4px rgba(20,22,30,.4)",
             opacity: active ? 1 : 0.62, transform: active ? "translateY(-3px)" : "none", transition: "opacity .18s, transform .18s, border-color .18s, box-shadow .18s" };
           return (
-            <button key={im.storage_path || k} onClick={() => onIndex(k)} aria-label={`Media ${k + 1}`}
+            <button key={im.storage_path || k} onClick={() => onIndex(k)} aria-label={t("Media {0}", [k + 1])}
               style={{ flex: "0 0 auto", padding: 0, border: "none", cursor: "pointer", background: "transparent", lineHeight: 0, position: "relative" }}
               onMouseEnter={(e) => { if (!active) { e.currentTarget.firstChild.style.opacity = 1; e.currentTarget.firstChild.style.transform = "translateY(-2px)"; } }}
               onMouseLeave={(e) => { if (!active) { e.currentTarget.firstChild.style.opacity = 0.62; e.currentTarget.firstChild.style.transform = "none"; } }}>

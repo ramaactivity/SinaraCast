@@ -11,6 +11,7 @@ import {
   uploadPoolImage, uploadReelVideo, createRuleWithPools, updateRuleFields, loadRuleDetail, addPoolImageRow, removePoolImageRow, ensurePool,
 } from "../dataLayer";
 import { Lightbox } from "../lightbox";
+import { t } from "../i18n";
 const MAX_VIDEO_MB = 300; // >48 MB detours to R2 (Supabase free caps files at 50 MB)
 const isVideoUrl = (u) => /\.(mp4|mov)(\?|$)/i.test(u || "");
 function readVideoMeta(file) {
@@ -41,18 +42,18 @@ const fromDow = (d) => (d + 6) % 7; // schema dow -> editor idx
 const MON_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 const pad2 = (n) => String(n).padStart(2, "0");
 const todayWib = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`; };
-const fmtDay = (ymd) => { if (!ymd) return ""; const [y, m, d] = ymd.split("-").map(Number); return `${d} ${MON_ID[m - 1]} ${y}`; };
+const fmtDay = (ymd) => { if (!ymd) return ""; const [y, m, d] = ymd.split("-").map(Number); return `${d} ${t(MON_ID[m - 1])} ${y}`; };
 const shiftDays = (ymd, n) => {
   const [y, m, d] = ymd.split("-").map(Number);
-  const t = new Date(Date.UTC(y, m - 1, d + n));
-  return `${t.getUTCFullYear()}-${pad2(t.getUTCMonth() + 1)}-${pad2(t.getUTCDate())}`;
+  const tm = new Date(Date.UTC(y, m - 1, d + n));
+  return `${tm.getUTCFullYear()}-${pad2(tm.getUTCMonth() + 1)}-${pad2(tm.getUTCDate())}`;
 };
 // Tambah n bulan, lalu jepit ke hari terakhir bulan itu (31 Jan + 1 bulan = 28/29 Feb).
 const shiftMonths = (ymd, n) => {
   const [y, m, d] = ymd.split("-").map(Number);
   const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate();
-  const t = new Date(Date.UTC(y, m - 1 + n, Math.min(d, last)));
-  return `${t.getUTCFullYear()}-${pad2(t.getUTCMonth() + 1)}-${pad2(t.getUTCDate())}`;
+  const tm = new Date(Date.UTC(y, m - 1 + n, Math.min(d, last)));
+  return `${tm.getUTCFullYear()}-${pad2(tm.getUTCMonth() + 1)}-${pad2(tm.getUTCDate())}`;
 };
 const daysInclusive = (a, z) => {
   const [y1, m1, d1] = a.split("-").map(Number), [y2, m2, d2] = z.split("-").map(Number);
@@ -209,7 +210,7 @@ export function EditorView() {
   // FR-21: warn if another active rule on this channel posts at any of the same times.
   const myTimes = (mode === "schedule" ? [...weekdayTimes, ...weekendTimes] : postTimes).filter(Boolean);
   const otherTimes = (o) => o.mode === "schedule" ? [...(o.weekdayTimes || []), ...(o.weekendTimes || [])] : (o.postTimes || []);
-  const clashRule = app.rules.find((o) => o.ch === chId && o.id !== existing?.id && o.active && otherTimes(o).some((t) => myTimes.includes(t)));
+  const clashRule = app.rules.find((o) => o.ch === chId && o.id !== existing?.id && o.active && otherTimes(o).some((tm) => myTimes.includes(tm)));
   // Warn when a daypart has more posting times than images: the no-repeat cycle
   // resets once exhausted, so extra slots reuse an image that day.
   const overSlots = mode === "schedule"
@@ -240,11 +241,11 @@ export function EditorView() {
   }
 
   const errors = {};
-  if (touched && !name.trim()) errors.name = "Beri nama jadwalnya dulu.";
-  if (touched && emptyRole) errors.pool = `Kumpulan ${emptyRole === "weekday" ? "hari kerja " : emptyRole === "weekend" ? "akhir pekan " : ""}masih kosong, minimal 1 gambar.`;
-  if (touched && startMode === "date" && !startDate) errors.range = "Pilih tanggal mulainya dulu.";
-  else if (touched && duration !== "forever" && !endDate) errors.range = "Pilih tanggal berhentinya dulu.";
-  else if (touched && rangeInvalid) errors.range = "Tanggal berhenti tidak boleh sebelum tanggal mulai.";
+  if (touched && !name.trim()) errors.name = t("Beri nama jadwalnya dulu.");
+  if (touched && emptyRole) errors.pool = t("Kumpulan {0}masih kosong, minimal 1 gambar.", [emptyRole === "weekday" ? t("hari kerja ") : emptyRole === "weekend" ? t("akhir pekan ") : ""]);
+  if (touched && startMode === "date" && !startDate) errors.range = t("Pilih tanggal mulainya dulu.");
+  else if (touched && duration !== "forever" && !endDate) errors.range = t("Pilih tanggal berhentinya dulu.");
+  else if (touched && rangeInvalid) errors.range = t("Tanggal berhenti tidak boleh sebelum tanggal mulai.");
 
   // On an existing rule, every upload persists immediately — which needs the
   // role's pool row. Older rules have no 'special' pool yet, so create it on
@@ -278,22 +279,22 @@ export function EditorView() {
     for (const file of files) {
       // Story pools can also hold a 9:16 video (≤60s).
       if (["video/mp4", "video/quicktime"].includes(file.type)) {
-        if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(`Video maksimal ${MAX_VIDEO_MB} MB`, "error"); continue; }
-        let meta; try { meta = await readVideoMeta(file); } catch { app.toast("Gagal membaca video", "error"); continue; }
-        if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) app.toast("Video bukan 9:16 — Instagram akan menyesuaikan", "info");
-        if (meta.duration && meta.duration > 60) { app.toast("Story video maksimal 60 detik (batas Instagram)", "error"); continue; }
+        if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(t("Video maksimal {0} MB", [MAX_VIDEO_MB]), "error"); continue; }
+        let meta; try { meta = await readVideoMeta(file); } catch { app.toast(t("Gagal membaca video"), "error"); continue; }
+        if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) app.toast(t("Video bukan 9:16 — Instagram akan menyesuaikan"), "info");
+        if (meta.duration && meta.duration > 60) { app.toast(t("Story video maksimal 60 detik (batas Instagram)"), "error"); continue; }
         setUploading(true);
         try {
           const row = await uploadReelVideo(file, chId, meta);
           await commitRow(row, rep); rep = null;
-          app.toast("Video diunggah ✓", "success");
-        } catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
+          app.toast(t("Video diunggah ✓"), "success");
+        } catch (err) { app.toast(t("Gagal unggah: {0}", [err.message || err]), "error"); }
         finally { setUploading(false); }
         continue;
       }
-      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { app.toast("Hanya gambar JPG/PNG/WebP atau video MP4", "error"); continue; }
-      if (file.size > 40 * 1024 * 1024) { app.toast("Gambar terlalu besar (maks 40 MB)", "error"); continue; }
-      let dim; try { dim = await readDims(file); } catch { app.toast("Gagal membaca gambar", "error"); continue; }
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { app.toast(t("Hanya gambar JPG/PNG/WebP atau video MP4"), "error"); continue; }
+      if (file.size > 40 * 1024 * 1024) { app.toast(t("Gambar terlalu besar (maks 40 MB)"), "error"); continue; }
+      let dim; try { dim = await readDims(file); } catch { app.toast(t("Gagal membaca gambar"), "error"); continue; }
       // Pools are Story (9:16). Auto center-crop to 9:16, shrink huge files, output JPEG.
       let upFile, upDim;
       const cropRatio = Math.abs(dim.width / dim.height - 9 / 16) > 0.04 ? 9 / 16 : null;
@@ -301,14 +302,14 @@ export function EditorView() {
       try {
         const p = await prepareImage(file, cropRatio);
         upFile = p.file; upDim = { width: p.width, height: p.height };
-        if (p.cropped) app.toast("Gambar dipotong otomatis ke 9:16", "info");
-        else if (p.shrunk) app.toast("Gambar dikompres otomatis agar muat", "info");
-      } catch { app.toast("Gagal menyiapkan gambar", "error"); setUploading(false); continue; }
+        if (p.cropped) app.toast(t("Gambar dipotong otomatis ke 9:16"), "info");
+        else if (p.shrunk) app.toast(t("Gambar dikompres otomatis agar muat"), "info");
+      } catch { app.toast(t("Gagal menyiapkan gambar"), "error"); setUploading(false); continue; }
       try {
         const row = await uploadPoolImage(upFile, chId, upDim);
         await commitRow(row, rep); rep = null;
-        app.toast("Gambar diunggah ✓", "success");
-      } catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
+        app.toast(t("Gambar diunggah ✓"), "success");
+      } catch (err) { app.toast(t("Gagal unggah: {0}", [err.message || err]), "error"); }
       finally { setUploading(false); }
     }
   }
@@ -321,10 +322,10 @@ export function EditorView() {
 
   async function save() {
     setTouched(true);
-    if (!name.trim() || emptyRole) { app.toast("Lengkapi data yang wajib diisi", "error"); return; }
-    if (startMode === "date" && !startDate) { app.toast("Pilih tanggal mulainya dulu", "error"); return; }
-    if (duration !== "forever" && !endDate) { app.toast("Pilih tanggal berhentinya dulu", "error"); return; }
-    if (rangeInvalid) { app.toast("Tanggal berhenti tidak boleh sebelum tanggal mulai", "error"); return; }
+    if (!name.trim() || emptyRole) { app.toast(t("Lengkapi data yang wajib diisi"), "error"); return; }
+    if (startMode === "date" && !startDate) { app.toast(t("Pilih tanggal mulainya dulu"), "error"); return; }
+    if (duration !== "forever" && !endDate) { app.toast(t("Pilih tanggal berhentinya dulu"), "error"); return; }
+    if (rangeInvalid) { app.toast(t("Tanggal berhenti tidak boleh sebelum tanggal mulai"), "error"); return; }
     const payload = {
       channelDbId: channel?._id, name: name.trim(), mode,
       cadenceType: cadence === "daily" ? "daily" : cadence === "everyN" ? "every_n_days" : "weekdays",
@@ -343,119 +344,119 @@ export function EditorView() {
       if (isNew) await createRuleWithPools(payload);
       else await updateRuleFields(id, payload);
       await app.reload();
-      app.toast(`Jadwal “${name}” disimpan`, "success");
+      app.toast(t("Jadwal “{0}” disimpan", [name]), "success");
       app.go("rules");
-    } catch (err) { app.toast("Gagal menyimpan: " + (err.message || err), "error"); }
+    } catch (err) { app.toast(t("Gagal menyimpan: {0}", [err.message || err]), "error"); }
     finally { setSaving(false); }
   }
 
   if (!channel) {
-    return <div><Topbar title="Buat jadwal" /><Panel pad={0}><EmptyState icon={<Icons.connections size={28} />} title="Pilih akun dulu" body="Sambungkan akun Instagram dulu untuk membuat jadwal." action={<Button variant="amber" onClick={() => app.go("connections")}>Manajemen Akun</Button>} /></Panel></div>;
+    return <div><Topbar title={t("Buat jadwal")} /><Panel pad={0}><EmptyState icon={<Icons.connections size={28} />} title={t("Pilih akun dulu")} body={t("Sambungkan akun Instagram dulu untuk membuat jadwal.")} action={<Button variant="amber" onClick={() => app.go("connections")}>{t("Manajemen Akun")}</Button>} /></Panel></div>;
   }
   if (loading) return <div style={{ display: "grid", placeItems: "center", minHeight: 320 }}><Spinner size={30} /></div>;
 
   return (
     <div>
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,video/mp4,video/quicktime" multiple onChange={onFiles} style={{ display: "none" }} />
-      <Topbar title={existing ? "Ubah jadwal" : "Buat jadwal"}
+      <Topbar title={existing ? t("Ubah jadwal") : t("Buat jadwal")}
         sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} size={18} /> {b.name} · {channel.handle}</span>}
         right={<div style={{ display: "flex", gap: 10 }}>
-          <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("rules")}>Kembali</Button>
-          <Button variant="primary" icon={saving ? <Spinner size={15} /> : <Icons.check size={17} />} disabled={saving} onClick={save}>{saving ? "Menyimpan…" : "Simpan jadwal"}</Button>
+          <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("rules")}>{t("Kembali")}</Button>
+          <Button variant="primary" icon={saving ? <Spinner size={15} /> : <Icons.check size={17} />} disabled={saving} onClick={save}>{saving ? t("Menyimpan…") : t("Simpan jadwal")}</Button>
         </div>} />
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel>
-            <SectionTitle sub="Nama, cara, dan akun tujuan">Dasar</SectionTitle>
+            <SectionTitle sub={t("Nama, cara, dan akun tujuan")}>{t("Dasar")}</SectionTitle>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <Field label="Nama jadwal" error={errors.name}>
-                <Input placeholder="cth. Jam buka" value={name} invalid={!!errors.name} onChange={(e) => setName(e.target.value)} />
+              <Field label={t("Nama jadwal")} error={errors.name}>
+                <Input placeholder={t("cth. Jam buka")} value={name} invalid={!!errors.name} onChange={(e) => setName(e.target.value)} />
               </Field>
-              <Field label="Akun">
+              <Field label={t("Akun")}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, height: 46, padding: "0 14px", background: "var(--line-soft)", borderRadius: 13, border: "1px solid var(--line)" }}>
                   <BrandAvatar brand={b} size={26} /><span style={{ fontFamily: FE, fontWeight: 500, fontSize: 13.5, color: "var(--ink-900)" }}>{b.name}</span>
                 </div>
               </Field>
             </div>
-            <Field label="Cara pilih gambar" hint={mode === "schedule" ? "Gambar beda untuk hari kerja & akhir pekan." : "Satu kumpulan gambar, diacak bergiliran tanpa diulang."} style={{ marginTop: 14 }}>
-              <Segmented full options={[{ value: "schedule", label: "Beda akhir pekan" }, { value: "pool", label: "Satu kumpulan" }]} value={mode} onChange={setMode} />
+            <Field label={t("Cara pilih gambar")} hint={mode === "schedule" ? t("Gambar beda untuk hari kerja & akhir pekan.") : t("Satu kumpulan gambar, diacak bergiliran tanpa diulang.")} style={{ marginTop: 14 }}>
+              <Segmented full options={[{ value: "schedule", label: t("Beda akhir pekan") }, { value: "pool", label: t("Satu kumpulan") }]} value={mode} onChange={setMode} />
             </Field>
           </Panel>
 
           <Panel>
-            <SectionTitle sub={`Unggah gambar (otomatis dipotong 9:16) atau video MP4 (maks ${MAX_VIDEO_MB} MB, ≤60 dtk).`}
-              right={<Button size="sm" variant="secondary" disabled={uploading} icon={uploading ? <Spinner size={15} /> : <Icons.upload size={16} />} onClick={() => fileRef.current?.click()}>{uploading ? "Mengunggah…" : "Unggah gambar"}</Button>}>Kumpulan gambar</SectionTitle>
-            {errors.pool && <Banner tone="warn" icon={<Icons.warn size={17} />} title="Gambar tidak boleh kosong" body={errors.pool} />}
+            <SectionTitle sub={t("Unggah gambar (otomatis dipotong 9:16) atau video MP4 (maks {0} MB, ≤60 dtk).", [MAX_VIDEO_MB])}
+              right={<Button size="sm" variant="secondary" disabled={uploading} icon={uploading ? <Spinner size={15} /> : <Icons.upload size={16} />} onClick={() => fileRef.current?.click()}>{uploading ? t("Mengunggah…") : t("Unggah gambar")}</Button>}>{t("Kumpulan gambar")}</SectionTitle>
+            {errors.pool && <Banner tone="warn" icon={<Icons.warn size={17} />} title={t("Gambar tidak boleh kosong")} body={errors.pool} />}
             {tabRoles.length > 1 && (
               <div style={{ marginBottom: 14 }}>
                 <Segmented options={tabRoles.map((r) => ({
                   value: r,
-                  label: `${r === "weekday" ? "Hari kerja" : r === "weekend" ? "Akhir pekan" : r === "special" ? "Hari spesial" : "Kumpulan"} · ${(images[r] || []).length}`,
+                  label: `${r === "weekday" ? t("Hari kerja") : r === "weekend" ? t("Akhir pekan") : r === "special" ? t("Hari spesial") : t("Kumpulan")} · ${(images[r] || []).length}`,
                 }))} value={role} onChange={setTab} />
               </div>
             )}
             <PoolGrid imgs={curImgs} onAdd={() => fileRef.current?.click()} onRemove={removeImg} onReplace={startReplace} />
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontFamily: FE, fontSize: 12, color: "var(--ink-500)" }}>
-              <Icons.shuffle size={15} style={{ color: b.accent }} /> Acak tanpa ulang: tiap gambar terpakai sekali per siklus sebelum diacak ulang.
+              <Icons.shuffle size={15} style={{ color: b.accent }} /> {t("Acak tanpa ulang: tiap gambar terpakai sekali per siklus sebelum diacak ulang.")}
             </div>
           </Panel>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel strong>
-            <SectionTitle sub="Semua waktu WIB (UTC+7)">Waktu posting</SectionTitle>
-            <Field label="Seberapa sering">
+            <SectionTitle sub={t("Semua waktu WIB (UTC+7)")}>{t("Waktu posting")}</SectionTitle>
+            <Field label={t("Seberapa sering")}>
               <Select options={CADENCE} value={cadence} onChange={setCadence} />
             </Field>
-            {cadence === "everyN" && <Field label="Setiap berapa hari" style={{ marginTop: 12 }}><NumberField min={2} max={30} value={everyN} onChange={setEveryN} suffix="hari" /></Field>}
+            {cadence === "everyN" && <Field label={t("Setiap berapa hari")} style={{ marginTop: 12 }}><NumberField min={2} max={30} value={everyN} onChange={setEveryN} suffix={t("hari")} /></Field>}
             {cadence === "weekdays" && (
               <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
                 {WD.map((d, i) => (
                   <button key={d} onClick={() => setDays((ds) => ds.includes(i) ? ds.filter((x) => x !== i) : [...ds, i])}
                     style={{ flex: 1, height: 38, borderRadius: 10, border: "1px solid " + (days.includes(i) ? b.accent : "var(--line)"), cursor: "pointer",
-                      background: days.includes(i) ? b.soft : "var(--surface)", color: days.includes(i) ? b.accent : "var(--ink-400)", fontFamily: FE, fontSize: 11.5, fontWeight: 600 }}>{d}</button>
+                      background: days.includes(i) ? b.soft : "var(--surface)", color: days.includes(i) ? b.accent : "var(--ink-400)", fontFamily: FE, fontSize: 11.5, fontWeight: 600 }}>{t(d)}</button>
                 ))}
               </div>
             )}
             <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 14 }}>
               {mode === "schedule" ? (
                 <>
-                  <Field label="Jam hari kerja" hint="Bisa lebih dari satu — tiap jam terbit 1 Story."><TimeList times={weekdayTimes} onChange={setWeekdayTimes} b={b} /></Field>
-                  <Field label="Jam akhir pekan" hint="Bisa lebih dari satu — tiap jam terbit 1 Story."><TimeList times={weekendTimes} onChange={setWeekendTimes} b={b} /></Field>
+                  <Field label={t("Jam hari kerja")} hint={t("Bisa lebih dari satu — tiap jam terbit 1 Story.")}><TimeList times={weekdayTimes} onChange={setWeekdayTimes} b={b} /></Field>
+                  <Field label={t("Jam akhir pekan")} hint={t("Bisa lebih dari satu — tiap jam terbit 1 Story.")}><TimeList times={weekendTimes} onChange={setWeekendTimes} b={b} /></Field>
                 </>
               ) : (
-                <Field label="Jam posting" hint="Bisa lebih dari satu — tiap jam terbit 1 Story dari kumpulan."><TimeList times={postTimes} onChange={setPostTimes} b={b} /></Field>
+                <Field label={t("Jam posting")} hint={t("Bisa lebih dari satu — tiap jam terbit 1 Story dari kumpulan.")}><TimeList times={postTimes} onChange={setPostTimes} b={b} /></Field>
               )}
             </div>
             <div style={{ marginTop: 16 }}>
               <div style={{ display: "flex", gap: 7, fontFamily: FE, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.5 }}>
                 <Icons.shuffle size={14} style={{ color: b.accent, flex: "0 0 auto", marginTop: 1 }} />
-                <span>Tiap jam menerbitkan 1 Story, diambil bergiliran dari kumpulan tanpa diulang.{" "}
+                <span>{t("Tiap jam menerbitkan 1 Story, diambil bergiliran dari kumpulan tanpa diulang.")}{" "}
                   {mode === "schedule"
-                    ? `${weekdayTimes.length} Story tiap hari kerja, ${weekendTimes.length} tiap akhir pekan.`
-                    : `${postTimes.length} Story tiap hari terbit.`}</span>
+                    ? t("{0} Story tiap hari kerja, {1} tiap akhir pekan.", [weekdayTimes.length, weekendTimes.length])
+                    : t("{0} Story tiap hari terbit.", [postTimes.length])}</span>
               </div>
               {overSlots && <CountNote />}
             </div>
-            <Field label={`Toleransi telat — ${grace} menit`} hint="Berapa lama masih boleh telat sebelum dianggap terlewat." style={{ marginTop: 14 }}>
+            <Field label={t("Toleransi telat — {0} menit", [grace])} hint={t("Berapa lama masih boleh telat sebelum dianggap terlewat.")} style={{ marginTop: 14 }}>
               <Slider min={10} max={60} step={5} value={grace} onChange={setGrace} style={{ width: "100%" }} />
             </Field>
             {clashRule && <div style={{ display: "flex", gap: 9, marginTop: 14, background: "var(--st-publishing-bg)", borderRadius: 11, padding: "10px 12px" }}>
               <Icons.warn size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-              <span style={{ fontFamily: FE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Jam ini sama dengan jadwal “{clashRule.name}”. Postingan tetap jalan (diproses bergiliran), tapi pertimbangkan jam berbeda biar tidak menumpuk.</span>
+              <span style={{ fontFamily: FE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>{t("Jam ini sama dengan jadwal “")}{clashRule.name}{t("”. Postingan tetap jalan (diproses bergiliran), tapi pertimbangkan jam berbeda biar tidak menumpuk.")}</span>
             </div>}
           </Panel>
 
           <Panel>
-            <SectionTitle sub="Sampai kapan jadwal ini jalan">Masa berlaku</SectionTitle>
-            <Field label="Mulai jalan">
-              <Segmented full options={[{ value: "now", label: "Langsung" }, { value: "date", label: "Tanggal tertentu" }]} value={startMode} onChange={pickStartMode} />
+            <SectionTitle sub={t("Sampai kapan jadwal ini jalan")}>{t("Masa berlaku")}</SectionTitle>
+            <Field label={t("Mulai jalan")}>
+              <Segmented full options={[{ value: "now", label: t("Langsung") }, { value: "date", label: t("Tanggal tertentu") }]} value={startMode} onChange={pickStartMode} />
             </Field>
             {startMode === "date" && (
               <div style={{ marginTop: 10 }}><DateField value={startDate} min={todayWib()} onChange={pickStart} /></div>
             )}
-            <Field label="Lama berjalan" style={{ marginTop: 14 }}>
+            <Field label={t("Lama berjalan")} style={{ marginTop: 14 }}>
               <Select options={DURATIONS} value={duration} onChange={pickDuration} />
             </Field>
             {duration === "custom" && (
@@ -470,26 +471,26 @@ export function EditorView() {
           </Panel>
 
           <Panel>
-            <SectionTitle sub="Apa yang jadwal ini lakukan saat hari besar atau tanggal spesialmu">Hari spesial</SectionTitle>
+            <SectionTitle sub={t("Apa yang jadwal ini lakukan saat hari besar atau tanggal spesialmu")}>{t("Hari spesial")}</SectionTitle>
             <Select value={specialBehavior} onChange={(v) => { setSpecialBehavior(v); if (v === "special_pool") setTab("special"); }} options={[
-              { value: "normal", label: "Posting seperti biasa" },
-              { value: "skip", label: "Lewati hari spesial" },
-              { value: "special_pool", label: "Pakai kumpulan khusus" },
+              { value: "normal", label: t("Posting seperti biasa") },
+              { value: "skip", label: t("Lewati hari spesial") },
+              { value: "special_pool", label: t("Pakai kumpulan khusus") },
             ]} />
             {specialBehavior === "special_pool" && (
               <div style={{ display: "flex", gap: 7, marginTop: 10, fontFamily: FE, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.5 }}>
                 <Icons.image size={14} style={{ color: b.accent, flex: "0 0 auto", marginTop: 1 }} />
-                <span>Isi tab “Hari spesial” di Kumpulan gambar. Kalau kosong, jadwal memakai gambar biasa.</span>
+                <span>{t("Isi tab “Hari spesial” di Kumpulan gambar. Kalau kosong, jadwal memakai gambar biasa.")}</span>
               </div>
             )}
             {specialBehavior === "skip" && (
               <div style={{ display: "flex", gap: 7, marginTop: 10, fontFamily: FE, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.5 }}>
                 <Icons.skip size={14} style={{ color: b.accent, flex: "0 0 auto", marginTop: 1 }} />
-                <span>Jadwal ini istirahat pada tanggal yang aktif di daftar hari spesial.</span>
+                <span>{t("Jadwal ini istirahat pada tanggal yang aktif di daftar hari spesial.")}</span>
               </div>
             )}
             <button onClick={() => app.go("specialdays")} style={{ marginTop: 12, background: "transparent", border: "none", cursor: "pointer", padding: 0, fontFamily: FE, fontSize: 12.5, fontWeight: 600, color: b.accent, display: "flex", alignItems: "center", gap: 5 }}>
-              Kelola daftar hari spesial <Icons.chevRight size={14} />
+              {t("Kelola daftar hari spesial")} <Icons.chevRight size={14} />
             </button>
           </Panel>
         </div>
@@ -502,13 +503,13 @@ export function EditorView() {
 // deduped list of "HH:MM". Returns null when there's nothing to load.
 function timeList(arr, single) {
   const raw = (Array.isArray(arr) && arr.length) ? arr : (single ? [single] : []);
-  const norm = raw.map((t) => (t || "").slice(0, 5)).filter((t) => /^\d{2}:\d{2}$/.test(t));
+  const norm = raw.map((tm) => (tm || "").slice(0, 5)).filter((tm) => /^\d{2}:\d{2}$/.test(tm));
   return norm.length ? [...new Set(norm)].sort() : null;
 }
 
 // Human daypart label for a time — matches how Rama describes slots (pagi/sore/malam).
-function dayPart(t) {
-  const h = parseInt((t || "00").slice(0, 2), 10);
+function dayPart(tm) {
+  const h = parseInt((tm || "00").slice(0, 2), 10);
   if (h < 5) return "malam";
   if (h < 11) return "pagi";
   if (h < 15) return "siang";
@@ -520,7 +521,7 @@ function dayPart(t) {
 function suggestNextTime(times) {
   const fmt = (n) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
   const set = new Set(times);
-  const mins = times.map((t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; });
+  const mins = times.map((tm) => { const [h, m] = tm.split(":").map(Number); return h * 60 + m; });
   let cand = Math.max(0, ...mins) + 240;
   if (cand > 23 * 60 + 30) cand = 20 * 60; // wrap late times back to a daytime slot
   for (let i = 0; i < 48 && set.has(fmt(cand)); i++) cand = (cand + 30) % (24 * 60);
@@ -530,16 +531,16 @@ function suggestNextTime(times) {
 // Editable list of posting times for one daypart: a row per time (with its pagi/sore/
 // malam chip + remove), plus a dashed "Tambah jam" row. At least one time stays.
 function TimeList({ times, onChange, b }) {
-  const set = (i, v) => onChange(times.map((t, k) => (k === i ? v : t)));
+  const set = (i, v) => onChange(times.map((tm, k) => (k === i ? v : tm)));
   const add = () => onChange([...times, suggestNextTime(times)]);
   const remove = (i) => { if (times.length > 1) onChange(times.filter((_, k) => k !== i)); };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {times.map((t, i) => (
+      {times.map((tm, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ flex: 1 }}><TimeField value={t} onChange={(v) => set(i, v)} /></div>
-          <span style={{ fontFamily: FE, fontSize: 11, fontWeight: 600, color: b.accent, background: b.soft, borderRadius: 8, padding: "4px 8px", minWidth: 44, textAlign: "center" }}>{dayPart(t)}</span>
-          <button onClick={() => remove(i)} disabled={times.length <= 1} aria-label="Hapus jam"
+          <div style={{ flex: 1 }}><TimeField value={tm} onChange={(v) => set(i, v)} /></div>
+          <span style={{ fontFamily: FE, fontSize: 11, fontWeight: 600, color: b.accent, background: b.soft, borderRadius: 8, padding: "4px 8px", minWidth: 44, textAlign: "center" }}>{dayPart(tm)}</span>
+          <button onClick={() => remove(i)} disabled={times.length <= 1} aria-label={t("Hapus jam")}
             style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid var(--line)", background: "var(--surface)", cursor: times.length <= 1 ? "not-allowed" : "pointer", opacity: times.length <= 1 ? 0.4 : 1, color: "var(--ink-500)", display: "grid", placeItems: "center", flex: "0 0 auto" }}>
             <Icons.x size={13} sw={2.4} />
           </button>
@@ -547,7 +548,7 @@ function TimeList({ times, onChange, b }) {
       ))}
       <button onClick={add}
         style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: 11, border: "1.5px dashed var(--line)", background: "var(--raise)", cursor: "pointer", fontFamily: FE, fontSize: 12.5, fontWeight: 600, color: b.accent }}>
-        <Icons.plus size={16} /> Tambah jam
+        <Icons.plus size={16} /> {t("Tambah jam")}
       </button>
     </div>
   );
@@ -558,17 +559,17 @@ function TimeList({ times, onChange, b }) {
 function RangeNote({ start, end, invalid, over, accent }) {
   if (invalid) return null;
   let text;
-  if (!start && !end) text = "Jadwal ini jalan terus tanpa batas waktu, sampai kamu matikan atau hapus sendiri.";
-  else if (start && end) text = `Jalan ${fmtDay(start)} sampai ${fmtDay(end)} · ${daysInclusive(start, end)} hari, lalu berhenti sendiri.`;
-  else if (end) text = `Jalan mulai hari ini sampai ${fmtDay(end)} · ${daysInclusive(todayWib(), end)} hari, lalu berhenti sendiri.`;
-  else text = `Mulai jalan ${fmtDay(start)}, lalu terus tanpa batas waktu.`;
+  if (!start && !end) text = t("Jadwal ini jalan terus tanpa batas waktu, sampai kamu matikan atau hapus sendiri.");
+  else if (start && end) text = t("Jalan {0} sampai {1} · {2} hari, lalu berhenti sendiri.", [fmtDay(start), fmtDay(end), daysInclusive(start, end)]);
+  else if (end) text = t("Jalan mulai hari ini sampai {0} · {1} hari, lalu berhenti sendiri.", [fmtDay(end), daysInclusive(todayWib(), end)]);
+  else text = t("Mulai jalan {0}, lalu terus tanpa batas waktu.", [fmtDay(start)]);
   return (
     <div style={{ display: "flex", gap: 7, marginTop: 12, background: over ? "var(--st-publishing-bg)" : "var(--line-soft)", borderRadius: 10, padding: "9px 11px",
       fontFamily: FE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>
       {over
         ? <Icons.warn size={14} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
         : <Icons.calendar size={14} style={{ color: accent, flex: "0 0 auto", marginTop: 1 }} />}
-      <span>{over ? `Tanggal berhentinya (${fmtDay(end)}) sudah lewat, jadi jadwal ini tidak akan menerbitkan apa pun.` : text}</span>
+      <span>{over ? t("Tanggal berhentinya ({0}) sudah lewat, jadi jadwal ini tidak akan menerbitkan apa pun.", [fmtDay(end)]) : text}</span>
     </div>
   );
 }
@@ -579,7 +580,7 @@ function CountNote() {
   return (
     <div style={{ display: "flex", gap: 7, marginTop: 9, background: "var(--st-publishing-bg)", borderRadius: 10, padding: "8px 11px", fontFamily: FE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>
       <Icons.warn size={14} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-      <span>Jam posting lebih banyak dari gambar. Sebagian jam akan mengulang gambar yang sudah terpakai hari itu. Tambah gambar biar tiap jam beda.</span>
+      <span>{t("Jam posting lebih banyak dari gambar. Sebagian jam akan mengulang gambar yang sudah terpakai hari itu. Tambah gambar biar tiap jam beda.")}</span>
     </div>
   );
 }
@@ -588,7 +589,7 @@ function PoolGrid({ imgs, onAdd, onRemove, onReplace }) {
   const [view, setView] = uEd(null); // lightbox index, or null
   if (!imgs.length) return (
     <div style={{ border: "1.5px dashed var(--line)", borderRadius: 16, padding: "30px 20px" }}>
-      <EmptyState compact icon={<Icons.image size={26} />} title="Belum ada gambar" body="Unggah gambar Story (9:16) untuk mulai." action={<Button size="sm" variant="amber" icon={<Icons.upload size={16} />} onClick={onAdd}>Unggah gambar</Button>} />
+      <EmptyState compact icon={<Icons.image size={26} />} title={t("Belum ada gambar")} body={t("Unggah gambar Story (9:16) untuk mulai.")} action={<Button size="sm" variant="amber" icon={<Icons.upload size={16} />} onClick={onAdd}>{t("Unggah gambar")}</Button>} />
     </div>
   );
   // delete from the lightbox, then keep it open on a neighbouring image (or close)
@@ -601,7 +602,7 @@ function PoolGrid({ imgs, onAdd, onRemove, onReplace }) {
     <>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12 }}>
       {imgs.map((im, i) => (
-        <div key={im.storage_path || i} onClick={() => setView(i)} title="Klik untuk pratinjau" style={{ position: "relative", cursor: "zoom-in" }}
+        <div key={im.storage_path || i} onClick={() => setView(i)} title={t("Klik untuk pratinjau")} style={{ position: "relative", cursor: "zoom-in" }}
           onMouseEnter={(e) => (e.currentTarget.firstChild.style.boxShadow = "var(--shadow-md)")} onMouseLeave={(e) => (e.currentTarget.firstChild.style.boxShadow = "none")}>
           {(im.isVideo || isVideoUrl(im.url) || isVideoUrl(im.storage_path))
             ? <video src={im.url} muted playsInline preload="metadata"
@@ -610,11 +611,11 @@ function PoolGrid({ imgs, onAdd, onRemove, onReplace }) {
                 style={{ width: "100%", aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block", transition: "box-shadow .15s" }} />}
           {(im.isVideo || isVideoUrl(im.url) || isVideoUrl(im.storage_path)) &&
             <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.55)", pointerEvents: "none" }}><Icons.play size={22} /></span>}
-          <button onClick={(e) => { e.stopPropagation(); onRemove(i); }} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "var(--surface)", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
+          <button onClick={(e) => { e.stopPropagation(); onRemove(i); }} aria-label={t("Hapus")} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "var(--surface)", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
         </div>
       ))}
       <button onClick={onAdd} style={{ aspectRatio: "9/16", borderRadius: 12, border: "1.5px dashed var(--line)", background: "var(--raise)", cursor: "pointer", display: "grid", placeItems: "center", color: "var(--ink-400)" }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><Icons.plus size={20} /><span style={{ fontFamily: FE, fontSize: 10 }}>Tambah</span></div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><Icons.plus size={20} /><span style={{ fontFamily: FE, fontSize: 10 }}>{t("Tambah")}</span></div>
       </button>
     </div>
     <Lightbox imgs={imgs} index={view} onClose={() => setView(null)} onIndex={setView} onDelete={deleteAt}

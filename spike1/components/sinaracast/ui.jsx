@@ -2,6 +2,7 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { Icons } from "./icons";
+import { t, useLang, LANGS, LANG_IDS } from "./i18n";
 const { useState, useEffect } = React;
 
 /* ============================================================
@@ -119,7 +120,7 @@ export const ST_LABEL = {
   Skipped: "Dilewati", Paused: "Dijeda", Connected: "Tersambung", Expiring: "Segera kedaluwarsa",
   "Needs reconnect": "Perlu disambungkan", Active: "Aktif", Inactive: "Nonaktif", Draft: "Draf",
 };
-export const statusLabel = (s) => ST_LABEL[s] || s;
+export const statusLabel = (s) => t(ST_LABEL[s]) || s;
 export function Status({ s, pulse }) {
   const [fg, bg] = ST[s] || ST.Skipped;
   return (
@@ -230,7 +231,7 @@ export function Select({ options = [], value, onChange, style, placeholder, size
         display: "flex", alignItems: "center", cursor: "pointer", textAlign: "left", paddingRight: sm ? 34 : 38,
         borderColor: open ? "var(--primary-500)" : "var(--line)", boxShadow: open ? "0 0 0 3px rgba(255,159,67,.16)" : "var(--shadow-sm)", ...style,
       }}>
-        <span style={{ flex: 1, minWidth: 0, color: cur ? "var(--ink-900)" : "var(--ink-400)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cur ? (cur.label ?? cur) : (placeholder || "Pilih…")}</span>
+        <span style={{ flex: 1, minWidth: 0, color: cur ? "var(--ink-900)" : "var(--ink-400)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cur ? (t(cur.label) ?? cur) : (placeholder || t("Pilih…"))}</span>
         <span style={{ position: "absolute", right: sm ? 11 : 13, top: "50%", color: open ? "var(--primary-500)" : "var(--ink-400)", pointerEvents: "none", display: "flex", transition: "transform .2s cubic-bezier(.2,.8,.2,1), color .15s", transform: `translateY(-50%) rotate(${open ? 180 : 0}deg)` }}><Icons.chevDown size={sm ? 15 : 16} /></span>
       </button>
       <Floating anchorRef={ref} open={open} onClose={() => setOpen(false)} estHeight={Math.min(options.length * 42 + 12, 280)}>
@@ -245,7 +246,7 @@ export function Select({ options = [], value, onChange, style, placeholder, size
               }}
               onMouseEnter={(e) => { if (!on) e.currentTarget.style.background = "var(--line-soft)"; }}
               onMouseLeave={(e) => { if (!on) e.currentTarget.style.background = "transparent"; }}>
-                <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{o.label ?? o}</span>{on && <Icons.check size={15} sw={2.4} style={{ flex: "0 0 auto" }} />}
+                <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t(o.label) ?? o}</span>{on && <Icons.check size={15} sw={2.4} style={{ flex: "0 0 auto" }} />}
               </button>
             );
           })}
@@ -310,15 +311,15 @@ export function TimeField({ value, onChange, style }) {
       <Floating anchorRef={ref} open={open} onClose={() => setOpen(false)} width={Math.max(232, 0)} estHeight={300}>
         <div style={{ background: "var(--veil)", border: "1px solid var(--line)", borderRadius: 16, boxShadow: "var(--shadow-lg)", overflow: "hidden" }}>
           <div style={{ display: "flex", borderBottom: "1px solid var(--line-soft)" }}>
-            <TimeColumn items={HOURS} value={hh} label="Jam" onPick={(h) => set(h, mm)} />
+            <TimeColumn items={HOURS} value={hh} label={t("Jam")} onPick={(h) => set(h, mm)} />
             <div style={{ width: 1, background: "var(--line-soft)", margin: "8px 0" }} />
-            <TimeColumn items={MINUTES} value={mm} label="Menit" onPick={(m) => set(hh, m)} />
+            <TimeColumn items={MINUTES} value={mm} label={t("Menit")} onPick={(m) => set(hh, m)} />
           </div>
           <div style={{ display: "flex", gap: 8, padding: 8 }}>
             <button type="button" onClick={() => { const n = new Date(Date.now() + 7 * 3600 * 1000); set(n.getUTCHours(), n.getUTCMinutes()); }}
-              style={{ flex: 1, height: 34, borderRadius: 9, border: "1px solid var(--line)", background: "var(--surface)", cursor: "pointer", fontFamily: F, fontSize: 12, fontWeight: 600, color: "var(--ink-600)" }}>Sekarang</button>
+              style={{ flex: 1, height: 34, borderRadius: 9, border: "1px solid var(--line)", background: "var(--surface)", cursor: "pointer", fontFamily: F, fontSize: 12, fontWeight: 600, color: "var(--ink-600)" }}>{t("Sekarang")}</button>
             <button type="button" onClick={() => setOpen(false)}
-              style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: "var(--primary-500)", cursor: "pointer", fontFamily: F, fontSize: 12, fontWeight: 700, color: "#fff" }}>Selesai</button>
+              style={{ flex: 1, height: 34, borderRadius: 9, border: "none", background: "var(--primary-500)", cursor: "pointer", fontFamily: F, fontSize: 12, fontWeight: 700, color: "#fff" }}>{t("Selesai")}</button>
           </div>
         </div>
       </Floating>
@@ -331,7 +332,7 @@ const MON_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "
 const MONFULL_ID = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const DOW_ID = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 const ymd = (y, m, d) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
-const fmtDateID = (s) => { if (!s) return ""; const [y, m, d] = s.split("-").map(Number); return `${d} ${MON_ID[m - 1]} ${y}`; };
+const fmtDateID = (s) => { if (!s) return ""; const [y, m, d] = s.split("-").map(Number); return `${d} ${t(MON_ID[m - 1])} ${y}`; };
 const todayID = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); return ymd(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
 
 export function DateField({ value, onChange, min, style }) {
@@ -352,17 +353,17 @@ export function DateField({ value, onChange, min, style }) {
         borderColor: open ? "var(--primary-500)" : "var(--line)", boxShadow: open ? "0 0 0 3px rgba(255,159,67,.16)" : "var(--shadow-sm)", ...style,
       }}>
         <span style={{ position: "absolute", left: 14, color: "var(--primary-500)", display: "flex" }}><Icons.calendar size={18} /></span>
-        <span style={{ flex: 1, color: value ? "var(--ink-900)" : "var(--ink-400)" }}>{value ? fmtDateID(value) : "Pilih tanggal"}</span>
+        <span style={{ flex: 1, color: value ? "var(--ink-900)" : "var(--ink-400)" }}>{value ? fmtDateID(value) : t("Pilih tanggal")}</span>
       </button>
       <Floating anchorRef={ref} open={open} onClose={() => setOpen(false)} width={290} estHeight={320}>
         <div style={{ background: "var(--veil)", border: "1px solid var(--line)", borderRadius: 16, boxShadow: "var(--shadow-lg)", padding: 12, width: 290 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <button type="button" onClick={() => shift(-1)} style={navBtn}><Icons.chevLeft size={17} /></button>
-            <span style={{ fontFamily: F, fontWeight: 700, fontSize: 13.5, color: "var(--ink-900)" }}>{MONFULL_ID[vm.m]} {vm.y}</span>
+            <span style={{ fontFamily: F, fontWeight: 700, fontSize: 13.5, color: "var(--ink-900)" }}>{t(MONFULL_ID[vm.m])} {vm.y}</span>
             <button type="button" onClick={() => shift(1)} style={navBtn}><Icons.chevRight size={17} /></button>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
-            {DOW_ID.map((d) => <div key={d} style={{ textAlign: "center", fontFamily: F, fontSize: 10, fontWeight: 700, color: "var(--ink-300)", padding: "2px 0 6px" }}>{d}</div>)}
+            {DOW_ID.map((d) => <div key={d} style={{ textAlign: "center", fontFamily: F, fontSize: 10, fontWeight: 700, color: "var(--ink-300)", padding: "2px 0 6px" }}>{t(d)}</div>)}
             {cells.map((d, i) => {
               if (d == null) return <div key={"e" + i} />;
               const s = ymd(vm.y, vm.m, d);
@@ -451,7 +452,7 @@ export function Segmented({ options, value, onChange, full }) {
             fontFamily: F, fontWeight: on ? 600 : 500, fontSize: 13,
             background: on ? "var(--surface)" : "transparent", color: on ? "var(--ink-900)" : "var(--ink-500)",
             boxShadow: on ? "var(--shadow-sm)" : "none", transition: "all .15s", whiteSpace: "nowrap",
-          }}>{o.label ?? o}</button>
+          }}>{t(o.label) ?? o}</button>
         );
       })}
     </div>
@@ -651,7 +652,7 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, body, consequen
             fontFamily: F2, fontSize: 12.5, color: danger ? "var(--danger)" : "#B07B22", lineHeight: 1.5, marginBottom: 18 }}>{consequence}</div>
         )}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: consequence ? 0 : 18 }}>
-          <Button variant="secondary" onClick={onClose}>Batal</Button>
+          <Button variant="secondary" onClick={onClose}>{t("Batal")}</Button>
           <Button variant={danger ? "danger" : "amber"} onClick={onConfirm} icon={danger ? <Icons.trash size={17} /> : null}>{confirmLabel}</Button>
         </div>
       </div>
@@ -700,7 +701,7 @@ export function Toast({ toast, onClose }) {
   };
   const [fg, chipBg, ic] = tones[toast.type] || tones.info;
   return (
-    <div onClick={onClose} role="status" aria-live="polite" title="Tutup"
+    <div onClick={onClose} role="status" aria-live="polite" title={t("Tutup")}
       style={{ position: "fixed", bottom: 22, right: 22, left: "auto", zIndex: 300, maxWidth: "min(380px, calc(100vw - 44px))",
         display: "flex", alignItems: "center", gap: 12, background: "var(--surface)", borderRadius: 14, padding: "11px 15px 11px 11px",
         boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", animation: "scToast .26s cubic-bezier(.2,.85,.25,1)",
@@ -723,6 +724,43 @@ export function Banner({ tone, icon, title, body, action }) {
         <div style={{ fontFamily: F, fontSize: 12.5, color: "var(--ink-600)", marginTop: 1 }}>{body}</div>
       </div>
       {action}
+    </div>
+  );
+}
+
+/* Language switch — Bahasa Indonesia ⇄ English.
+
+   A two-up pill with a thumb that slides between the halves, so the change
+   reads as one control moving rather than two buttons toggling. Sized to line
+   up with the bell in the Topbar (`size="md"`) or to sit inside a Settings row
+   and the landing nav (`size="sm"`). Custom, like every other control here —
+   no native <select>. */
+export function LangSwitch({ size = "md", style }) {
+  const { lang, setLang } = useLang();
+  const md = size === "md";
+  const h = md ? 46 : 34;
+  const cell = md ? 38 : 32;
+  const pad = 3;
+  const idx = Math.max(0, LANG_IDS.indexOf(lang));
+  return (
+    <div role="group" aria-label={t("Bahasa")}
+      style={{ position: "relative", display: "inline-flex", height: h, boxSizing: "border-box", padding: pad,
+        borderRadius: md ? 14 : 11, border: "1px solid var(--line)", background: "var(--surface)",
+        boxShadow: "var(--shadow-sm)", flex: "0 0 auto", ...style }}>
+      <span aria-hidden style={{ position: "absolute", top: pad, bottom: pad, left: pad, width: cell,
+        borderRadius: md ? 11 : 8, background: "var(--primary-grad)", boxShadow: "var(--shadow-primary)",
+        transform: `translateX(${idx * cell}px)`, transition: "transform .26s cubic-bezier(.4,0,.2,1)" }} />
+      {LANGS.map((l) => {
+        const on = l.id === lang;
+        return (
+          <button key={l.id} type="button" onClick={() => setLang(l.id)} aria-pressed={on} title={l.native}
+            style={{ position: "relative", width: cell, padding: 0, border: "none", background: "transparent",
+              cursor: on ? "default" : "pointer", fontFamily: F, fontSize: md ? 12.5 : 11.5, fontWeight: 700,
+              letterSpacing: ".02em", color: on ? "#fff" : "var(--ink-400)", transition: "color .18s" }}>
+            {l.short}
+          </button>
+        );
+      })}
     </div>
   );
 }

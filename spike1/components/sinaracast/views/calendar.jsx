@@ -5,6 +5,7 @@ import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { BRANDS, BrandAvatar, Panel, Button, IconButton, Status, EmptyState, Skeleton, Segmented, Select, Modal, SectionTitle, PlatIcon } from "../ui";
 import { PLATFORM } from "./contentEditor";
+import { t } from "../i18n";
 const { useState: uCa } = React;
 const FCa = "var(--font)";
 
@@ -107,7 +108,7 @@ export function CalendarView() {
   const DAYS = new Date(Date.UTC(Y, M + 1, 0)).getUTCDate();
   const prevMonthDays = new Date(Date.UTC(Y, M, 0)).getUTCDate();
   const ym = `${Y}-${pad2(M + 1)}`;
-  const MONTH = `${MONTH_NAMES[M]} ${Y}`;
+  const MONTH = `${t(MONTH_NAMES[M])} ${Y}`;
   const leadingBlanks = (new Date(Date.UTC(Y, M, 1)).getUTCDay() + 6) % 7; // Mon-first offset
   const weekStart = isCurrentMonth ? Math.max(1, TODAY - ((new Date(Date.UTC(Y, M, TODAY)).getUTCDay() + 6) % 7)) : 1; // Monday of current week
   // projection window: future month → all days; current → today onward; past → none
@@ -180,7 +181,7 @@ export function CalendarView() {
     }
     // planned content (content_plan)
     plansMonth.filter(p => p.day === day).forEach(p => items.push({
-      kind: "plan", id: p.id, ch: p.ch, title: p.title || "(tanpa judul)", time: p.plannedTime || "—",
+      kind: "plan", id: p.id, ch: p.ch, title: p.title || t("(tanpa judul)"), time: p.plannedTime || "—",
       statusKey: p.status, statusUi: p.statusUi, platform: p.platform, autoManaged: p.autoManaged,
     }));
     return items.sort((a, b) => String(a.time).localeCompare(String(b.time)));
@@ -193,9 +194,9 @@ export function CalendarView() {
   };
   const createForDay = (day) => app.go("contentEditor", { brand: app.brand, date: `${ym}-${pad2(day)}` });
 
-  const brandOpts = [{ value: "all", label: "Semua akun" }, ...brandAccts.map(a => ({ value: a.id, label: `${platMeta(a.platform).label} · ${a.handle}` }))];
-  const platOpts = [{ value: "all", label: "Semua platform" }, ...Object.entries(PLATFORM).map(([v, m]) => ({ value: v, label: m.label }))];
-  const statOpts = [{ value: "all", label: "Semua status" }, ...PLAN_ORDER.map(s => ({ value: s, label: PLAN_LABEL[s] }))];
+  const brandOpts = [{ value: "all", label: t("Semua akun") }, ...brandAccts.map(a => ({ value: a.id, label: `${platMeta(a.platform).label} · ${a.handle}` }))];
+  const platOpts = [{ value: "all", label: t("Semua platform") }, ...Object.entries(PLATFORM).map(([v, m]) => ({ value: v, label: m.label }))];
+  const statOpts = [{ value: "all", label: t("Semua status") }, ...PLAN_ORDER.map(s => ({ value: s, label: t(PLAN_LABEL[s]) }))];
 
   const allItems = Array.from({ length: DAYS }, (_, i) => itemsFor(i + 1)).flat();
   const totalItems = allItems.length;
@@ -279,7 +280,7 @@ export function CalendarView() {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: FCa, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.title}</div>
           <div style={{ fontFamily: FCa, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {it.time !== "—" ? `${it.time} WIB · ` : ""}{b.name}{isPlan ? ` · ${pm.label}` : it.kind === "oneoff" ? ` · ${it.type}` : ""}
+            {it.time !== "—" ? t("{0} WIB · ", [it.time]) : ""}{b.name}{isPlan ? ` · ${pm.label}` : it.kind === "oneoff" ? ` · ${it.type}` : ""}
           </div>
         </div>
         {isPlan
@@ -299,7 +300,7 @@ export function CalendarView() {
           <div key={day}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
               <span style={{ width: 32, height: 32, borderRadius: 10, display: "grid", placeItems: "center", background: isToday ? "var(--primary-grad)" : "rgba(140,144,158,.12)", color: isToday ? "#fff" : "var(--ink-700)", fontFamily: FCa, fontWeight: 700, fontSize: 13 }}>{pad2(day)}</span>
-              <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 600, color: "var(--ink-500)" }}>{DOW[(new Date(Date.UTC(Y, M, day)).getUTCDay() + 6) % 7]}{isToday ? " · Hari ini" : ""}</span>
+              <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 600, color: "var(--ink-500)" }}>{t(DOW[(new Date(Date.UTC(Y, M, day)).getUTCDay() + 6) % 7])}{isToday ? t(" · Hari ini") : ""}</span>
               {specialByDay[day] && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--primary-100)", color: "#E0922A", borderRadius: 999, padding: "2px 8px", fontFamily: FCa, fontSize: 10.5, fontWeight: 700 }}><Icons.sun size={11} />{specialByDay[day][0].name}</span>}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{items.map((it, i) => <AgendaRow key={i} it={it} />)}</div>
@@ -341,7 +342,7 @@ export function CalendarView() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 3, minHeight: 0, overflow: "hidden" }}>
               {items.slice(0, cap).map((it, i) => <Pill key={i} it={it} />)}
-              {items.length > cap && <span style={{ fontFamily: FCa, fontSize: 10, fontWeight: 600, color: "var(--ink-400)", paddingLeft: 6, marginTop: 1, flex: "0 0 auto" }}>+{items.length - cap} lagi</span>}
+              {items.length > cap && <span style={{ fontFamily: FCa, fontSize: 10, fontWeight: 600, color: "var(--ink-400)", paddingLeft: 6, marginTop: 1, flex: "0 0 auto" }}>+{items.length - cap} {t("lagi")}</span>}
             </div>
           </button>
         );
@@ -354,13 +355,13 @@ export function CalendarView() {
       {/* header: month nav · filters · legend */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap", flex: "0 0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <IconButton size={34} icon={<Icons.chevLeft size={18} />} tip="Bulan sebelumnya" onClick={() => setMonthOffset(o => o - 1)} />
+          <IconButton size={34} icon={<Icons.chevLeft size={18} />} tip={t("Bulan sebelumnya")} onClick={() => setMonthOffset(o => o - 1)} />
           <span style={{ fontFamily: FCa, fontWeight: 700, fontSize: 18, color: "var(--ink-900)", minWidth: 132, textAlign: "center", letterSpacing: "-.01em" }}>{MONTH}</span>
-          <IconButton size={34} icon={<Icons.chevRight size={18} />} tip="Bulan berikutnya" onClick={() => setMonthOffset(o => o + 1)} />
-          {!isCurrentMonth && <Button size="sm" variant="ghost" onClick={() => setMonthOffset(0)} style={{ marginLeft: 4 }}>Hari ini</Button>}
+          <IconButton size={34} icon={<Icons.chevRight size={18} />} tip={t("Bulan berikutnya")} onClick={() => setMonthOffset(o => o + 1)} />
+          {!isCurrentMonth && <Button size="sm" variant="ghost" onClick={() => setMonthOffset(0)} style={{ marginLeft: 4 }}>{t("Hari ini")}</Button>}
         </div>
         {!app.isMobile && !useAgenda && <div style={{ display: "flex", gap: 14, fontFamily: FCa, fontSize: 11, fontWeight: 500, color: "var(--ink-400)", flexWrap: "wrap" }}>
-          <Legend c="var(--st-scheduled)" t="Terjadwal" /><Legend c="var(--st-success)" t="Terbit" /><Legend c="var(--ink-400)" t="Rencana" sq /><Legend c="var(--st-scheduled)" t="Sekali" sq />
+          <Legend c="var(--st-scheduled)" label={t("Terjadwal")} /><Legend c="var(--st-success)" label={t("Terbit")} /><Legend c="var(--ink-400)" label={t("Rencana")} sq /><Legend c="var(--st-scheduled)" label={t("Sekali")} sq />
         </div>}
       </div>
 
@@ -370,13 +371,13 @@ export function CalendarView() {
         <div style={{ width: app.isMobile ? "30%" : 172, flex: app.isMobile ? "1 1 30%" : "0 0 auto" }}><Select size="sm" value={filter} onChange={setFilter} options={brandOpts} /></div>
         <div style={{ width: app.isMobile ? "30%" : 172, flex: app.isMobile ? "1 1 30%" : "0 0 auto" }}><Select size="sm" value={platFilter} onChange={setPlatFilter} options={platOpts} /></div>
         <div style={{ width: app.isMobile ? "30%" : 172, flex: app.isMobile ? "1 1 30%" : "0 0 auto" }}><Select size="sm" value={statFilter} onChange={setStatFilter} options={statOpts} /></div>
-        {(platFilter !== "all" || statFilter !== "all" || filter !== (app.channel || "all")) && <button onClick={() => { setFilter(app.channel || "all"); setPlatFilter("all"); setStatFilter("all"); }} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: FCa, fontSize: 12, fontWeight: 600, color: "var(--ink-400)", padding: "0 4px" }}>Reset</button>}
+        {(platFilter !== "all" || statFilter !== "all" || filter !== (app.channel || "all")) && <button onClick={() => { setFilter(app.channel || "all"); setPlatFilter("all"); setStatFilter("all"); }} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: FCa, fontSize: 12, fontWeight: 600, color: "var(--ink-400)", padding: "0 4px" }}>{t("Reset")}</button>}
       </div>
 
       {totalItems === 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "11px 14px", borderRadius: 12, background: "rgba(140,144,158,.07)", marginBottom: 14, fontFamily: FCa, fontSize: 12.5, color: "var(--ink-500)" }}>
           <Icons.calendar size={15} style={{ color: "var(--ink-400)", flex: "0 0 auto" }} />
-          {statusActive || platFilter !== "all" ? "Tidak ada yang cocok dengan filter ini." : isCurrentMonth ? "Belum ada konten, jadwal otomatis, maupun postingan bulan ini." : `Tidak ada apa pun di ${MONTH}.`}
+          {statusActive || platFilter !== "all" ? t("Tidak ada yang cocok dengan filter ini.") : isCurrentMonth ? t("Belum ada konten, jadwal otomatis, maupun postingan bulan ini.") : t("Tidak ada apa pun di {0}.", [MONTH])}
         </div>
       )}
 
@@ -395,11 +396,11 @@ export function CalendarView() {
 
   return (
     <div style={app.isMobile ? undefined : { height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
-      <Topbar title="Kalender" sub={`${app.activeBrand?.name || "Semua"} · rencana, jadwal otomatis & postingan · WIB`}
+      <Topbar title={t("Kalender")} sub={t("{0} · rencana, jadwal otomatis & postingan · WIB", [app.activeBrand?.name || t("Semua")])}
         right={<div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          {!app.isMobile && <Segmented options={[{ value: "month", label: "Bulan" }, { value: "week", label: "Minggu" }]} value={mode} onChange={setMode} />}
-          <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("contentEditor", { brand: app.brand })}>Buat konten</Button>
-          <Button variant="secondary" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("composer", { ch: filter === "all" ? app.channel : filter })}>Buat postingan</Button>
+          {!app.isMobile && <Segmented options={[{ value: "month", label: t("Bulan") }, { value: "week", label: t("Minggu") }]} value={mode} onChange={setMode} />}
+          <Button variant="amber" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("contentEditor", { brand: app.brand })}>{t("Buat konten")}</Button>
+          <Button variant="secondary" size="sm" icon={<Icons.plus size={17} sw={2} />} onClick={() => app.go("composer", { ch: filter === "all" ? app.channel : filter })}>{t("Buat postingan")}</Button>
         </div>} />
 
       {phase === "loading" && <Panel style={{ height: 520 }}><Skeleton h={28} w="30%" /><div style={{ height: 16 }} /><div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 8 }}>{Array.from({ length: 35 }).map((_, i) => <Skeleton key={i} h={80} r={12} />)}</div></Panel>}
@@ -413,24 +414,24 @@ export function CalendarView() {
   );
 }
 
-function Legend({ c, t, sq }) { return <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: sq ? 2 : "50%", background: c, boxShadow: `0 0 0 3px color-mix(in srgb, ${c} 16%, transparent)` }} />{t}</span>; }
+function Legend({ c, label, sq }) { return <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: sq ? 2 : "50%", background: c, boxShadow: `0 0 0 3px color-mix(in srgb, ${c} 16%, transparent)` }} />{label}</span>; }
 
 // Right-rail (desktop) / top strip (mobile): month digest (what the grid actually
 // holds), special days this month, then plan status & platform breakdowns.
 function SummaryRail({ compact, monthLabel, total, byStatus, byPlatform, digest, specials, statFilter, onPickStatus, onClear, onCreate }) {
   const hasFilter = statFilter !== "all";
   const digestRows = [
-    { label: "Terbit", n: digest.pub, c: "var(--st-success)" },
-    { label: "Terjadwal", n: digest.sched, c: "var(--st-scheduled)" },
-    { label: "Sekali", n: digest.once, c: "var(--st-scheduled)", sq: true },
-    ...(digest.failed ? [{ label: "Gagal", n: digest.failed, c: "var(--st-failed)" }] : []),
+    { label: t("Terbit"), n: digest.pub, c: "var(--st-success)" },
+    { label: t("Terjadwal"), n: digest.sched, c: "var(--st-scheduled)" },
+    { label: t("Sekali"), n: digest.once, c: "var(--st-scheduled)", sq: true },
+    ...(digest.failed ? [{ label: t("Gagal"), n: digest.failed, c: "var(--st-failed)" }] : []),
   ].filter(r => r.n > 0);
   return (
     <Panel strong pad={compact ? 14 : 18} style={compact ? undefined : { position: "sticky", top: 0 }}>
-      <div style={{ fontFamily: FCa, fontSize: 12, fontWeight: 600, color: "var(--ink-500)", letterSpacing: ".02em" }}>Bulan ini</div>
+      <div style={{ fontFamily: FCa, fontSize: 12, fontWeight: 600, color: "var(--ink-500)", letterSpacing: ".02em" }}>{t("Bulan ini")}</div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 2 }}>
         <span style={{ fontFamily: FCa, fontWeight: 800, fontSize: 30, color: "var(--ink-900)", letterSpacing: "-.02em" }}>{digest.pub + digest.sched + digest.once + total}</span>
-        <span style={{ fontFamily: FCa, fontSize: 12.5, color: "var(--ink-400)" }}>postingan & rencana · {monthLabel}</span>
+        <span style={{ fontFamily: FCa, fontSize: 12.5, color: "var(--ink-400)" }}>{t("postingan & rencana ·")} {monthLabel}</span>
       </div>
 
       {digestRows.length > 0 && (
@@ -438,7 +439,7 @@ function SummaryRail({ compact, monthLabel, total, byStatus, byPlatform, digest,
           {digestRows.map((r) => (
             <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 2px" }}>
               <span style={{ width: 8, height: 8, borderRadius: r.sq ? 2 : "50%", background: r.c, flex: "0 0 auto" }} />
-              <span style={{ flex: 1, fontFamily: FCa, fontSize: 12.5, color: "var(--ink-600)" }}>{r.label}</span>
+              <span style={{ flex: 1, fontFamily: FCa, fontSize: 12.5, color: "var(--ink-600)" }}>{t(r.label)}</span>
               <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 700, color: "var(--ink-700)", fontVariantNumeric: "tabular-nums" }}>{r.n}</span>
             </div>
           ))}
@@ -447,7 +448,7 @@ function SummaryRail({ compact, monthLabel, total, byStatus, byPlatform, digest,
 
       {specials.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div style={subhead}>Hari spesial</div>
+          <div style={subhead}>{t("Hari spesial")}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
             {specials.slice(0, 4).map((s) => (
               <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 2px", minWidth: 0 }}>
@@ -456,20 +457,20 @@ function SummaryRail({ compact, monthLabel, total, byStatus, byPlatform, digest,
                 <span style={{ fontFamily: FCa, fontSize: 11.5, fontWeight: 700, color: "var(--ink-500)", fontVariantNumeric: "tabular-nums" }}>{s.date.slice(8, 10)}</span>
               </div>
             ))}
-            {specials.length > 4 && <span style={{ fontFamily: FCa, fontSize: 11, color: "var(--ink-400)", paddingLeft: 21 }}>+{specials.length - 4} lagi</span>}
+            {specials.length > 4 && <span style={{ fontFamily: FCa, fontSize: 11, color: "var(--ink-400)", paddingLeft: 21 }}>+{specials.length - 4} {t("lagi")}</span>}
           </div>
         </div>
       )}
 
       {total === 0 ? (
         <div style={{ fontFamily: FCa, fontSize: 12.5, color: "var(--ink-400)", marginTop: 14, lineHeight: 1.5 }}>
-          Belum ada konten terencana.
-          <Button size="sm" variant="amber" full style={{ marginTop: 10 }} icon={<Icons.plus size={15} sw={2} />} onClick={onCreate}>Buat konten</Button>
+          {t("Belum ada konten terencana.")}
+          <Button size="sm" variant="amber" full style={{ marginTop: 10 }} icon={<Icons.plus size={15} sw={2} />} onClick={onCreate}>{t("Buat konten")}</Button>
         </div>
       ) : (
         <>
           <div style={{ marginTop: 16 }}>
-            <div style={subhead}>Per status</div>
+            <div style={subhead}>{t("Per status")}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
               {Object.entries(byStatus).map(([s, n]) => {
                 const c = PLAN_ST_COLOR[s] || "var(--ink-400)", on = statFilter === s;
@@ -477,7 +478,7 @@ function SummaryRail({ compact, monthLabel, total, byStatus, byPlatform, digest,
                   <button key={s} onClick={() => onPickStatus(s)}
                     style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 9px", border: "none", borderRadius: 9, cursor: "pointer", background: on ? tint(c, 16) : "transparent", textAlign: "left", width: "100%" }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: c, flex: "0 0 auto" }} />
-                    <span style={{ flex: 1, fontFamily: FCa, fontSize: 12.5, fontWeight: on ? 700 : 500, color: on ? "var(--ink-900)" : "var(--ink-600)" }}>{PLAN_LABEL[s]}</span>
+                    <span style={{ flex: 1, fontFamily: FCa, fontSize: 12.5, fontWeight: on ? 700 : 500, color: on ? "var(--ink-900)" : "var(--ink-600)" }}>{t(PLAN_LABEL[s])}</span>
                     <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 700, color: "var(--ink-700)", fontVariantNumeric: "tabular-nums" }}>{n}</span>
                   </button>
                 );
@@ -486,14 +487,14 @@ function SummaryRail({ compact, monthLabel, total, byStatus, byPlatform, digest,
           </div>
 
           <div style={{ marginTop: 16 }}>
-            <div style={subhead}>Per platform</div>
+            <div style={subhead}>{t("Per platform")}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
               {Object.entries(byPlatform).sort((a, b) => b[1] - a[1]).map(([p, n]) => {
                 const m = platMeta(p);
                 return (
                   <div key={p} style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 9px" }}>
                     <PlatIcon p={p} size={15} />
-                    <span style={{ flex: 1, fontFamily: FCa, fontSize: 12.5, color: "var(--ink-600)" }}>{m.label}</span>
+                    <span style={{ flex: 1, fontFamily: FCa, fontSize: 12.5, color: "var(--ink-600)" }}>{t(m.label)}</span>
                     <span style={{ fontFamily: FCa, fontSize: 12.5, fontWeight: 700, color: "var(--ink-700)", fontVariantNumeric: "tabular-nums" }}>{n}</span>
                   </div>
                 );
@@ -503,7 +504,7 @@ function SummaryRail({ compact, monthLabel, total, byStatus, byPlatform, digest,
         </>
       )}
 
-      {hasFilter && <Button size="sm" variant="ghost" full style={{ marginTop: 14 }} onClick={onClear}>Hapus filter</Button>}
+      {hasFilter && <Button size="sm" variant="ghost" full style={{ marginTop: 14 }} onClick={onClear}>{t("Hapus filter")}</Button>}
     </Panel>
   );
 }
@@ -515,11 +516,11 @@ function DayModal({ sel, ym, monthLabel, onClose, openItem, createForDay }) {
   return (
     <Modal open={!!sel} onClose={onClose} width={460}>
       <div style={{ padding: 24 }}>
-        <SectionTitle sub={`${sel.items.length} item`} right={
+        <SectionTitle sub={t("{0} item", [sel.items.length])} right={
           <div style={{ display: "flex", gap: 8 }}>
-            <Button size="sm" variant="amber" icon={<Icons.plus size={15} />} onClick={() => { onClose(); createForDay(sel.day); }}>Buat konten</Button>
+            <Button size="sm" variant="amber" icon={<Icons.plus size={15} />} onClick={() => { onClose(); createForDay(sel.day); }}>{t("Buat konten")}</Button>
           </div>}>{pad2(sel.day)} {monthLabel}</SectionTitle>
-        {sel.items.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", fontFamily: FCa, fontSize: 13, color: "var(--ink-400)" }}>Belum ada apa pun di hari ini. Buat konten untuk mulai merencanakan.</div>}
+        {sel.items.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", fontFamily: FCa, fontSize: 13, color: "var(--ink-400)" }}>{t("Belum ada apa pun di hari ini. Buat konten untuk mulai merencanakan.")}</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {sel.items.map((it, i) => {
             const b = brandFor(it.ch, app.channels);
@@ -535,7 +536,7 @@ function DayModal({ sel, ym, monthLabel, onClose, openItem, createForDay }) {
                     <span style={{ fontFamily: FCa, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.title}</span>
                     <span style={{ fontFamily: FCa, fontSize: 9.5, fontWeight: 600, color: tagC, background: tint(tagC, 12), padding: "1px 7px", borderRadius: 999, flex: "0 0 auto" }}>{tag}</span>
                   </div>
-                  <div style={{ fontFamily: FCa, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{it.time !== "—" ? `${it.time} WIB · ` : ""}{b.name}</div>
+                  <div style={{ fontFamily: FCa, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{it.time !== "—" ? t("{0} WIB · ", [it.time]) : ""}{b.name}</div>
                 </div>
                 {isPlan
                   ? <span style={{ fontFamily: FCa, fontSize: 11, fontWeight: 600, color: PLAN_ST_COLOR[it.statusKey] || "var(--ink-500)", background: tint(PLAN_ST_COLOR[it.statusKey] || "var(--ink-500)", 14), padding: "3px 9px", borderRadius: 999, flex: "0 0 auto" }}>{it.statusUi}</span>

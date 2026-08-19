@@ -4,6 +4,7 @@ import { Icons } from "../icons";
 import { useApp, useFetchState } from "../store";
 import { Topbar } from "../shell";
 import { BRANDS, BrandAvatar, Panel, Button, EmptyState, Skeleton, Segmented } from "../ui";
+import { t } from "../i18n";
 const { useState: uNo } = React;
 const FN = "var(--font)";
 
@@ -28,17 +29,17 @@ export function NotificationsView() {
 
   return (
     <div>
-      <Topbar title="Notifikasi" sub={`${unread} belum dibaca · sama dengan yang dikirim ke Telegram`}
+      <Topbar title={t("Notifikasi")} sub={t("{0} belum dibaca · sama dengan yang dikirim ke Telegram", [unread])}
         right={<div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <Segmented options={[{ value: "all", label: "Semua" }, { value: "unread", label: `Belum dibaca${unread ? " · " + unread : ""}` }]} value={tab} onChange={setTab} />
-          <Button variant="secondary" size="sm" icon={<Icons.check size={16} />} onClick={() => { app.markAllRead(); app.toast("Semua ditandai dibaca", "info"); }} disabled={!unread}>Tandai dibaca</Button>
+          <Segmented options={[{ value: "all", label: t("Semua") }, { value: "unread", label: `${t("Belum dibaca")}${unread ? " · " + unread : ""}` }]} value={tab} onChange={setTab} />
+          <Button variant="secondary" size="sm" icon={<Icons.check size={16} />} onClick={() => { app.markAllRead(); app.toast(t("Semua ditandai dibaca"), "info"); }} disabled={!unread}>{t("Tandai dibaca")}</Button>
         </div>} />
 
       <div style={{ maxWidth: 760 }}>
         <Panel flush style={{ overflow: "hidden" }}>
           {phase === "loading" && <div style={{ padding: 8 }}>{[0,1,2,3].map(i => <div key={i} style={{ display: "flex", gap: 13, padding: 16, borderBottom: "1px solid var(--line)" }}><Skeleton w={40} h={40} r={12} /><div style={{ flex: 1 }}><Skeleton w="45%" h={14} /><div style={{ height: 8 }} /><Skeleton w="80%" h={11} /></div></div>)}</div>}
 
-          {phase === "ready" && notifs.length === 0 && <EmptyState icon={<Icons.bell size={28} />} title={tab === "unread" ? "Semua sudah dibaca" : "Belum ada notifikasi"} body={tab === "unread" ? "Tidak ada notifikasi yang belum dibaca." : "Pemberitahuan gagal terbit, koneksi bermasalah, dan jadwal terlewat akan muncul di sini."} />}
+          {phase === "ready" && notifs.length === 0 && <EmptyState icon={<Icons.bell size={28} />} title={tab === "unread" ? t("Semua sudah dibaca") : t("Belum ada notifikasi")} body={tab === "unread" ? t("Tidak ada notifikasi yang belum dibaca.") : t("Pemberitahuan gagal terbit, koneksi bermasalah, dan jadwal terlewat akan muncul di sini.")} />}
 
           {phase === "ready" && notifs.map((n, i) => {
             const [fg, bg, Ic] = NTYPE[n.type] || NTYPE.warn;
@@ -56,7 +57,7 @@ export function NotificationsView() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontFamily: FN, fontSize: 11, color: "var(--ink-400)" }}>
                     {b && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><BrandAvatar brand={b} size={14} />{b.name}</span>}
                     <span>·</span><span>{n.time}</span>
-                    {n.runId && <span style={{ color: "var(--primary-500)", fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 3 }}>· Lihat run <Icons.chevRight size={12} /></span>}
+                    {n.runId && <span style={{ color: "var(--primary-500)", fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 3 }}>{t("· Lihat run")} <Icons.chevRight size={12} /></span>}
                   </div>
                 </div>
               </div>

@@ -3,14 +3,15 @@
 // components expect. access_token is NEVER selected here — it stays
 // server/worker-only (schema §7).
 import { supabase } from "./supabaseClient";
+import { t } from "./i18n";
 
 const STATUS = { connected: "Connected", expiring: "Expiring", needs_reconnect: "Needs reconnect" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-const fmtDate = (iso) => { if (!iso) return "—"; const d = new Date(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; };
+const fmtDate = (iso) => { if (!iso) return "—"; const d = new Date(iso); return `${d.getDate()} ${t(MONTHS[d.getMonth()])} ${d.getFullYear()}`; };
 const fmtFollowers = (n) => { if (n == null) return "—"; return n >= 1000 ? (n / 1000).toFixed(1).replace(".0", "") + "rb" : String(n); };
 const pad2 = (n) => String(n).padStart(2, "0");
 const toWib = (iso) => new Date(new Date(iso).getTime() + 7 * 3600 * 1000); // shift so getUTC* reads WIB
-const fmtDateTimeWib = (iso) => { if (!iso) return "—"; const d = toWib(iso); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}, ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`; };
+const fmtDateTimeWib = (iso) => { if (!iso) return "—"; const d = toWib(iso); return `${d.getUTCDate()} ${t(MONTHS[d.getUTCMonth()])} ${d.getUTCFullYear()}, ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`; };
 const fmtTimeWib = (iso) => { if (!iso) return ""; const d = toWib(iso); return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`; };
 const dateKeyWib = (iso) => { if (!iso) return ""; const d = toWib(iso); return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`; };
 const fmtNotifTime = (iso) => {
@@ -18,9 +19,9 @@ const fmtNotifTime = (iso) => {
   const d = toWib(iso), now = toWib(new Date().toISOString());
   const hm = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
   const dayDiff = Math.round((Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())) / 86400000);
-  if (dayDiff === 0) return `Hari ini, ${hm}`;
-  if (dayDiff === 1) return `Kemarin, ${hm}`;
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}, ${hm}`;
+  if (dayDiff === 0) return t("Hari ini, {0}", [hm]);
+  if (dayDiff === 1) return t("Kemarin, {0}", [hm]);
+  return `${d.getUTCDate()} ${t(MONTHS[d.getUTCMonth()])}, ${hm}`;
 };
 // Next scheduled run for an active rule, as a friendly WIB label. Mirrors the
 // engine's fire logic (JS day-of-week 0=Sun; every_n_days anchored on created_at).
@@ -74,7 +75,7 @@ const nextRunLabel = (rule) => {
   const now = toWib(new Date().toISOString());
   const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
   const today = ymdUTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  if (windowStateOf(rule, today) === "ended") return "Masa berlaku selesai";
+  if (windowStateOf(rule, today) === "ended") return t("Masa berlaku selesai");
   for (let i = 0; i < 400; i++) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + i));
     const Y = d.getUTCFullYear(), M = d.getUTCMonth(), day = d.getUTCDate(), jsDow = d.getUTCDay();
@@ -88,18 +89,18 @@ const nextRunLabel = (rule) => {
       return h * 60 + m > nowMin;
     });
     if (!hhmm) continue;
-    if (i === 0) return `Hari ini, ${hhmm} WIB`;
-    if (i === 1) return `Besok, ${hhmm} WIB`;
-    return `${WD_SHORT[jsDow]}, ${day} ${MONTHS[M]} · ${hhmm} WIB`;
+    if (i === 0) return t("Hari ini, {0} WIB", [hhmm]);
+    if (i === 1) return t("Besok, {0} WIB", [hhmm]);
+    return `${t(WD_SHORT[jsDow])}, ${day} ${t(MONTHS[M])} · ${hhmm} WIB`;
   }
-  return "Belum dijadwalkan";
+  return t("Belum dijadwalkan");
 };
 const cadenceLabel = (r) => {
-  if (r.cadence_type === "daily") return "Setiap hari";
-  if (r.cadence_type === "every_n_days") return `Setiap ${r.interval_days || 2} hari`;
+  if (r.cadence_type === "daily") return t("Setiap hari");
+  if (r.cadence_type === "every_n_days") return t("Setiap {0} hari", [r.interval_days || 2]);
   if (r.cadence_type === "weekdays") {
     const names = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
-    return (r.weekdays || []).map((d) => names[d]).join(", ") || "Hari tertentu";
+    return (r.weekdays || []).map((d) => t(names[d])).join(", ") || t("Hari tertentu");
   }
   return "—";
 };
@@ -144,7 +145,7 @@ function mapRule(r, slugById) {
     cycle: { used: 0, total: 0 },
     // Masa berlaku yang sudah habis menang atas label "Nonaktif": lebih jelas kenapa
     // jadwalnya berhenti (mesin cron memang mematikannya sendiri saat lewat tanggal).
-    nextRun: windowState === "ended" ? "Masa berlaku selesai" : r.active ? nextRunLabel(r) : "Nonaktif",
+    nextRun: windowState === "ended" ? t("Masa berlaku selesai") : r.active ? nextRunLabel(r) : t("Nonaktif"),
     todayStatus: r.active && windowState !== "ended" ? "Scheduled" : "Inactive", lastImg: 0, runs7: [0, 0, 0, 0, 0, 0, 0],
   };
 }
@@ -243,7 +244,7 @@ export async function loadAll() {
       const ov = ovByRule[r.id];
       if (!ov) continue;
       r.todayOverride = ov.type; // "skip" | "swap"
-      if (ov.type === "skip") { r.todayStatus = "Skipped"; r.nextRun = "Dilewati hari ini"; }
+      if (ov.type === "skip") { r.todayStatus = "Skipped"; r.nextRun = t("Dilewati hari ini"); }
       if (ov.type === "swap" && ov.swap_image_id) {
         const sp = pathById[ov.swap_image_id];
         if (sp) r.thumbUrl = pubUrl(sp);
@@ -284,7 +285,7 @@ export async function loadAll() {
   const ruleNameById = Object.fromEntries((rulesRaw || []).map((r) => [r.id, r.name]));
   // One-off posts have no rule — label a run by its caption (or type) instead of "(jadwal dihapus)".
   const schedById = Object.fromEntries((schedRaw || []).map((s) => [s.id, s]));
-  const oneoffTypeLabel = (s) => s.post_type === "feed" ? "Feed (sekali)" : s.post_type === "reels" ? "Reels (sekali)" : s.post_type === "tiktok_video" ? "Video TikTok (sekali)" : "Story (sekali)";
+  const oneoffTypeLabel = (s) => s.post_type === "feed" ? t("Feed (sekali)") : s.post_type === "reels" ? t("Reels (sekali)") : s.post_type === "tiktok_video" ? t("Video TikTok (sekali)") : t("Story (sekali)");
   const oneoffLabel = (s) => (s.caption && s.caption.trim()) ? s.caption.trim().slice(0, 40) : oneoffTypeLabel(s);
   const POOL_LABEL = { weekday: "Weekday", weekend: "Weekend", single: "Pool" };
   const RUN_STATUS = { published: "Published", failed: "Failed", publishing: "Publishing", pending: "Publishing", skipped: "Skipped" };
@@ -302,8 +303,8 @@ export async function loadAll() {
     ch: slugById[r.channel_id] || "",
     ruleId: r.rule_id,
     rule: r.rule_id
-      ? (ruleNameById[r.rule_id] || "(jadwal dihapus)")
-      : (schedById[r.scheduled_post_id] ? oneoffLabel(schedById[r.scheduled_post_id]) : "Postingan sekali"),
+      ? (ruleNameById[r.rule_id] || t("(jadwal dihapus)"))
+      : (schedById[r.scheduled_post_id] ? oneoffLabel(schedById[r.scheduled_post_id]) : t("Postingan sekali")),
     status: RUN_STATUS[r.status] || r.status,
     trigger: r.trigger,
     sched: fmtDateTimeWib(r.scheduled_at),
@@ -312,9 +313,9 @@ export async function loadAll() {
     img: 0,
     thumbUrl: r.image_id && pathById[r.image_id] ? pubUrl(pathById[r.image_id]) : null,
     pool: POOL_LABEL[r.pool_role] || "Pool",
-    fail: r.fail_reason || (r.status === "failed" ? "Gagal menerbitkan" : null),
+    fail: r.fail_reason || (r.status === "failed" ? t("Gagal menerbitkan") : null),
     link: r.permalink ? r.permalink.replace(/^https?:\/\//, "") : null,
-    attempts: attemptsByRun[r.id] || [{ t: fmtTimeWib(r.created_at), o: "Menunggu…" }],
+    attempts: attemptsByRun[r.id] || [{ t: fmtTimeWib(r.created_at), o: t("Menunggu…") }],
     // content kind + auto-pulled IG metrics (Ringkasan "Performa per konten")
     kind: r.rule_id ? "story" : (schedById[r.scheduled_post_id]?.post_type || "story"),
     m: { views: r.m_views, reach: r.m_reach, likes: r.m_likes, comments: r.m_comments, shares: r.m_shares, saves: r.m_saves, replies: r.m_replies },
@@ -349,7 +350,7 @@ export async function loadAll() {
       ym: p.planned_date ? p.planned_date.slice(0, 7) : "", day: D,
       title: p.title || "", contentType: p.content_type || "", pillar: p.pillar || "",
       format: p.format || "", goal: p.goal || "",
-      status: p.status, statusUi: PLAN_ST_UI[p.status] || p.status,
+      status: p.status, statusUi: t(PLAN_ST_UI[p.status] || p.status),
       source: p.source, scheduledPostId: p.scheduled_post_id || null, recurringRuleId: p.recurring_rule_id || null,
       linked: p.source !== "manual", autoManaged: !!p.auto_managed, postLink: p.post_link || "", postedAt: p.posted_at,
       metricsSource: p.metrics_source, metricsUpdatedAt: p.metrics_updated_at,
@@ -380,9 +381,9 @@ export async function loadAll() {
   let authEmail = "";
   try { const { data: sess } = await supabase.auth.getSession(); authEmail = sess?.session?.user?.email || ""; } catch (_) { /* non-fatal */ }
   const profile = {
-    name: profileRaw?.name || (authEmail ? authEmail.split("@")[0] : "Kamu"),
+    name: profileRaw?.name || (authEmail ? authEmail.split("@")[0] : t("Kamu")),
     email: profileRaw?.email || authEmail,
-    method: "Kode lewat email",
+    method: t("Kode lewat email"),
     joined: profileRaw?.joined_at ? fmtDate(profileRaw.joined_at) : "—",
   };
 
@@ -560,7 +561,7 @@ export async function createBrand(name) {
   const { data: u } = await supabase.auth.getUser();
   const uid = u?.user?.id;
   if (!uid) throw new Error("Not signed in");
-  const { data, error } = await supabase.from("brand").insert({ owner_id: uid, name: (name || "Brand baru").trim() }).select("id").single();
+  const { data, error } = await supabase.from("brand").insert({ owner_id: uid, name: (name || t("Brand baru")).trim() }).select("id").single();
   if (error) throw error;
   return data.id;
 }
@@ -689,10 +690,10 @@ async function uploadToR2(file, ext, folder) {
     body: JSON.stringify({ ext, folder }),
   });
   const j = await res.json().catch(() => ({}));
-  if (!j.ok) throw new Error(j.error || "Penyimpanan media (R2) belum siap");
+  if (!j.ok) throw new Error(j.error || t("Penyimpanan media (R2) belum siap"));
   // PUT with the exact content type the URL was signed for, or R2 rejects it.
   const up = await fetch(j.uploadUrl, { method: "PUT", headers: { "Content-Type": j.contentType }, body: file });
-  if (!up.ok) throw new Error("Gagal mengunggah berkas ke penyimpanan (cek konfigurasi CORS bucket R2)");
+  if (!up.ok) throw new Error(t("Gagal mengunggah berkas ke penyimpanan (cek konfigurasi CORS bucket R2)"));
   return j.publicUrl;
 }
 
@@ -1037,7 +1038,7 @@ export async function syncSpecialDaysNow() {
   if (!token) throw new Error("Not signed in");
   const res = await fetch("/api/specialdays/sync", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
   const j = await res.json().catch(() => ({}));
-  if (!j.ok) throw new Error(j.error || "Gagal menyegarkan");
+  if (!j.ok) throw new Error(j.error || t("Gagal menyegarkan"));
   return j;
 }
 

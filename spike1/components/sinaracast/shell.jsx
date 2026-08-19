@@ -2,7 +2,8 @@
 import React from "react";
 import { Icons } from "./icons";
 import { useApp } from "./store";
-import { BrandAvatar, Avatar, PlatIcon } from "./ui";
+import { BrandAvatar, Avatar, PlatIcon, LangSwitch } from "./ui";
+import { t } from "./i18n";
 const { useState: uSh } = React;
 const FS = "var(--font)";
 
@@ -69,7 +70,7 @@ export function Sidebar({ mobile, open, onClose }) {
         <div style={{ width: 34, height: 34, borderRadius: 11, background: "var(--primary-grad)", boxShadow: "var(--shadow-primary)",
           display: "grid", placeItems: "center", color: "#fff" }}><Icons.grid size={18} sw={2} /></div>
         <span style={{ fontFamily: FS, fontWeight: 600, fontSize: 17, color: "var(--ink-900)" }}>SinaraCast</span>
-        {mobile && <button onClick={onClose} aria-label="Tutup menu" style={{ marginLeft: "auto", width: 34, height: 34, borderRadius: 10, border: "none", background: "rgba(140,144,158,.12)", color: "var(--ink-500)", display: "grid", placeItems: "center", cursor: "pointer" }}><Icons.x size={18} /></button>}
+        {mobile && <button onClick={onClose} aria-label={t("Tutup menu")} style={{ marginLeft: "auto", width: 34, height: 34, borderRadius: 10, border: "none", background: "rgba(140,144,158,.12)", color: "var(--ink-500)", display: "grid", placeItems: "center", cursor: "pointer" }}><Icons.x size={18} /></button>}
       </div>
 
       {/* brand switcher + account chips */}
@@ -80,7 +81,7 @@ export function Sidebar({ mobile, open, onClose }) {
             <BrandAvatar brand={brandAv(brandObj.name)} size={32} />
             <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
               <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{brandObj.name}</div>
-              <div style={{ fontFamily: FS, fontSize: 10.5, color: "var(--ink-400)" }}>{accounts.length} akun sosial media</div>
+              <div style={{ fontFamily: FS, fontSize: 10.5, color: "var(--ink-400)" }}>{t("{0} akun sosial media", [accounts.length])}</div>
             </div>
             <Icons.chevDown size={16} style={{ color: "var(--ink-400)", transform: swOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
           </button>
@@ -88,7 +89,7 @@ export function Sidebar({ mobile, open, onClose }) {
             <>
               <div className="sc-scroll" style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, background: "var(--veil)",
                 borderRadius: 16, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 6, animation: "scPop .15s", maxHeight: 380, overflowY: "auto" }}>
-                <div style={{ fontFamily: FS, fontSize: 10, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-400)", padding: "8px 10px 6px" }}>GANTI BRAND</div>
+                <div style={{ fontFamily: FS, fontSize: 10, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-400)", padding: "8px 10px 6px" }}>{t("GANTI BRAND")}</div>
                 {app.brands.map(br => {
                   const on = br.id === app.brand;
                   return (
@@ -99,7 +100,7 @@ export function Sidebar({ mobile, open, onClose }) {
                         <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 12.5, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{br.name}</div>
                         <div style={{ fontFamily: FS, fontSize: 10, color: "var(--ink-400)", display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
                           {(br.accounts || []).slice(0, 6).map(a => <PlatIcon key={a.id} p={a.platform} size={13} />)}
-                          <span style={{ marginLeft: 2 }}>{(br.accounts || []).length} akun</span>
+                          <span style={{ marginLeft: 2 }}>{t("{0} akun", [(br.accounts || []).length])}</span>
                         </div>
                       </div>
                       {on && <Icons.check size={16} style={{ color: "var(--primary-500)" }} />}
@@ -108,7 +109,7 @@ export function Sidebar({ mobile, open, onClose }) {
                 })}
                 <div style={{ borderTop: "1px solid var(--line-soft)", marginTop: 4, paddingTop: 4 }}>
                   <button onClick={() => { setSwOpen(false); app.go("connections"); onClose && onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", border: "none", background: "transparent", borderRadius: 11, cursor: "pointer", color: "var(--ink-500)", fontFamily: FS, fontSize: 12.5, fontWeight: 600 }}>
-                    <Icons.settings size={15} /> Kelola brand & akun
+                    <Icons.settings size={15} /> {t("Kelola brand & akun")}
                   </button>
                 </div>
               </div>
@@ -120,13 +121,13 @@ export function Sidebar({ mobile, open, onClose }) {
             Single account = a quiet label row; 2+ = a selectable sub-nav (active = white card, like the menu). */}
         {accounts.length > 0 ? (
           <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 2 }}>
-            {accounts.length > 1 && <div style={{ fontFamily: FS, fontSize: 9.5, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-300)", padding: "2px 11px 4px" }}>AKUN</div>}
+            {accounts.length > 1 && <div style={{ fontFamily: FS, fontSize: 9.5, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-300)", padding: "2px 11px 4px" }}>{t("AKUN")}</div>}
             {accounts.map(a => {
               const multi = accounts.length > 1;
               const showSel = multi && a.id === app.channel;
               const dot = a.status === "Connected" ? "var(--st-success)" : a.status === "Expiring" ? "var(--st-publishing)" : "var(--st-failed)";
               return (
-                <button key={a.id} onClick={() => { app.setChannel(a.id); onClose && onClose(); }} title={`${PLAT[a.platform]?.l || a.platform} · ${a.handle}${a.paused ? " · dijeda" : ""}`}
+                <button key={a.id} onClick={() => { app.setChannel(a.id); onClose && onClose(); }} title={`${PLAT[a.platform]?.l || a.platform} · ${a.handle}${a.paused ? t(" · dijeda") : ""}`}
                   onMouseEnter={(e) => { if (multi && !showSel) e.currentTarget.style.background = "var(--raise)"; }}
                   onMouseLeave={(e) => { if (!showSel) e.currentTarget.style.background = "transparent"; }}
                   style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 11px", borderRadius: 10, border: "none", width: "100%", textAlign: "left",
@@ -139,13 +140,13 @@ export function Sidebar({ mobile, open, onClose }) {
             })}
           </div>
         ) : (
-          <button onClick={() => { app.go("connections"); onClose && onClose(); }} style={{ marginTop: 8, width: "100%", padding: "8px 10px", border: "1px dashed var(--line)", background: "transparent", borderRadius: 11, cursor: "pointer", fontFamily: FS, fontSize: 11.5, color: "var(--ink-400)" }}>+ Tambah akun ke brand ini</button>
+          <button onClick={() => { app.go("connections"); onClose && onClose(); }} style={{ marginTop: 8, width: "100%", padding: "8px 10px", border: "1px dashed var(--line)", background: "transparent", borderRadius: 11, cursor: "pointer", fontFamily: FS, fontSize: 11.5, color: "var(--ink-400)" }}>{t("+ Tambah akun ke brand ini")}</button>
         )}
       </div>
 
       {/* nav */}
       <nav style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        <div style={{ fontFamily: FS, fontSize: 10, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-400)", padding: "0 12px 8px" }}>MENU</div>
+        <div style={{ fontFamily: FS, fontSize: 10, fontWeight: 600, letterSpacing: ".1em", color: "var(--ink-400)", padding: "0 12px 8px" }}>{t("MENU")}</div>
         {NAV.map(n => <NavItem key={n.id} n={n} active={app.view === n.id} onClick={() => app.go(n.id)} />)}
       </nav>
 
@@ -154,7 +155,13 @@ export function Sidebar({ mobile, open, onClose }) {
         {app.pauseAll && (
           <div style={{ background: "var(--st-paused-bg)", borderRadius: 14, padding: "11px 13px", display: "flex", alignItems: "center", gap: 9 }}>
             <Icons.pause size={16} style={{ color: "var(--st-paused)" }} />
-            <div style={{ fontFamily: FS, fontSize: 11.5, color: "var(--st-paused)", fontWeight: 500, lineHeight: 1.3 }}>Semua posting dijeda</div>
+            <div style={{ fontFamily: FS, fontSize: 11.5, color: "var(--st-paused)", fontWeight: 500, lineHeight: 1.3 }}>{t("Semua posting dijeda")}</div>
+          </div>
+        )}
+        {mobile && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "2px 2px 2px 12px" }}>
+            <span style={{ flex: 1, fontFamily: FS, fontSize: 11.5, fontWeight: 500, color: "var(--ink-400)" }}>{t("Bahasa")}</span>
+            <LangSwitch size="sm" />
           </div>
         )}
         <NavItem n={{ id: "settings", label: "Pengaturan", icon: "settings" }} active={app.view === "settings"} onClick={() => app.go("settings")} />
@@ -184,7 +191,7 @@ function NavItem({ n, active, onClick }) {
         color: active ? "var(--primary-500)" : "var(--ink-500)",
         fontFamily: FS, fontWeight: active ? 600 : 500, fontSize: 13.5, transition: "background .15s, color .15s" }}>
       <Ic size={19} sw={active ? 2 : 1.7} />
-      <span>{n.label}</span>
+      <span>{t(n.label)}</span>
       {active && <span style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: "var(--primary-500)" }} />}
     </button>
   );
@@ -197,7 +204,7 @@ export function Topbar({ title, sub, right }) {
   const mobile = app.isMobile;
 
   const bell = (
-    <button onClick={() => app.go("notifications")} title="Notifikasi" style={{ position: "relative", width: 46, height: 46, borderRadius: 14, border: "1px solid var(--line)",
+    <button onClick={() => app.go("notifications")} title={t("Notifikasi")} style={{ position: "relative", width: 46, height: 46, borderRadius: 14, border: "1px solid var(--line)",
       background: "var(--surface)", color: "var(--ink-500)", cursor: "pointer", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)", flex: "0 0 auto" }}>
       <Icons.bell size={20} />
       {unread > 0 && <span style={{ position: "absolute", top: -5, right: -5, minWidth: 19, height: 19, padding: "0 5px", borderRadius: 999,
@@ -241,7 +248,7 @@ export function Topbar({ title, sub, right }) {
       <header style={{ ...stickyBase, display: "flex", flexDirection: "column", gap: 12, padding: "14px var(--content-pad) 10px" }}>
         {feather}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={app.openMenu} aria-label="Menu" style={{ width: 46, height: 46, borderRadius: 14, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-700)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)", flex: "0 0 auto", cursor: "pointer" }}><MenuIcon /></button>
+          <button onClick={app.openMenu} aria-label={t("Menu")} style={{ width: 46, height: 46, borderRadius: 14, border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-700)", display: "grid", placeItems: "center", boxShadow: "var(--shadow-sm)", flex: "0 0 auto", cursor: "pointer" }}><MenuIcon /></button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: FS, fontWeight: 600, fontSize: 20, color: "var(--ink-900)", letterSpacing: "-.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
             {sub && <div style={{ fontFamily: FS, fontSize: 12, color: "var(--ink-400)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>}
@@ -261,6 +268,7 @@ export function Topbar({ title, sub, right }) {
         {sub && <div style={{ fontFamily: FS, fontSize: 13, color: "var(--ink-400)", marginTop: 2 }}>{sub}</div>}
       </div>
       {right}
+      <LangSwitch />
       {bell}
     </header>
   );

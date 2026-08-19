@@ -6,6 +6,7 @@ import { Topbar } from "../shell";
 import { uploadPoolImage, uploadReelVideo, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost, loadContentPlan, linkPlanToOneoff, updateChannelPersona } from "../dataLayer";
 import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, DateField, Checkbox, MediaThumb, SectionTitle, Spinner, Select, Status, Segmented, Slider } from "../ui";
 import { Lightbox } from "../lightbox";
+import { t } from "../i18n";
 const { useState: uCo, useRef, useEffect } = React;
 const FCo = "var(--font)";
 const MAX_VIDEO_MB = 300; // IG video; >48 MB detours to R2 (Supabase free caps at 50)
@@ -117,8 +118,8 @@ function TypeCards({ options, value, onChange, accent, soft }) {
               border: on ? `1.5px solid ${accent}` : "1px solid var(--line)", background: on ? soft : "var(--surface)",
               boxShadow: on ? "var(--shadow-sm)" : "none", transition: "border-color .15s, background .15s, box-shadow .15s" }}>
             <span style={{ color: on ? accent : "var(--ink-400)", display: "inline-flex" }}>{o.icon}</span>
-            <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13.5, color: on ? "var(--ink-900)" : "var(--ink-700)" }}>{o.label}</span>
-            <span style={{ fontFamily: FCo, fontSize: 10.5, color: "var(--ink-400)", lineHeight: 1.35 }}>{o.spec}</span>
+            <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13.5, color: on ? "var(--ink-900)" : "var(--ink-700)" }}>{t(o.label)}</span>
+            <span style={{ fontFamily: FCo, fontSize: 10.5, color: "var(--ink-400)", lineHeight: 1.35 }}>{t(o.spec)}</span>
           </button>
         );
       })}
@@ -273,8 +274,8 @@ export function ComposerView() {
   if (!channel) {
     return (
       <div>
-        <Topbar title="Buat Postingan" />
-        <Panel pad={0}><div style={{ padding: 40, textAlign: "center", fontFamily: FCo, color: "var(--ink-400)" }}>Sambungkan akun Instagram atau TikTok dulu sebelum membuat postingan.<div style={{ marginTop: 14 }}><Button variant="secondary" onClick={() => app.go("connections")}>Buka Manajemen Akun</Button></div></div></Panel>
+        <Topbar title={t("Buat Postingan")} />
+        <Panel pad={0}><div style={{ padding: 40, textAlign: "center", fontFamily: FCo, color: "var(--ink-400)" }}>{t("Sambungkan akun Instagram atau TikTok dulu sebelum membuat postingan.")}<div style={{ marginTop: 14 }}><Button variant="secondary" onClick={() => app.go("connections")}>{t("Buka Manajemen Akun")}</Button></div></div></Panel>
       </div>
     );
   }
@@ -291,45 +292,45 @@ export function ComposerView() {
     let rep = replaceIdxRef.current; replaceIdxRef.current = null; // replace this slot (Feed); single types replace inherently
     for (const file of files) {
       if (isVideoType) {
-        if (!isVideoFile(file)) { app.toast("Video harus MP4/MOV", "error"); continue; }
+        if (!isVideoFile(file)) { app.toast(t("Video harus MP4/MOV"), "error"); continue; }
         const maxMB = isTikVid ? TIKTOK_MAX_MB : MAX_VIDEO_MB;
-        if (file.size > maxMB * 1024 * 1024) { app.toast(`Video maksimal ${maxMB} MB`, "error"); continue; }
+        if (file.size > maxMB * 1024 * 1024) { app.toast(t("Video maksimal {0} MB", [maxMB]), "error"); continue; }
         const meta = await readVideoMeta(file);
-        if (meta.unread) app.toast("Video diunggah, tapi pratinjau mungkin tak tampil di perangkat ini", "info");
+        if (meta.unread) app.toast(t("Video diunggah, tapi pratinjau mungkin tak tampil di perangkat ini"), "info");
         const vr = meta.width / meta.height;
-        if (!meta.unread && Math.abs(vr - 9 / 16) > 0.06) app.toast(isTikVid ? "Video bukan 9:16 — TikTok mungkin menyesuaikan" : "Video bukan 9:16 — Instagram akan menyesuaikan (tambah bilah hitam)", "info");
-        if (isTikVid && meta.duration && meta.duration < 3) { app.toast("Video TikTok minimal 3 detik", "error"); continue; }
+        if (!meta.unread && Math.abs(vr - 9 / 16) > 0.06) app.toast(isTikVid ? t("Video bukan 9:16 — TikTok mungkin menyesuaikan") : t("Video bukan 9:16 — Instagram akan menyesuaikan (tambah bilah hitam)"), "info");
+        if (isTikVid && meta.duration && meta.duration < 3) { app.toast(t("Video TikTok minimal 3 detik"), "error"); continue; }
         const maxSec = isTikVid ? (tkInfo?.maxVideoSec || 600) : 900;
-        if (meta.duration && meta.duration > maxSec) { app.toast(isTikVid ? `Video TikTok maksimal ${Math.floor(maxSec / 60)} menit` : "Reels maksimal 15 menit", "error"); continue; }
+        if (meta.duration && meta.duration > maxSec) { app.toast(isTikVid ? t("Video TikTok maksimal {0} menit", [Math.floor(maxSec / 60)]) : t("Reels maksimal 15 menit"), "error"); continue; }
         setUploading(true);
         try {
           const row = await uploadReelVideo(file, channel.id, meta);
           setMedia([row]);
           // Video baru: sampul lama tidak berlaku lagi.
           setVidDur(meta.duration || 0); setCoverMode("auto"); setCoverMs(0); setCoverImg(null);
-          app.toast("Video diunggah ✓", "success");
+          app.toast(t("Video diunggah ✓"), "success");
         }
-        catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
+        catch (err) { app.toast(t("Gagal unggah: {0}", [err.message || err]), "error"); }
         finally { setUploading(false); }
         continue;
       }
       // Story can be an image OR a video.
       if (type === "story" && isVideoFile(file)) {
-        if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(`Video maksimal ${MAX_VIDEO_MB} MB`, "error"); continue; }
+        if (file.size > MAX_VIDEO_MB * 1024 * 1024) { app.toast(t("Video maksimal {0} MB", [MAX_VIDEO_MB]), "error"); continue; }
         const meta = await readVideoMeta(file);
-        if (meta.unread) app.toast("Video diunggah, tapi pratinjau mungkin tak tampil di perangkat ini", "info");
-        else if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) app.toast("Video bukan 9:16 — Instagram akan menyesuaikan", "info");
-        if (meta.duration && meta.duration > 60) { app.toast("Story video maksimal 60 detik (batas Instagram)", "error"); continue; }
+        if (meta.unread) app.toast(t("Video diunggah, tapi pratinjau mungkin tak tampil di perangkat ini"), "info");
+        else if (Math.abs(meta.width / meta.height - 9 / 16) > 0.06) app.toast(t("Video bukan 9:16 — Instagram akan menyesuaikan"), "info");
+        if (meta.duration && meta.duration > 60) { app.toast(t("Story video maksimal 60 detik (batas Instagram)"), "error"); continue; }
         setUploading(true);
-        try { const row = await uploadReelVideo(file, channel.id, meta); setMedia([row]); app.toast("Video diunggah ✓", "success"); }
-        catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
+        try { const row = await uploadReelVideo(file, channel.id, meta); setMedia([row]); app.toast(t("Video diunggah ✓"), "success"); }
+        catch (err) { app.toast(t("Gagal unggah: {0}", [err.message || err]), "error"); }
         finally { setUploading(false); }
         continue;
       }
-      if (isFeed && rep == null && media.length >= 10) { app.toast("Carousel maksimal 10 gambar", "info"); break; }
-      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { app.toast("Hanya gambar JPG / PNG / WebP", "error"); continue; }
-      if (file.size > 40 * 1024 * 1024) { app.toast("Gambar terlalu besar (maks 40 MB)", "error"); continue; }
-      let dim; try { dim = await readDims(file); } catch { app.toast("Gagal membaca gambar", "error"); continue; }
+      if (isFeed && rep == null && media.length >= 10) { app.toast(t("Carousel maksimal 10 gambar"), "info"); break; }
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { app.toast(t("Hanya gambar JPG / PNG / WebP"), "error"); continue; }
+      if (file.size > 40 * 1024 * 1024) { app.toast(t("Gambar terlalu besar (maks 40 MB)"), "error"); continue; }
+      let dim; try { dim = await readDims(file); } catch { app.toast(t("Gagal membaca gambar"), "error"); continue; }
       // Instagram accepts any photo and crops/compresses it. Mirror that: auto
       // center-crop to a supported ratio (Story 9:16; Feed clamp 4:5..1.91:1),
       // shrink huge files, and always output JPEG — instead of rejecting.
@@ -342,15 +343,15 @@ export function ComposerView() {
       try {
         const p = await prepareImage(file, cropRatio);
         upFile = p.file; upDim = { width: p.width, height: p.height };
-        if (p.cropped) app.toast(isFeed ? "Gambar disesuaikan ke rasio Instagram" : "Gambar dipotong otomatis ke 9:16", "info");
-        else if (p.shrunk) app.toast("Gambar dikompres otomatis agar muat", "info");
-      } catch { app.toast("Gagal menyiapkan gambar", "error"); setUploading(false); continue; }
+        if (p.cropped) app.toast(isFeed ? t("Gambar disesuaikan ke rasio Instagram") : t("Gambar dipotong otomatis ke 9:16"), "info");
+        else if (p.shrunk) app.toast(t("Gambar dikompres otomatis agar muat"), "info");
+      } catch { app.toast(t("Gagal menyiapkan gambar"), "error"); setUploading(false); continue; }
       try {
         const row = await uploadPoolImage(upFile, channel.id, upDim);
         setMedia(m => rep != null ? m.map((x, k) => (k === rep ? row : x)) : (isFeed ? [...m, row] : [row]));
         rep = null;
-        app.toast("Gambar diunggah ✓", "success");
-      } catch (err) { app.toast("Gagal unggah: " + (err.message || err), "error"); }
+        app.toast(t("Gambar diunggah ✓"), "success");
+      } catch (err) { app.toast(t("Gagal unggah: {0}", [err.message || err]), "error"); }
       finally { setUploading(false); }
     }
   }
@@ -360,15 +361,15 @@ export function ComposerView() {
     const file = (e.target.files || [])[0];
     e.target.value = "";
     if (!file) return;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { app.toast("Sampul harus gambar JPG / PNG / WebP", "error"); return; }
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { app.toast(t("Sampul harus gambar JPG / PNG / WebP"), "error"); return; }
     setCoverBusy(true);
     try {
       const dim = await readDims(file);
       const p = await prepareImage(file, Math.abs(dim.width / dim.height - 9 / 16) > 0.04 ? 9 / 16 : null);
       const row = await uploadPoolImage(p.file, channel.id, { width: p.width, height: p.height });
       setCoverImg(row);
-      app.toast(p.cropped ? "Sampul dipotong otomatis ke 9:16 ✓" : "Sampul diunggah ✓", "success");
-    } catch (err) { app.toast("Gagal unggah sampul: " + (err.message || err), "error"); }
+      app.toast(p.cropped ? t("Sampul dipotong otomatis ke 9:16 ✓") : t("Sampul diunggah ✓"), "success");
+    } catch (err) { app.toast(t("Gagal unggah sampul: {0}", [err.message || err]), "error"); }
     finally { setCoverBusy(false); }
   }
 
@@ -404,27 +405,27 @@ export function ComposerView() {
       const linked = planId && !postId && status === "scheduled";
       if (linked) await linkPlanToOneoff(planId, newPostId);
       await app.reload();
-      app.toast(linked ? "Konten terhubung & dijadwalkan otomatis ✓" : postId ? "Perubahan disimpan" : (status === "scheduled" ? `Postingan dijadwalkan ${date} ${time} WIB` : "Disimpan sebagai draf"), "success");
+      app.toast(linked ? t("Konten terhubung & dijadwalkan otomatis ✓") : postId ? t("Perubahan disimpan") : (status === "scheduled" ? t("Postingan dijadwalkan {0} {1} WIB", [date, time]) : t("Disimpan sebagai draf")), "success");
       app.go(linked ? "contentEditor" : "calendar", linked ? { id: planId } : {});
     } catch (e) {
-      app.toast("Gagal menyimpan: " + (e.message || e), "error");
+      app.toast(t("Gagal menyimpan: {0}", [e.message || e]), "error");
     } finally { setSaving(false); }
   }
 
   function remove() {
     app.confirm({
-      title: "Hapus postingan ini?", danger: true, confirmLabel: "Hapus",
-      body: "Postingan terjadwal ini akan dibatalkan dan dihapus.",
-      consequence: "Postingan tidak akan terbit. Tindakan ini tidak bisa dibatalkan.",
+      title: t("Hapus postingan ini?"), danger: true, confirmLabel: t("Hapus"),
+      body: t("Postingan terjadwal ini akan dibatalkan dan dihapus."),
+      consequence: t("Postingan tidak akan terbit. Tindakan ini tidak bisa dibatalkan."),
       onConfirm: async () => {
-        try { await deleteScheduledPost(postId); await app.reload(); app.toast("Postingan dihapus", "success"); app.go("calendar"); }
-        catch (e) { app.toast("Gagal menghapus: " + (e.message || e), "error"); }
+        try { await deleteScheduledPost(postId); await app.reload(); app.toast(t("Postingan dihapus"), "success"); app.go("calendar"); }
+        catch (e) { app.toast(t("Gagal menghapus: {0}", [e.message || e]), "error"); }
       },
     });
   }
 
   if (loading) {
-    return <div><Topbar title="Buat Postingan" /><Panel style={{ height: 280, display: "grid", placeItems: "center" }}><Spinner size={28} /></Panel></div>;
+    return <div><Topbar title={t("Buat Postingan")} /><Panel style={{ height: 280, display: "grid", placeItems: "center" }}><Spinner size={28} /></Panel></div>;
   }
 
   // This channel's one-off posts (drafts + scheduled), newest first, excluding the
@@ -437,30 +438,30 @@ export function ComposerView() {
 
   return (
     <div>
-      <Topbar title={postId ? "Edit Postingan" : "Buat Postingan"} sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} src={channel.avatarUrl} size={18} /> {b.name} · {channel.handle}</span>}
+      <Topbar title={postId ? t("Edit Postingan") : t("Buat Postingan")} sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={b} src={channel.avatarUrl} size={18} /> {b.name} · {channel.handle}</span>}
         right={<div style={{ display: "flex", gap: 10 }}>
-          <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("calendar")}>Kembali</Button>
-          {postId && <Button variant="danger" icon={<Icons.trash size={15} />} disabled={saving} onClick={remove}>Hapus</Button>}
-          <Button variant="secondary" icon={saving ? <Spinner size={15} /> : <Icons.layers size={16} />} disabled={saving || !media.length || locked} onClick={() => save("draft")}>Simpan draf</Button>
-          <Button variant="primary" icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.calendar size={16} />} disabled={!valid || saving || locked} onClick={() => save("scheduled")}>{postId ? "Simpan & jadwalkan" : "Jadwalkan"}</Button>
+          <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("calendar")}>{t("Kembali")}</Button>
+          {postId && <Button variant="danger" icon={<Icons.trash size={15} />} disabled={saving} onClick={remove}>{t("Hapus")}</Button>}
+          <Button variant="secondary" icon={saving ? <Spinner size={15} /> : <Icons.layers size={16} />} disabled={saving || !media.length || locked} onClick={() => save("draft")}>{t("Simpan draf")}</Button>
+          <Button variant="primary" icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.calendar size={16} />} disabled={!valid || saving || locked} onClick={() => save("scheduled")}>{postId ? t("Simpan & jadwalkan") : t("Jadwalkan")}</Button>
         </div>} />
 
       {locked && <div style={{ display: "flex", gap: 9, marginBottom: 16, background: "var(--green-100)", borderRadius: 12, padding: "11px 14px" }}>
         <Icons.checkCircle size={16} style={{ color: "var(--green-500)", flex: "0 0 auto", marginTop: 1 }} />
-        <span style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Postingan ini sudah terbit, jadi tidak bisa dijadwalkan ulang. Kamu masih bisa menghapus catatannya.</span>
+        <span style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-600)", lineHeight: 1.45 }}>{t("Postingan ini sudah terbit, jadi tidak bisa dijadwalkan ulang. Kamu masih bisa menghapus catatannya.")}</span>
       </div>}
 
       {planId && !postId && <div style={{ display: "flex", gap: 9, marginBottom: 16, background: "var(--st-publishing-bg)", borderRadius: 12, padding: "11px 14px" }}>
         <Icons.sparkle size={16} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-        <span style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Membuat postingan untuk konten yang kamu rencanakan. Setelah <b>Jadwalkan</b>, konten itu terhubung otomatis — status & link terisi sendiri saat terbit.</span>
+        <span style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-600)", lineHeight: 1.45 }}>{t("Membuat postingan untuk konten yang kamu rencanakan. Setelah")} <b>{t("Jadwalkan")}</b>{t(", konten itu terhubung otomatis — status & link terisi sendiri saat terbit.")}</span>
       </div>}
 
       <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr" : "minmax(0,1fr) 320px", gap: 18, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel>
-            <SectionTitle sub="Pilih akun tujuan dan jenis postingan"><StepTitle n={1} accent={b.accent} soft={b.soft}>Akun & jenis</StepTitle></SectionTitle>
+            <SectionTitle sub={t("Pilih akun tujuan dan jenis postingan")}><StepTitle n={1} accent={b.accent} soft={b.soft}>{t("Akun & jenis")}</StepTitle></SectionTitle>
             {!postId && (app.brandAccounts || []).length > 1 && (
-              <Field label="Posting ke akun" style={{ marginBottom: 14 }}>
+              <Field label={t("Posting ke akun")} style={{ marginBottom: 14 }}>
                 <Select value={channel.id} onChange={(v) => { setChId(v); app.setChannel(v); setMedia([]); }}
                   options={(app.brandAccounts || []).map(c => ({ value: c.id, label: `${c.name} · ${c.handle}` }))} />
               </Field>
@@ -476,12 +477,12 @@ export function ComposerView() {
                 ]} />}
             {isTikVid && !audited && <div style={{ display: "flex", gap: 8, marginTop: 12, fontFamily: FCo, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.5 }}>
               <Icons.info size={14} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-              <span>Akun belum lolos audit TikTok: video terbit privat (Hanya saya) dan akun harus disetel Private.</span>
+              <span>{t("Akun belum lolos audit TikTok: video terbit privat (Hanya saya) dan akun harus disetel Private.")}</span>
             </div>}
           </Panel>
           {isTikVid && <TikTokOptions tk={tk} setTkField={setTkField} info={tkInfo} audited={audited} valid={tkValid} />}
           <Panel>
-            <SectionTitle sub={isVideoType ? "Satu video tegak 9:16" : isFeed ? "Sampai 10 gambar (carousel)" : "Satu gambar atau video tegak 9:16"} right={<Button size="sm" variant="secondary" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={uploading} onClick={() => fileRef.current?.click()}>{(media.length >= 1 && (isVideoType || type === "story")) ? "Ganti" : "Unggah"}</Button>}><StepTitle n={2} accent={b.accent} soft={b.soft}>{isVideoType ? "Video" : isFeed ? "Gambar" : "Media"}</StepTitle></SectionTitle>
+            <SectionTitle sub={isVideoType ? t("Satu video tegak 9:16") : isFeed ? t("Sampai 10 gambar (carousel)") : t("Satu gambar atau video tegak 9:16")} right={<Button size="sm" variant="secondary" icon={uploading ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={uploading} onClick={() => fileRef.current?.click()}>{(media.length >= 1 && (isVideoType || type === "story")) ? t("Ganti") : t("Unggah")}</Button>}><StepTitle n={2} accent={b.accent} soft={b.soft}>{isVideoType ? "Video" : isFeed ? t("Gambar") : t("Media")}</StepTitle></SectionTitle>
             <input ref={fileRef} type="file" accept={isVideoType ? "video/mp4,video/quicktime" : isFeed ? "image/jpeg,image/png,image/webp" : "image/jpeg,image/png,image/webp,video/mp4,video/quicktime"} multiple={isFeed} onChange={onFiles} style={{ display: "none" }} />
             {media.length === 0 ? (
               <div onClick={() => !uploading && fileRef.current?.click()}
@@ -490,24 +491,24 @@ export function ComposerView() {
                 onDrop={(e) => { e.preventDefault(); setDragOver(false); ingestFiles(e.dataTransfer.files); }}
                 style={{ border: `1.5px dashed ${dragOver ? "var(--primary-400)" : "var(--line)"}`, background: dragOver ? "var(--primary-100)" : "rgba(140,144,158,.045)", borderRadius: 14, padding: "26px 20px", textAlign: "center", cursor: uploading ? "default" : "pointer", transition: "background .15s, border-color .15s" }}>
                 <div style={{ width: 44, height: 44, borderRadius: 13, margin: "0 auto 10px", display: "grid", placeItems: "center", background: "var(--primary-100)", color: "var(--primary-500)" }}>{uploading ? <Spinner size={20} /> : <Icons.upload size={20} />}</div>
-                <div style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13.5, color: "var(--ink-800)" }}>{uploading ? "Mengunggah…" : "Tarik & lepas, atau klik untuk unggah"}</div>
-                <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 4 }}>{isVideoType ? `Video tegak 9:16 · MP4/MOV · maks ${isTikVid ? TIKTOK_MAX_MB : MAX_VIDEO_MB} MB` : isFeed ? "Gambar JPG / PNG · sampai 10 (carousel)" : "Gambar atau video tegak 9:16"}</div>
+                <div style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13.5, color: "var(--ink-800)" }}>{uploading ? t("Mengunggah…") : t("Tarik & lepas, atau klik untuk unggah")}</div>
+                <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 4 }}>{isVideoType ? t("Video tegak 9:16 · MP4/MOV · maks {0} MB", [isTikVid ? TIKTOK_MAX_MB : MAX_VIDEO_MB]) : isFeed ? t("Gambar JPG / PNG · sampai 10 (carousel)") : t("Gambar atau video tegak 9:16")}</div>
               </div>
             ) : (
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 {media.map((m, i) => (
                   <div key={i} style={{ position: "relative" }}>
                     {isVid(m)
-                      ? <div onClick={() => setView(i)} title="Klik untuk pratinjau" style={{ position: "relative", cursor: "zoom-in", lineHeight: 0 }}>
+                      ? <div onClick={() => setView(i)} title={t("Klik untuk pratinjau")} style={{ position: "relative", cursor: "zoom-in", lineHeight: 0 }}>
                           <video src={m.url} muted playsInline preload="metadata" style={{ width: 120, aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", background: "#000", display: "block" }} />
                           <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.6)", pointerEvents: "none" }}><Icons.play size={26} /></span>
                         </div>
                       : <MediaThumb seed={i} src={m.url} w={isFeed ? 96 : 90} ratio={isFeed ? 1 : 16 / 9} label={isFeed ? "Feed" : "9:16"} onClick={() => setView(i)} />}
-                    <button onClick={() => setMedia(ms => ms.filter((_, x) => x !== i))} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "var(--surface)", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
+                    <button onClick={() => setMedia(ms => ms.filter((_, x) => x !== i))} aria-label={t("Hapus")} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "var(--surface)", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
                   </div>
                 ))}
                 {isFeed && media.length < 10 && (
-                  <button onClick={() => fileRef.current?.click()} title="Tambah gambar" style={{ width: 96, height: 96, borderRadius: 12, border: "1.5px dashed var(--line)", background: "rgba(140,144,158,.045)", cursor: "pointer", display: "grid", placeItems: "center", color: "var(--ink-400)" }}><Icons.plus size={22} /></button>
+                  <button onClick={() => fileRef.current?.click()} title={t("Tambah gambar")} style={{ width: 96, height: 96, borderRadius: 12, border: "1.5px dashed var(--line)", background: "rgba(140,144,158,.045)", cursor: "pointer", display: "grid", placeItems: "center", color: "var(--ink-400)" }}><Icons.plus size={22} /></button>
                 )}
               </div>
             )}
@@ -516,17 +517,17 @@ export function ComposerView() {
                 atau gambar terpisah (cover_url). Keduanya opsional. */}
             {isVideoType && media.length > 0 && isVid(media[0]) && (
               <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
-                <div style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13, color: "var(--ink-800)" }}>{isTikVid ? "Sampul video" : "Sampul Reels"}</div>
-                <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 3, marginBottom: 11 }}>Gambar yang orang lihat di profil dan feed sebelum videonya diputar.</div>
+                <div style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13, color: "var(--ink-800)" }}>{isTikVid ? t("Sampul video") : t("Sampul Reels")}</div>
+                <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 3, marginBottom: 11 }}>{t("Gambar yang orang lihat di profil dan feed sebelum videonya diputar.")}</div>
                 <Segmented full value={coverMode} onChange={setCoverMode} options={[
-                  { value: "auto", label: "Otomatis" },
-                  { value: "frame", label: "Ambil dari video" },
+                  { value: "auto", label: t("Otomatis") },
+                  { value: "frame", label: t("Ambil dari video") },
                   // TikTok tidak menerima gambar sampul terpisah lewat API, hanya frame dari videonya.
-                  ...(isTikVid ? [] : [{ value: "image", label: "Unggah gambar" }]),
+                  ...(isTikVid ? [] : [{ value: "image", label: t("Unggah gambar") }]),
                 ]} />
 
                 {coverMode === "auto" && (
-                  <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 11, lineHeight: 1.5 }}>{isTikVid ? "TikTok yang memilih sampulnya, biasanya dari awal video." : "Instagram yang memilih sampulnya, biasanya dari awal video."}</div>
+                  <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 11, lineHeight: 1.5 }}>{isTikVid ? t("TikTok yang memilih sampulnya, biasanya dari awal video.") : t("Instagram yang memilih sampulnya, biasanya dari awal video.")}</div>
                 )}
 
                 {coverMode === "frame" && (
@@ -541,9 +542,9 @@ export function ComposerView() {
                     <div style={{ flex: "1 1 200px", minWidth: 180, paddingTop: 4 }}>
                       <Slider tone="amber" min={0} max={Math.max(200, Math.round((vidDur || 0) * 1000))} step={100} value={coverMs} onChange={setCoverMs} />
                       <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-500)", marginTop: 8, fontVariantNumeric: "tabular-nums" }}>
-                        Detik {(coverMs / 1000).toFixed(1)}{vidDur ? ` dari ${vidDur.toFixed(1)} detik` : ""}
+                        {t("Detik")} {(coverMs / 1000).toFixed(1)}{vidDur ? t(" dari {0} detik", [vidDur.toFixed(1)]) : ""}
                       </div>
-                      <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 6, lineHeight: 1.5 }}>Geser untuk memilih detik yang jadi sampul. Pratinjau di sebelah kiri mengikuti.</div>
+                      <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 6, lineHeight: 1.5 }}>{t("Geser untuk memilih detik yang jadi sampul. Pratinjau di sebelah kiri mengikuti.")}</div>
                     </div>
                   </div>
                 )}
@@ -553,8 +554,8 @@ export function ComposerView() {
                     <input ref={coverFileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={onCoverFile} style={{ display: "none" }} />
                     {coverImg ? (
                       <div style={{ position: "relative" }}>
-                        <img src={coverImg.url} alt="Sampul" style={{ width: 108, aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block", background: "#000" }} />
-                        <button onClick={() => setCoverImg(null)} aria-label="Hapus sampul" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "var(--surface)", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
+                        <img src={coverImg.url} alt={t("Sampul")} style={{ width: 108, aspectRatio: "9/16", objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)", display: "block", background: "#000" }} />
+                        <button onClick={() => setCoverImg(null)} aria-label={t("Hapus sampul")} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "var(--surface)", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
                       </div>
                     ) : (
                       <div onClick={() => !coverBusy && coverFileRef.current?.click()}
@@ -563,8 +564,8 @@ export function ComposerView() {
                       </div>
                     )}
                     <div style={{ flex: "1 1 200px", minWidth: 180, paddingTop: 4 }}>
-                      <Button size="sm" variant="secondary" icon={coverBusy ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={coverBusy} onClick={() => coverFileRef.current?.click()}>{coverImg ? "Ganti sampul" : "Pilih gambar"}</Button>
-                      <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 8, lineHeight: 1.5 }}>Gambar tegak 9:16, JPG / PNG. Kalau bentuknya lain, dipotong otomatis di tengah.</div>
+                      <Button size="sm" variant="secondary" icon={coverBusy ? <Spinner size={15} /> : <Icons.upload size={15} />} disabled={coverBusy} onClick={() => coverFileRef.current?.click()}>{coverImg ? t("Ganti sampul") : t("Pilih gambar")}</Button>
+                      <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 8, lineHeight: 1.5 }}>{t("Gambar tegak 9:16, JPG / PNG. Kalau bentuknya lain, dipotong otomatis di tengah.")}</div>
                     </div>
                   </div>
                 )}
@@ -574,9 +575,9 @@ export function ComposerView() {
 
           {hasCaption && (
             <Panel>
-              <SectionTitle sub={`${caption.length} / ${capLimit} karakter${(isReels || isTikVid) ? " · opsional" : ""}`}><StepTitle n={3} accent={b.accent} soft={b.soft}>Tulisan (caption)</StepTitle></SectionTitle>
-              <Textarea placeholder={isTikVid ? "Tulis caption TikTok (opsional)…" : isReels ? "Tulis caption Reels (opsional)…" : "Tulis caption postingan…"} value={caption} invalid={overCap} onChange={e => setCaption(e.target.value)} style={{ minHeight: 120 }} />
-              {overCap && <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--danger)", marginTop: 6 }}>Kepanjangan, maksimal {capLimit} karakter.</div>}
+              <SectionTitle sub={t("{0} / {1} karakter{2}", [caption.length, capLimit, (isReels || isTikVid) ? " · opsional" : ""])}><StepTitle n={3} accent={b.accent} soft={b.soft}>{t("Tulisan (caption)")}</StepTitle></SectionTitle>
+              <Textarea placeholder={isTikVid ? t("Tulis caption TikTok (opsional)…") : isReels ? t("Tulis caption Reels (opsional)…") : t("Tulis caption postingan…")} value={caption} invalid={overCap} onChange={e => setCaption(e.target.value)} style={{ minHeight: 120 }} />
+              {overCap && <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--danger)", marginTop: 6 }}>{t("Kepanjangan, maksimal")} {capLimit} {t("karakter.")}</div>}
               <CaptionAI
                 key={channel._id}
                 accent={b.accent} soft={b.soft}
@@ -588,8 +589,8 @@ export function ComposerView() {
                 onReload={app.reload}
                 context={{ imageUrl: media.find(x => !isVid(x))?.url || null, platform: isTikTok ? "tiktok" : "instagram", postType: type, brandName: b.name }}
               />
-              {!isTikVid && <Field label="Komentar pertama (untuk hashtag)" hint="Diposting otomatis di kolom komentar setelah postingan terbit." style={{ marginTop: 16 }}>
-                <Textarea value={firstComment} onChange={e => setFirstComment(e.target.value)} style={{ minHeight: 64 }} placeholder="#hashtag …" />
+              {!isTikVid && <Field label={t("Komentar pertama (untuk hashtag)")} hint={t("Diposting otomatis di kolom komentar setelah postingan terbit.")} style={{ marginTop: 16 }}>
+                <Textarea value={firstComment} onChange={e => setFirstComment(e.target.value)} style={{ minHeight: 64 }} placeholder={t("#hashtag …")} />
               </Field>}
             </Panel>
           )}
@@ -598,13 +599,13 @@ export function ComposerView() {
         {/* schedule + preview */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16, position: app.isMobile ? "static" : "sticky", top: 92 }}>
           <Panel strong>
-            <SectionTitle sub="Waktu WIB"><StepTitle n={hasCaption ? 4 : 3} accent={b.accent} soft={b.soft}>Kapan terbit</StepTitle></SectionTitle>
-            <Field label="Tanggal"><DateField value={date} min={todayWib()} onChange={setDate} /></Field>
+            <SectionTitle sub={t("Waktu WIB")}><StepTitle n={hasCaption ? 4 : 3} accent={b.accent} soft={b.soft}>{t("Kapan terbit")}</StepTitle></SectionTitle>
+            <Field label={t("Tanggal")}><DateField value={date} min={todayWib()} onChange={setDate} /></Field>
             <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-              <QuickChip on={date === todayWib()} onClick={() => setDate(todayWib())}>Hari ini</QuickChip>
-              <QuickChip on={date === tomorrowWib()} onClick={() => setDate(tomorrowWib())}>Besok</QuickChip>
+              <QuickChip on={date === todayWib()} onClick={() => setDate(todayWib())}>{t("Hari ini")}</QuickChip>
+              <QuickChip on={date === tomorrowWib()} onClick={() => setDate(tomorrowWib())}>{t("Besok")}</QuickChip>
             </div>
-            <Field label="Jam" style={{ marginTop: 14 }}><TimeField value={time} onChange={setTime} /></Field>
+            <Field label={t("Jam")} style={{ marginTop: 14 }}><TimeField value={time} onChange={setTime} /></Field>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 8 }}>
               {["07:00", "09:00", "12:00", "17:00", "19:30", "21:00"].map((t) => (
                 <QuickChip key={t} on={time === t} onClick={() => setTime(t)}>{t.replace(":", ".")}</QuickChip>
@@ -612,20 +613,20 @@ export function ComposerView() {
             </div>
             <div style={{ display: "flex", gap: 9, marginTop: 14, background: "var(--green-100)", borderRadius: 11, padding: "10px 12px" }}>
               <Icons.info size={15} style={{ color: "var(--green-500)", flex: "0 0 auto", marginTop: 1 }} />
-              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Terbit otomatis sekali di waktu yang kamu pilih. Dijamin tidak terbit dua kali.</span>
+              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>{t("Terbit otomatis sekali di waktu yang kamu pilih. Dijamin tidak terbit dua kali.")}</span>
             </div>
           </Panel>
           <Panel>
-            <SectionTitle sub={`Perkiraan tampilan di ${isTikTok ? "TikTok" : "Instagram"}`}>Pratinjau</SectionTitle>
+            <SectionTitle sub={t("Perkiraan tampilan di {0}", [isTikTok ? "TikTok" : "Instagram"])}>{t("Pratinjau")}</SectionTitle>
             <PhonePreview type={type} media={media} channel={channel} b={b} caption={caption} onView={() => media.length && setView(0)} onUpload={() => fileRef.current?.click()} />
           </Panel>
         </div>
       </div>
 
       <Panel style={{ marginTop: 18 }}>
-        <SectionTitle sub="Draf & yang sudah dijadwalkan untuk akun ini" right={<Button size="sm" variant="ghost" icon={<Icons.calendar size={15} />} onClick={() => app.go("calendar")}>Lihat di kalender</Button>}>Postingan kamu</SectionTitle>
+        <SectionTitle sub={t("Draf & yang sudah dijadwalkan untuk akun ini")} right={<Button size="sm" variant="ghost" icon={<Icons.calendar size={15} />} onClick={() => app.go("calendar")}>{t("Lihat di kalender")}</Button>}>{t("Postingan kamu")}</SectionTitle>
         {myPosts.length === 0 ? (
-          <div style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-400)", padding: "8px 2px" }}>Belum ada draf atau postingan terjadwal untuk akun ini. Yang kamu buat di atas akan muncul di sini.</div>
+          <div style={{ fontFamily: FCo, fontSize: 12.5, color: "var(--ink-400)", padding: "8px 2px" }}>{t("Belum ada draf atau postingan terjadwal untuk akun ini. Yang kamu buat di atas akan muncul di sini.")}</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {myPosts.map((o) => (
@@ -637,7 +638,7 @@ export function ComposerView() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.title}</span>
-                    <span style={{ fontFamily: FCo, fontSize: 9.5, fontWeight: 600, color: b.accent, background: b.soft, padding: "1px 7px", borderRadius: 999, flex: "0 0 auto" }}>{o.type} · sekali</span>
+                    <span style={{ fontFamily: FCo, fontSize: 9.5, fontWeight: 600, color: b.accent, background: b.soft, padding: "1px 7px", borderRadius: 999, flex: "0 0 auto" }}>{o.type} {t("· sekali")}</span>
                   </div>
                   <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{pad(o.day)}/{o.ym.slice(5)} · {o.time} WIB</div>
                 </div>
@@ -673,21 +674,21 @@ function PhonePreview({ type, media, channel, b, caption, onView, onUpload }) {
 
   if (isFeed) {
     return (
-      <div onClick={m ? onView : onUpload} title={m ? "Klik untuk pratinjau besar" : "Unggah gambar"} style={{ width: 216, margin: "0 auto", border: "1px solid var(--line)", borderRadius: 16, overflow: "hidden", background: "var(--surface)", boxShadow: "var(--shadow-sm)", cursor: "pointer" }}>
+      <div onClick={m ? onView : onUpload} title={m ? t("Klik untuk pratinjau besar") : t("Unggah gambar")} style={{ width: 216, margin: "0 auto", border: "1px solid var(--line)", borderRadius: 16, overflow: "hidden", background: "var(--surface)", boxShadow: "var(--shadow-sm)", cursor: "pointer" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 10px" }}>
           <BrandAvatar brand={b} src={channel.avatarUrl} size={22} />
           <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 11, color: "var(--ink-900)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{handle}</span>
           <Icons.more size={14} style={{ color: "var(--ink-400)" }} />
         </div>
         <div style={{ position: "relative", aspectRatio: "1", background: "linear-gradient(150deg, rgba(140,144,158,.10), rgba(140,144,158,.18))" }}>
-          {mediaEl || <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "var(--ink-300)" }}><div style={{ textAlign: "center" }}><Icons.image size={26} /><div style={{ fontFamily: FCo, fontSize: 10.5, marginTop: 6 }}>Unggah gambar dulu</div></div></div>}
+          {mediaEl || <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "var(--ink-300)" }}><div style={{ textAlign: "center" }}><Icons.image size={26} /><div style={{ fontFamily: FCo, fontSize: 10.5, marginTop: 6 }}>{t("Unggah gambar dulu")}</div></div></div>}
           {media.length > 1 && <span style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,.55)", color: "#fff", fontFamily: FCo, fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 999 }}>1/{media.length}</span>}
         </div>
         {media.length > 1 && <div style={{ display: "flex", gap: 3, justifyContent: "center", padding: "7px 0 0" }}>
           {media.slice(0, 10).map((_, i) => <span key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: i === 0 ? b.accent : "var(--line)" }} />)}
         </div>}
         <div style={{ padding: "8px 10px 11px", fontFamily: FCo, fontSize: 10.5, color: "var(--ink-600)", lineHeight: 1.45, maxHeight: 46, overflow: "hidden" }}>
-          <b style={{ color: "var(--ink-900)" }}>{handle}</b> {caption ? caption.slice(0, 90) : <span style={{ color: "var(--ink-300)" }}>caption kamu…</span>}
+          <b style={{ color: "var(--ink-900)" }}>{handle}</b> {caption ? caption.slice(0, 90) : <span style={{ color: "var(--ink-300)" }}>{t("caption kamu…")}</span>}
         </div>
       </div>
     );
@@ -696,11 +697,11 @@ function PhonePreview({ type, media, channel, b, caption, onView, onUpload }) {
   // Story / Reels / TikTok — vertical 9:16 frame
   const story = type === "story";
   return (
-    <div onClick={m ? onView : onUpload} title={m ? "Klik untuk pratinjau besar" : "Unggah media"}
+    <div onClick={m ? onView : onUpload} title={m ? t("Klik untuk pratinjau besar") : t("Unggah media")}
       style={{ width: 184, aspectRatio: "9/16", margin: "0 auto", position: "relative", borderRadius: 20, overflow: "hidden", border: "1px solid var(--line)", background: "linear-gradient(160deg, #2c2d34, #43444e)", boxShadow: "var(--shadow-sm)", cursor: "pointer" }}>
       {mediaEl}
       {!m && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "rgba(255,255,255,.55)" }}>
-        <div style={{ textAlign: "center" }}>{type === "reels" || type === "tiktok_video" ? <Icons.film size={26} /> : <Icons.image size={26} />}<div style={{ fontFamily: FCo, fontSize: 10.5, marginTop: 6 }}>Unggah media dulu</div></div>
+        <div style={{ textAlign: "center" }}>{type === "reels" || type === "tiktok_video" ? <Icons.film size={26} /> : <Icons.image size={26} />}<div style={{ fontFamily: FCo, fontSize: 10.5, marginTop: 6 }}>{t("Unggah media dulu")}</div></div>
       </div>}
       {vid && m && <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.6)", pointerEvents: "none" }}><Icons.play size={28} /></span>}
       {story ? (
@@ -711,7 +712,7 @@ function PhonePreview({ type, media, channel, b, caption, onView, onUpload }) {
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <BrandAvatar brand={b} src={channel.avatarUrl} size={20} />
             <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 10.5, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,.4)" }}>{handle}</span>
-            <span style={{ fontFamily: FCo, fontSize: 9.5, color: "rgba(255,255,255,.75)" }}>baru saja</span>
+            <span style={{ fontFamily: FCo, fontSize: 9.5, color: "rgba(255,255,255,.75)" }}>{t("baru saja")}</span>
           </div>
         </div>
       ) : (
@@ -750,7 +751,7 @@ const PERSONA_PRESETS = [
   { label: "Semangat & ceria", voice: "Ceria, energik, dan penuh semangat. Kalimat pendek yang memacu." },
 ];
 const emptyPersona = () => ({ voice: "", audience: "", emoji: "sedikit", signature: "", hashtags: "", avoid: "" });
-const personaSummary = (p) => (p?.voice?.trim() ? p.voice.trim().split(/[.,]/)[0].slice(0, 48) : "belum diatur");
+const personaSummary = (p) => (p?.voice?.trim() ? p.voice.trim().split(/[.,]/)[0].slice(0, 48) : t("belum diatur"));
 
 function CaptionAI({ accent, soft, caption, onApply, token, toast, channelDbId, persona, onReload, context }) {
   const [open, setOpen] = uCo(false);
@@ -767,7 +768,7 @@ function CaptionAI({ accent, soft, caption, onApply, token, toast, channelDbId, 
 
   async function run(mode) {
     if (busy) return;
-    if (mode === "polish" && !caption.trim()) { toast("Tulis dulu captionmu untuk diperbaiki", "info"); return; }
+    if (mode === "polish" && !caption.trim()) { toast(t("Tulis dulu captionmu untuk diperbaiki"), "info"); return; }
     setBusy(true); setResult("");
     try {
       const r = await fetch("/api/caption", {
@@ -777,10 +778,10 @@ function CaptionAI({ accent, soft, caption, onApply, token, toast, channelDbId, 
         body: JSON.stringify({ mode, draft: caption, instruction, tone: hasPersona ? undefined : tone, persona: persona || null, ...context }),
       });
       const j = await r.json();
-      if (!j.ok) { toast(j.error || "Gagal membuat caption", "error"); return; }
+      if (!j.ok) { toast(j.error || t("Gagal membuat caption"), "error"); return; }
       setResult(j.caption);
     } catch (e) {
-      toast("Gagal membuat caption: " + (e.message || e), "error");
+      toast(t("Gagal membuat caption: {0}", [e.message || e]), "error");
     } finally { setBusy(false); }
   }
 
@@ -791,10 +792,10 @@ function CaptionAI({ accent, soft, caption, onApply, token, toast, channelDbId, 
       const clean = draft.voice?.trim() || draft.audience?.trim() || draft.signature?.trim() || draft.hashtags?.trim() || draft.avoid?.trim() ? draft : null;
       await updateChannelPersona(channelDbId, clean);
       await onReload?.();
-      toast(clean ? "Karakter akun disimpan ✓" : "Karakter akun dikosongkan", "success");
+      toast(clean ? t("Karakter akun disimpan ✓") : t("Karakter akun dikosongkan"), "success");
       setEditOpen(false);
     } catch (e) {
-      toast("Gagal menyimpan karakter: " + (e.message || e), "error");
+      toast(t("Gagal menyimpan karakter: {0}", [e.message || e]), "error");
     } finally { setSavingP(false); }
   }
 
@@ -802,7 +803,7 @@ function CaptionAI({ accent, soft, caption, onApply, token, toast, channelDbId, 
     return (
       <button onClick={() => setOpen(true)} style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 12, padding: "8px 13px", borderRadius: 11, cursor: "pointer",
         border: `1px solid ${accent}`, background: soft, color: accent, fontFamily: FCo, fontSize: 12.5, fontWeight: 600 }}>
-        <Icons.sparkle size={15} /> Bantuan AI — buat atau perbaiki caption
+        <Icons.sparkle size={15} /> {t("Bantuan AI — buat atau perbaiki caption")}
       </button>
     );
   }
@@ -811,52 +812,52 @@ function CaptionAI({ accent, soft, caption, onApply, token, toast, channelDbId, 
     <div style={{ marginTop: 12, border: "1px solid var(--line)", borderRadius: 14, padding: 14, background: "rgba(140,144,158,.04)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ display: "inline-flex", color: accent }}><Icons.sparkle size={16} /></span>
-        <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", flex: 1 }}>Bantuan AI</span>
-        <button onClick={() => setOpen(false)} aria-label="Tutup" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--ink-400)", display: "inline-flex" }}><Icons.x size={15} /></button>
+        <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", flex: 1 }}>{t("Bantuan AI")}</span>
+        <button onClick={() => setOpen(false)} aria-label={t("Tutup")} style={{ border: "none", background: "none", cursor: "pointer", color: "var(--ink-400)", display: "inline-flex" }}><Icons.x size={15} /></button>
       </div>
 
       {/* Ringkasan karakter akun + tombol atur/ubah */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 11px", borderRadius: 10, background: hasPersona ? soft : "rgba(140,144,158,.06)", border: `1px solid ${hasPersona ? accent : "var(--line)"}` }}>
         <Icons.user size={14} style={{ color: hasPersona ? accent : "var(--ink-400)", flex: "0 0 auto" }} />
         <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          Karakter akun: <b style={{ color: hasPersona ? "var(--ink-900)" : "var(--ink-500)" }}>{personaSummary(persona)}</b>
+          {t("Karakter akun:")} <b style={{ color: hasPersona ? "var(--ink-900)" : "var(--ink-500)" }}>{personaSummary(persona)}</b>
         </span>
         <button onClick={() => { setDraft(persona || emptyPersona()); setEditOpen((v) => !v); }} style={{ border: "none", background: "none", cursor: "pointer", color: accent, fontFamily: FCo, fontSize: 11.5, fontWeight: 600, flex: "0 0 auto" }}>
-          {hasPersona ? "Ubah" : "Atur"}
+          {hasPersona ? t("Ubah") : t("Atur")}
         </button>
       </div>
 
       {editOpen && (
         <div style={{ marginBottom: 12, border: "1px solid var(--line)", borderRadius: 12, padding: 13, background: "var(--surface)" }}>
-          <div style={{ fontFamily: FCo, fontSize: 12, color: "var(--ink-500)", lineHeight: 1.45, marginBottom: 10 }}>Setel sekali, dipakai terus untuk akun ini. Bisa diubah kapan saja.</div>
+          <div style={{ fontFamily: FCo, fontSize: 12, color: "var(--ink-500)", lineHeight: 1.45, marginBottom: 10 }}>{t("Setel sekali, dipakai terus untuk akun ini. Bisa diubah kapan saja.")}</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
             {PERSONA_PRESETS.map((p) => (
-              <button key={p.label} onClick={() => setP("voice", p.voice)} style={{ border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-600)", fontFamily: FCo, fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 999, cursor: "pointer" }}>{p.label}</button>
+              <button key={p.label} onClick={() => setP("voice", t(p.voice))} style={{ border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink-600)", fontFamily: FCo, fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 999, cursor: "pointer" }}>{t(p.label)}</button>
             ))}
           </div>
-          <Field label="Karakter & gaya bahasa" hint="Inti kepribadian akun ini." style={{ marginBottom: 11 }}>
-            <Textarea value={draft.voice} onChange={(e) => setP("voice", e.target.value)} placeholder="Mis. hangat & santai seperti teman, sesekali bercanda ringan…" style={{ minHeight: 58 }} />
+          <Field label={t("Karakter & gaya bahasa")} hint={t("Inti kepribadian akun ini.")} style={{ marginBottom: 11 }}>
+            <Textarea value={draft.voice} onChange={(e) => setP("voice", e.target.value)} placeholder={t("Mis. hangat & santai seperti teman, sesekali bercanda ringan…")} style={{ minHeight: 58 }} />
           </Field>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Field label="Target pembaca" style={{ flex: "1 1 160px", minWidth: 150, marginBottom: 11 }}>
-              <Textarea value={draft.audience} onChange={(e) => setP("audience", e.target.value)} placeholder="Mis. anak muda 18-25 di kota besar" style={{ minHeight: 40 }} />
+            <Field label={t("Target pembaca")} style={{ flex: "1 1 160px", minWidth: 150, marginBottom: 11 }}>
+              <Textarea value={draft.audience} onChange={(e) => setP("audience", e.target.value)} placeholder={t("Mis. anak muda 18-25 di kota besar")} style={{ minHeight: 40 }} />
             </Field>
-            <Field label="Emoji" style={{ flex: "0 0 130px", minWidth: 120, marginBottom: 11 }}>
+            <Field label={t("Emoji")} style={{ flex: "0 0 130px", minWidth: 120, marginBottom: 11 }}>
               <Select value={draft.emoji} onChange={(v) => setP("emoji", v)} options={EMOJI_OPTS} />
             </Field>
           </div>
-          <Field label="Ajakan / penutup khas (opsional)" style={{ marginBottom: 11 }}>
-            <Textarea value={draft.signature} onChange={(e) => setP("signature", e.target.value)} placeholder="Mis. Yuk mampir sekarang!" style={{ minHeight: 40 }} />
+          <Field label={t("Ajakan / penutup khas (opsional)")} style={{ marginBottom: 11 }}>
+            <Textarea value={draft.signature} onChange={(e) => setP("signature", e.target.value)} placeholder={t("Mis. Yuk mampir sekarang!")} style={{ minHeight: 40 }} />
           </Field>
-          <Field label="Tagar khas (opsional)" style={{ marginBottom: 11 }}>
-            <Textarea value={draft.hashtags} onChange={(e) => setP("hashtags", e.target.value)} placeholder="#kopisusu #jakarta" style={{ minHeight: 40 }} />
+          <Field label={t("Tagar khas (opsional)")} style={{ marginBottom: 11 }}>
+            <Textarea value={draft.hashtags} onChange={(e) => setP("hashtags", e.target.value)} placeholder={t("#kopisusu #jakarta")} style={{ minHeight: 40 }} />
           </Field>
-          <Field label="Hindari (opsional)" hint="Kata/gaya yang tidak boleh dipakai." style={{ marginBottom: 12 }}>
-            <Textarea value={draft.avoid} onChange={(e) => setP("avoid", e.target.value)} placeholder="Mis. bahasa alay, singkatan berlebihan" style={{ minHeight: 40 }} />
+          <Field label={t("Hindari (opsional)")} hint={t("Kata/gaya yang tidak boleh dipakai.")} style={{ marginBottom: 12 }}>
+            <Textarea value={draft.avoid} onChange={(e) => setP("avoid", e.target.value)} placeholder={t("Mis. bahasa alay, singkatan berlebihan")} style={{ minHeight: 40 }} />
           </Field>
           <div style={{ display: "flex", gap: 9 }}>
-            <Button size="sm" variant="primary" disabled={savingP} icon={savingP ? <Spinner size={14} color="#fff" /> : <Icons.check size={14} />} onClick={savePersona}>Simpan karakter</Button>
-            <Button size="sm" variant="ghost" disabled={savingP} onClick={() => setEditOpen(false)}>Batal</Button>
+            <Button size="sm" variant="primary" disabled={savingP} icon={savingP ? <Spinner size={14} color="#fff" /> : <Icons.check size={14} />} onClick={savePersona}>{t("Simpan karakter")}</Button>
+            <Button size="sm" variant="ghost" disabled={savingP} onClick={() => setEditOpen(false)}>{t("Batal")}</Button>
           </div>
         </div>
       )}
@@ -864,29 +865,29 @@ function CaptionAI({ accent, soft, caption, onApply, token, toast, channelDbId, 
       {/* Nada hanya relevan bila karakter belum diatur */}
       {!hasPersona && (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-          <Field label="Gaya bahasa" style={{ flex: "1 1 140px", minWidth: 130, marginBottom: 0 }}>
+          <Field label={t("Gaya bahasa")} style={{ flex: "1 1 140px", minWidth: 130, marginBottom: 0 }}>
             <Select value={tone} onChange={setTone} options={TONE_OPTS} />
           </Field>
         </div>
       )}
-      <Field label="Arahan singkat (opsional)" hint={hasPersona ? "Konteks khusus kali ini. Karakter akun tetap dipakai otomatis." : "Mis. promo diskon 20% sampai Minggu, atau target ibu muda."} style={{ marginBottom: 12 }}>
-        <Textarea value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="Kosongkan pun tidak apa-apa…" style={{ minHeight: 52 }} />
+      <Field label={t("Arahan singkat (opsional)")} hint={hasPersona ? t("Konteks khusus kali ini. Karakter akun tetap dipakai otomatis.") : t("Mis. promo diskon 20% sampai Minggu, atau target ibu muda.")} style={{ marginBottom: 12 }}>
+        <Textarea value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder={t("Kosongkan pun tidak apa-apa…")} style={{ minHeight: 52 }} />
       </Field>
 
       <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
         <Button size="sm" variant="primary" disabled={busy} icon={busy ? <Spinner size={14} color="#fff" /> : <Icons.sparkle size={15} />} onClick={() => run("generate")}>
-          {context.imageUrl ? "Buatkan dari gambar" : "Buatkan caption"}
+          {context.imageUrl ? t("Buatkan dari gambar") : t("Buatkan caption")}
         </Button>
-        <Button size="sm" variant="secondary" disabled={busy || !caption.trim()} icon={<Icons.edit size={14} />} onClick={() => run("polish")}>Perbaiki punyaku</Button>
+        <Button size="sm" variant="secondary" disabled={busy || !caption.trim()} icon={<Icons.edit size={14} />} onClick={() => run("polish")}>{t("Perbaiki punyaku")}</Button>
       </div>
 
       {result && (
         <div style={{ marginTop: 12, border: `1px solid ${accent}`, borderRadius: 12, padding: 12, background: "var(--surface)" }}>
-          <div style={{ fontFamily: FCo, fontSize: 10.5, fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 7 }}>Saran AI</div>
+          <div style={{ fontFamily: FCo, fontSize: 10.5, fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 7 }}>{t("Saran AI")}</div>
           <div style={{ fontFamily: FCo, fontSize: 13, color: "var(--ink-800)", lineHeight: 1.5, whiteSpace: "pre-wrap", maxHeight: 260, overflow: "auto" }}>{result}</div>
           <div style={{ display: "flex", gap: 9, marginTop: 12, flexWrap: "wrap" }}>
-            <Button size="sm" variant="primary" icon={<Icons.check size={14} />} onClick={() => { onApply(result); setResult(""); toast("Caption dipakai ✓", "success"); }}>Pakai ini</Button>
-            <Button size="sm" variant="ghost" disabled={busy} icon={busy ? <Spinner size={13} /> : <Icons.retry size={14} />} onClick={() => run(caption.trim() && caption !== result ? "polish" : "generate")}>Buat lagi</Button>
+            <Button size="sm" variant="primary" icon={<Icons.check size={14} />} onClick={() => { onApply(result); setResult(""); toast(t("Caption dipakai ✓"), "success"); }}>{t("Pakai ini")}</Button>
+            <Button size="sm" variant="ghost" disabled={busy} icon={busy ? <Spinner size={13} /> : <Icons.retry size={14} />} onClick={() => run(caption.trim() && caption !== result ? "polish" : "generate")}>{t("Buat lagi")}</Button>
           </div>
         </div>
       )}
@@ -913,39 +914,39 @@ function Check({ label, hint, checked, onChange, disabled }) {
 function TikTokOptions({ tk, setTkField, info, audited, valid }) {
   const loading = !info || info.ok === false;
   const privOptions = (audited && info?.privacyOptions?.length)
-    ? info.privacyOptions.map((p) => ({ value: p, label: TT_PRIVACY_LABEL[p] || p }))
-    : [{ value: "SELF_ONLY", label: TT_PRIVACY_LABEL.SELF_ONLY }];
+    ? info.privacyOptions.map((p) => ({ value: p, label: t(TT_PRIVACY_LABEL[p]) || p }))
+    : [{ value: "SELF_ONLY", label: t(TT_PRIVACY_LABEL.SELF_ONLY) }];
   const note = { fontFamily: FCo, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.45, marginTop: 6 };
   const subLabel = { fontFamily: FCo, fontSize: 11.5, fontWeight: 600, color: "var(--ink-500)", textTransform: "uppercase", letterSpacing: 0.3, marginTop: 4 };
   return (
     <Panel>
-      <SectionTitle sub="Wajib sesuai pedoman TikTok">Pengaturan TikTok</SectionTitle>
-      {info?.username && <div style={{ fontFamily: FCo, fontSize: 12, color: "var(--ink-600)", marginBottom: 10 }}>Posting sebagai <b style={{ color: "var(--ink-900)" }}>@{info.username}</b></div>}
+      <SectionTitle sub={t("Wajib sesuai pedoman TikTok")}>{t("Pengaturan TikTok")}</SectionTitle>
+      {info?.username && <div style={{ fontFamily: FCo, fontSize: 12, color: "var(--ink-600)", marginBottom: 10 }}>{t("Posting sebagai")} <b style={{ color: "var(--ink-900)" }}>@{info.username}</b></div>}
 
-      <Field label="Siapa yang bisa lihat">
+      <Field label={t("Siapa yang bisa lihat")}>
         <Select value={audited ? tk.privacy : "SELF_ONLY"} onChange={(v) => setTkField("privacy", v)} options={privOptions} />
       </Field>
-      {!audited && <div style={note}>Akun belum lolos audit TikTok — semua video terbit <b>privat (Hanya saya)</b> dan akun TikTok harus disetel <b>Private</b>. Opsi Publik/Teman terbuka setelah audit.</div>}
+      {!audited && <div style={note}>{t("Akun belum lolos audit TikTok — semua video terbit")} <b>{t("privat (Hanya saya)")}</b> {t("dan akun TikTok harus disetel")} <b>{t("Private")}</b>{t(". Opsi Publik/Teman terbuka setelah audit.")}</div>}
 
-      <div style={subLabel}>Izinkan interaksi</div>
-      <Check label="Komentar" checked={tk.allowComment && !info?.commentDisabled} disabled={loading || info?.commentDisabled} onChange={(v) => setTkField("allowComment", v)} hint={info?.commentDisabled ? "Dimatikan di setelan akun TikTok" : undefined} />
-      <Check label="Duet" checked={tk.allowDuet && !info?.duetDisabled} disabled={loading || info?.duetDisabled} onChange={(v) => setTkField("allowDuet", v)} hint={info?.duetDisabled ? "Dimatikan di setelan akun TikTok" : undefined} />
-      <Check label="Stitch" checked={tk.allowStitch && !info?.stitchDisabled} disabled={loading || info?.stitchDisabled} onChange={(v) => setTkField("allowStitch", v)} hint={info?.stitchDisabled ? "Dimatikan di setelan akun TikTok" : undefined} />
+      <div style={subLabel}>{t("Izinkan interaksi")}</div>
+      <Check label={t("Komentar")} checked={tk.allowComment && !info?.commentDisabled} disabled={loading || info?.commentDisabled} onChange={(v) => setTkField("allowComment", v)} hint={info?.commentDisabled ? t("Dimatikan di setelan akun TikTok") : undefined} />
+      <Check label={t("Duet")} checked={tk.allowDuet && !info?.duetDisabled} disabled={loading || info?.duetDisabled} onChange={(v) => setTkField("allowDuet", v)} hint={info?.duetDisabled ? t("Dimatikan di setelan akun TikTok") : undefined} />
+      <Check label={t("Stitch")} checked={tk.allowStitch && !info?.stitchDisabled} disabled={loading || info?.stitchDisabled} onChange={(v) => setTkField("allowStitch", v)} hint={info?.stitchDisabled ? t("Dimatikan di setelan akun TikTok") : undefined} />
 
       <div style={{ borderTop: "1px solid var(--line)", marginTop: 8, paddingTop: 6 }}>
-        <Check label="Konten ini mempromosikan barang atau jasa" checked={tk.commercial} onChange={(v) => { setTkField("commercial", v); if (!v) { setTkField("yourBrand", false); setTkField("branded", false); } }} />
+        <Check label={t("Konten ini mempromosikan barang atau jasa")} checked={tk.commercial} onChange={(v) => { setTkField("commercial", v); if (!v) { setTkField("yourBrand", false); setTkField("branded", false); } }} />
         {tk.commercial && <div style={{ paddingLeft: 26 }}>
-          <Check label="Konten merek saya sendiri" hint="Mempromosikan bisnis/merek Anda sendiri." checked={tk.yourBrand} onChange={(v) => setTkField("yourBrand", v)} />
-          <Check label="Konten bermerek (kerja sama berbayar)" hint={audited ? "Tidak bisa privat — butuh privasi Publik." : "Butuh akun lolos audit + privasi Publik."} checked={tk.branded} disabled={!audited} onChange={(v) => setTkField("branded", v)} />
-          {(tk.yourBrand || tk.branded) && <div style={{ ...note, color: "var(--ink-700)" }}>{tk.branded ? "Postingan akan diberi label “Kemitraan berbayar”." : "Postingan akan diberi label “Konten promosi”."}</div>}
+          <Check label={t("Konten merek saya sendiri")} hint={t("Mempromosikan bisnis/merek Anda sendiri.")} checked={tk.yourBrand} onChange={(v) => setTkField("yourBrand", v)} />
+          <Check label={t("Konten bermerek (kerja sama berbayar)")} hint={audited ? t("Tidak bisa privat — butuh privasi Publik.") : t("Butuh akun lolos audit + privasi Publik.")} checked={tk.branded} disabled={!audited} onChange={(v) => setTkField("branded", v)} />
+          {(tk.yourBrand || tk.branded) && <div style={{ ...note, color: "var(--ink-700)" }}>{tk.branded ? t("Postingan akan diberi label “Kemitraan berbayar”.") : t("Postingan akan diberi label “Konten promosi”.")}</div>}
         </div>}
       </div>
 
       <div style={{ borderTop: "1px solid var(--line)", marginTop: 8, paddingTop: 6 }}>
-        <Check label="Saya setuju pada Konfirmasi Penggunaan Musik TikTok" hint="Dengan memposting, Anda setuju pada Music Usage Confirmation TikTok." checked={tk.musicOk} onChange={(v) => setTkField("musicOk", v)} />
+        <Check label={t("Saya setuju pada Konfirmasi Penggunaan Musik TikTok")} hint={t("Dengan memposting, Anda setuju pada Music Usage Confirmation TikTok.")} checked={tk.musicOk} onChange={(v) => setTkField("musicOk", v)} />
       </div>
 
-      {!valid && <div style={{ ...note, color: "var(--danger)" }}>Lengkapi dulu: setujui penggunaan musik{tk.commercial && !(tk.yourBrand || tk.branded) ? " & pilih jenis konten komersial" : ""}{tk.branded && tk.privacy === "SELF_ONLY" ? " (konten bermerek tidak bisa privat)" : ""}.</div>}
+      {!valid && <div style={{ ...note, color: "var(--danger)" }}>{t("Lengkapi dulu: setujui penggunaan musik")}{tk.commercial && !(tk.yourBrand || tk.branded) ? t(" & pilih jenis konten komersial") : ""}{tk.branded && tk.privacy === "SELF_ONLY" ? t(" (konten bermerek tidak bisa privat)") : ""}.</div>}
     </Panel>
   );
 }

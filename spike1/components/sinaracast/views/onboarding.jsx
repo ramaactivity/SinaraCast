@@ -4,6 +4,7 @@ import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { Panel, Button } from "../ui";
+import { t } from "../i18n";
 const { useState: uOb } = React;
 const FOb = "var(--font)";
 
@@ -14,10 +15,10 @@ export function OnboardingView() {
   const chCt = app.channels.length;
   const tgOn = !!app.settings.telegram.connected;
   const steps = [
-    { id: "dev", title: "Akun developer Meta", done: chCt > 0 },
-    { id: "biz", title: "Ubah IG ke Business + hubungkan Page", done: chCt > 0 },
-    { id: "connect", title: `Sambungkan akun (${chCt})`, done: chCt > 0 },
-    { id: "telegram", title: "Siapkan Telegram", done: tgOn },
+    { id: "dev", title: t("Akun developer Meta"), done: chCt > 0 },
+    { id: "biz", title: t("Ubah IG ke Business + hubungkan Page"), done: chCt > 0 },
+    { id: "connect", title: t("Sambungkan akun ({0})", [chCt]), done: chCt > 0 },
+    { id: "telegram", title: t("Siapkan Telegram"), done: tgOn },
   ];
   const firstUndone = steps.findIndex(s => !s.done);
   const [active, setActive] = uOb(firstUndone === -1 ? 0 : firstUndone);
@@ -33,14 +34,14 @@ export function OnboardingView() {
 
   return (
     <div>
-      <Topbar title="Penyiapan Awal" sub="Sekali saja, bisa dilanjutkan kapan saja"
-        right={<Button variant="ghost" onClick={() => app.go("connections")}>Lewati untuk sekarang</Button>} />
+      <Topbar title={t("Penyiapan Awal")} sub={t("Sekali saja, bisa dilanjutkan kapan saja")}
+        right={<Button variant="ghost" onClick={() => app.go("connections")}>{t("Lewati untuk sekarang")}</Button>} />
 
       <div style={{ display: "grid", gridTemplateColumns: "300px minmax(0,1fr)", gap: 18, alignItems: "start" }}>
         {/* stepper */}
         <Panel>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-            <span style={{ fontFamily: FOb, fontWeight: 600, fontSize: 14, color: "var(--ink-900)" }}>Progres</span>
+            <span style={{ fontFamily: FOb, fontWeight: 600, fontSize: 14, color: "var(--ink-900)" }}>{t("Progres")}</span>
             <span style={{ fontFamily: FOb, fontSize: 12, fontWeight: 600, color: "var(--green-500)" }}>{pct}%</span>
           </div>
           <div style={{ height: 7, borderRadius: 999, background: "rgba(140,144,158,.16)", marginBottom: 18, overflow: "hidden" }}>
@@ -78,28 +79,28 @@ const STEP_BODY = {
 };
 
 function StepDetail({ step, idx, total, onComplete, onBack, app }) {
-  const [t, body] = STEP_BODY[step.id];
+  const [heading, body] = STEP_BODY[step.id];
   return (
     <div>
-      <div style={{ fontFamily: FOb, fontSize: 11.5, fontWeight: 600, letterSpacing: ".08em", color: "var(--primary-500)", marginBottom: 6 }}>LANGKAH {idx + 1} DARI {total}</div>
-      <div style={{ fontFamily: FOb, fontWeight: 600, fontSize: 22, color: "var(--ink-900)", marginBottom: 18 }}>{t}</div>
+      <div style={{ fontFamily: FOb, fontSize: 11.5, fontWeight: 600, letterSpacing: ".08em", color: "var(--primary-500)", marginBottom: 6 }}>{t("LANGKAH")} {idx + 1} {t("DARI")} {total}</div>
+      <div style={{ fontFamily: FOb, fontWeight: 600, fontSize: 22, color: "var(--ink-900)", marginBottom: 18 }}>{t(heading)}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 24 }}>
         {body.map((b, i) => (
           <div key={i} style={{ display: "flex", gap: 13, alignItems: "flex-start" }}>
             <span style={{ width: 24, height: 24, borderRadius: "50%", flex: "0 0 auto", background: "var(--primary-100)", color: "var(--primary-500)", display: "grid", placeItems: "center", fontFamily: FOb, fontSize: 12, fontWeight: 600, marginTop: 1 }}>{i + 1}</span>
-            <span style={{ fontFamily: FOb, fontSize: 14, color: "var(--ink-700)", lineHeight: 1.55 }}>{b}</span>
+            <span style={{ fontFamily: FOb, fontSize: 14, color: "var(--ink-700)", lineHeight: 1.55 }}>{t(b)}</span>
           </div>
         ))}
       </div>
       <div style={{ background: "var(--primary-100)", borderRadius: 13, padding: "13px 16px", display: "flex", gap: 10, marginBottom: 24 }}>
         <Icons.info size={18} style={{ color: "var(--primary-500)", flex: "0 0 auto", marginTop: 1 }} />
-        <span style={{ fontFamily: FOb, fontSize: 12.5, color: "#B07B22", lineHeight: 1.5 }}>Butuh detail lengkap? Buka panduan Meta untuk langkah demi langkah.</span>
+        <span style={{ fontFamily: FOb, fontSize: 12.5, color: "#B07B22", lineHeight: 1.5 }}>{t("Butuh detail lengkap? Buka panduan Meta untuk langkah demi langkah.")}</span>
       </div>
       <div style={{ display: "flex", gap: 10 }}>
-        {idx > 0 && <Button variant="secondary" icon={<Icons.chevLeft size={17} />} onClick={onBack}>Sebelumnya</Button>}
-        <Button variant="ghost" icon={<Icons.external size={16} />} onClick={() => app.toast("Membuka panduan…", "info")}>Buka panduan</Button>
+        {idx > 0 && <Button variant="secondary" icon={<Icons.chevLeft size={17} />} onClick={onBack}>{t("Sebelumnya")}</Button>}
+        <Button variant="ghost" icon={<Icons.external size={16} />} onClick={() => app.toast(t("Membuka panduan…"), "info")}>{t("Buka panduan")}</Button>
         <div style={{ marginLeft: "auto" }}>
-          <Button variant="primary" icon={step.done ? <Icons.check size={17} /> : <Icons.chevRight size={17} />} iconRight onClick={onComplete}>{step.done ? "Selesai ✓" : step.id === "connect" ? "Sambungkan akun" : step.id === "telegram" ? "Hubungkan Telegram" : "Tandai selesai"}</Button>
+          <Button variant="primary" icon={step.done ? <Icons.check size={17} /> : <Icons.chevRight size={17} />} iconRight onClick={onComplete}>{step.done ? t("Selesai ✓") : step.id === "connect" ? t("Sambungkan akun") : step.id === "telegram" ? t("Hubungkan Telegram") : t("Tandai selesai")}</Button>
         </div>
       </div>
     </div>

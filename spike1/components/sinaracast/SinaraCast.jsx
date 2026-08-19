@@ -8,6 +8,7 @@ import { Panel, EmptyState, Toast, ConfirmDialog, AlertDialog, Spinner } from ".
 import { Landing } from "./views/landing";
 import { supabase } from "./supabaseClient";
 import { readTheme, writeTheme, DEFAULT_THEME } from "./theme";
+import { LangCtx, readLang, writeLang, setCurrentLang, DEFAULT_LANG } from "./i18n";
 import { RulesView } from "./views/rules";
 import { EditorView } from "./views/editor";
 import { ConnectionsView } from "./views/connections";
@@ -24,6 +25,7 @@ import { PlannerView } from "./views/planner";
 import { IdeaBankView } from "./views/ideaBank";
 import { RingkasanView } from "./views/ringkasan";
 import { SpecialDaysView } from "./views/specialdays";
+import { t } from "./i18n";
 
 const { useState: uA, useCallback } = React;
 
@@ -88,6 +90,14 @@ export default function SinaraCast() {
     else el.removeAttribute("data-sc-theme");
     return () => el.removeAttribute("data-sc-theme");
   }, [theme, session]);
+
+  // Interface language. The state lives here, at the root, so a switch rebuilds
+  // the whole tree and every t() call re-evaluates — see i18n.js for why a
+  // provider component could not own it. setCurrentLang runs during render, so
+  // it is already in effect by the time any child renders.
+  const [lang, setLangState] = uA(typeof window !== "undefined" ? readLang() : DEFAULT_LANG);
+  setCurrentLang(lang);
+  React.useEffect(() => { document.documentElement.lang = lang; }, [lang]);
 
   // Responsive: below 860px the sidebar becomes an off-canvas drawer.
   React.useEffect(() => {
@@ -159,7 +169,7 @@ export default function SinaraCast() {
   const showToast = useCallback((msg, type = "info") => {
     const k = Date.now() + Math.random();
     setToast({ msg, type, k });
-    setTimeout(() => setToast(t => (t && t.k === k ? null : t)), 3000);
+    setTimeout(() => setToast(withToast => (withToast && withToast.k === k ? null : withToast)), 3000);
   }, []);
 
   // Refresh data when the tab regains focus / becomes visible, so server-side
@@ -187,8 +197,8 @@ export default function SinaraCast() {
       if (ev.origin !== window.location.origin) return;
       const d = ev.data;
       if (!d || d.type !== "sinara-oauth") return;
-      if (d.status === "error") { showToast(`Gagal menyambungkan: ${d.error}`, "error"); return; }
-      showToast(d.status === "reconnected" ? `@${d.name} tersambung kembali ✓` : `Channel @${d.name} tersambung ✓`, "success");
+      if (d.status === "error") { showToast(t("Gagal menyambungkan: {0}", [d.error]), "error"); return; }
+      showToast(d.status === "reconnected" ? t("@{0} tersambung kembali ✓", [d.name]) : t("Channel @{0} tersambung ✓", [d.name]), "success");
       setView("connections");
       reload().catch((e) => console.error("reload after connect failed", e));
     };
@@ -204,9 +214,9 @@ export default function SinaraCast() {
     const connected = sp.get("connected"), reconnected = sp.get("reconnected"), err = sp.get("connect_error");
     if (!connected && !reconnected && !err) return;
     window.history.replaceState({}, "", window.location.pathname); // clean the URL
-    if (err) { showToast(`Gagal menyambungkan: ${err}`, "error"); return; }
+    if (err) { showToast(t("Gagal menyambungkan: {0}", [err]), "error"); return; }
     const name = connected || reconnected;
-    showToast(connected ? `Channel @${name} tersambung ✓` : `@${name} tersambung kembali ✓`, "success");
+    showToast(connected ? t("Channel @{0} tersambung ✓", [name]) : t("@{0} tersambung kembali ✓", [name]), "success");
     setView("connections");
     reload().catch((e) => console.error("reload after connect failed", e));
   }, [session]);
@@ -244,23 +254,23 @@ export default function SinaraCast() {
     const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
     const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
     const popup = window.open("about:blank", "sinara_oauth", `width=${w},height=${h},left=${left},top=${top}`);
-    if (!popup) { showToast("Popup diblokir browser — izinkan popup untuk situs ini lalu coba lagi.", "error"); return; }
+    if (!popup) { showToast(t("Popup diblokir browser — izinkan popup untuk situs ini lalu coba lagi."), "error"); return; }
     try {
-      popup.document.write(`<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#f6f5fb;color:#8c909e">Menyiapkan otorisasi ${label}…</body>`);
+      popup.document.write(`<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#f6f5fb;color:#8c909e">${t("Menyiapkan otorisasi {0}…", [label])}</body>`);
       const res = await fetch(startUrl, { method: "POST", headers: { Authorization: `Bearer ${session?.access_token}` } });
       const j = await res.json().catch(() => ({}));
-      if (!j.ok || !j.url) throw new Error(j.error || "Gagal memulai OAuth");
+      if (!j.ok || !j.url) throw new Error(j.error || t("Gagal memulai OAuth"));
       popup.location.href = j.url;
     } catch (e) {
       try { popup.close(); } catch {}
-      showToast(`Gagal: ${e.message || e}`, "error");
+      showToast(t("Gagal: {0}", [e.message || e]), "error");
     }
   };
   const connectChannel = () => startConnect("/connect/start", "Instagram");
   const connectTikTokChannel = () => startConnect("/connect/tiktok/start", "TikTok");
 
   const postNow = async (r) => {
-    showToast(`Menerbitkan “${r.name}” ke Instagram…`, "info");
+    showToast(t("Menerbitkan “{0}” ke Instagram…", [r.name]), "info");
     updateRule(r.id, { todayStatus: "Publishing" });
     try {
       const res = await fetch("/api/publish", {
@@ -269,25 +279,25 @@ export default function SinaraCast() {
         body: JSON.stringify({ ruleId: r.id }),
       });
       const j = await res.json();
-      if (!j.ok) throw new Error(j.error || "Gagal menerbitkan");
-      showToast(`“${r.name}” terbit ✓`, "success");
+      if (!j.ok) throw new Error(j.error || t("Gagal menerbitkan"));
+      showToast(t("“{0}” terbit ✓", [r.name]), "success");
       await reload();
     } catch (e) {
       updateRule(r.id, { todayStatus: "Failed", failReason: String(e.message || e) });
-      showToast(`Gagal: ${e.message || e}`, "error");
+      showToast(t("Gagal: {0}", [e.message || e]), "error");
     }
   };
 
   // --- kill-switch toggles: update UI optimistically, persist to DB, revert on error ---
   const toggleRuleActive = async (r, v) => {
-    updateRule(r.id, { active: v, todayStatus: v ? "Scheduled" : "Inactive", nextRun: v ? "Menghitung…" : "Nonaktif" });
+    updateRule(r.id, { active: v, todayStatus: v ? "Scheduled" : "Inactive", nextRun: v ? t("Menghitung…") : t("Nonaktif") });
     try {
       await setRuleActive(r.id, v);
-      showToast(v ? `“${r.name}” diaktifkan` : `“${r.name}” dinonaktifkan`, "info");
+      showToast(v ? t("“{0}” diaktifkan", [r.name]) : t("“{0}” dinonaktifkan", [r.name]), "info");
       await reload();
     } catch (e) {
       updateRule(r.id, { active: !v });
-      showToast(`Gagal menyimpan: ${e.message || e}`, "error");
+      showToast(t("Gagal menyimpan: {0}", [e.message || e]), "error");
     }
   };
   const toggleChannelPause = async (c, label) => {
@@ -295,20 +305,20 @@ export default function SinaraCast() {
     setChannels(cs => cs.map(x => x.id === c.id ? { ...x, paused: next, resumeDate: next ? x.resumeDate : "" } : x));
     try {
       await setChannelPaused(c._id, next);
-      showToast(next ? `${label || c.name} dijeda` : `${label || c.name} dilanjutkan`, "info");
+      showToast(next ? t("{0} dijeda", [label || c.name]) : t("{0} dilanjutkan", [label || c.name]), "info");
     } catch (e) {
       setChannels(cs => cs.map(x => x.id === c.id ? { ...x, paused: c.paused } : x));
-      showToast(`Gagal menyimpan: ${e.message || e}`, "error");
+      showToast(t("Gagal menyimpan: {0}", [e.message || e]), "error");
     }
   };
   const togglePauseAll = async (v) => {
     setSettings(p => ({ ...p, pauseAll: v }));
     try {
       await setPauseAll(v);
-      showToast(v ? "Semua posting dijeda" : "Posting dilanjutkan", "info");
+      showToast(v ? t("Semua posting dijeda") : t("Posting dilanjutkan"), "info");
     } catch (e) {
       setSettings(p => ({ ...p, pauseAll: !v }));
-      showToast(`Gagal menyimpan: ${e.message || e}`, "error");
+      showToast(t("Gagal menyimpan: {0}", [e.message || e]), "error");
     }
   };
   // Telegram linking: open the bot deep link, then poll app_settings until the
@@ -317,9 +327,9 @@ export default function SinaraCast() {
     try {
       const res = await fetch("/api/telegram/connect", { method: "POST", headers: { Authorization: `Bearer ${session?.access_token}` } });
       const j = await res.json().catch(() => ({}));
-      if (!j.ok || !j.url) throw new Error(j.error || "Gagal memulai");
+      if (!j.ok || !j.url) throw new Error(j.error || t("Gagal memulai"));
       window.open(j.url, "_blank");
-      showToast("Buka Telegram & tekan Start…", "info");
+      showToast(t("Buka Telegram & tekan Start…"), "info");
       let tries = 0;
       const iv = setInterval(async () => {
         tries++;
@@ -328,53 +338,53 @@ export default function SinaraCast() {
           if (data?.telegram_connected) {
             clearInterval(iv);
             setSettings(p => ({ ...p, telegram: { connected: true, handle: data.telegram_handle || "" } }));
-            showToast("Telegram tersambung ✓", "success");
+            showToast(t("Telegram tersambung ✓"), "success");
           }
         } catch { /* keep polling */ }
         if (tries >= 20) clearInterval(iv);
       }, 3000);
-    } catch (e) { showToast(`Gagal: ${e.message || e}`, "error"); }
+    } catch (e) { showToast(t("Gagal: {0}", [e.message || e]), "error"); }
   };
   const disconnectTelegram = () => saveSettings({ telegram: { connected: false, handle: "" } });
   const testTelegram = async () => {
     try {
       const res = await fetch("/api/telegram/test", { method: "POST", headers: { Authorization: `Bearer ${session?.access_token}` } });
       const j = await res.json().catch(() => ({}));
-      if (!j.ok) throw new Error(j.error || "Gagal");
-      showToast("Pesan tes dikirim ke Telegram ✓", "success");
-    } catch (e) { showToast(`Gagal: ${e.message || e}`, "error"); }
+      if (!j.ok) throw new Error(j.error || t("Gagal"));
+      showToast(t("Pesan tes dikirim ke Telegram ✓"), "success");
+    } catch (e) { showToast(t("Gagal: {0}", [e.message || e]), "error"); }
   };
 
   // Per-day overrides for a rule (persisted so the engine actually honors them).
   const skipToday = async (r) => {
-    updateRule(r.id, { todayStatus: "Skipped", nextRun: "Dilewati hari ini", todayOverride: "skip" });
-    try { await setDayOverride(r.id, todayWibKey(), "skip"); showToast(`“${r.name}” dilewati hari ini`, "info"); }
-    catch (e) { showToast(`Gagal: ${e.message || e}`, "error"); await reload(); }
+    updateRule(r.id, { todayStatus: "Skipped", nextRun: t("Dilewati hari ini"), todayOverride: "skip" });
+    try { await setDayOverride(r.id, todayWibKey(), "skip"); showToast(t("“{0}” dilewati hari ini", [r.name]), "info"); }
+    catch (e) { showToast(t("Gagal: {0}", [e.message || e]), "error"); await reload(); }
   };
   const unskipToday = async (r) => {
     updateRule(r.id, { todayStatus: "Scheduled", todayOverride: null });
-    try { await clearDayOverride(r.id, todayWibKey()); await reload(); showToast(`“${r.name}” diaktifkan lagi hari ini`, "info"); }
-    catch (e) { showToast(`Gagal: ${e.message || e}`, "error"); await reload(); }
+    try { await clearDayOverride(r.id, todayWibKey()); await reload(); showToast(t("“{0}” diaktifkan lagi hari ini", [r.name]), "info"); }
+    catch (e) { showToast(t("Gagal: {0}", [e.message || e]), "error"); await reload(); }
   };
   const swapToday = async (r, imageId, url) => {
     updateRule(r.id, { thumbUrl: url || r.thumbUrl, todayOverride: "swap" });
-    try { await setDayOverride(r.id, todayWibKey(), "swap", imageId); showToast("Gambar untuk hari ini diganti", "success"); }
-    catch (e) { showToast(`Gagal: ${e.message || e}`, "error"); await reload(); }
+    try { await setDayOverride(r.id, todayWibKey(), "swap", imageId); showToast(t("Gambar untuk hari ini diganti"), "success"); }
+    catch (e) { showToast(t("Gagal: {0}", [e.message || e]), "error"); await reload(); }
   };
 
   // Rename a channel's display name (optimistic + persist).
   const renameChannelFn = async (c, name) => {
     const trimmed = (name || "").trim();
-    if (!trimmed) return showToast("Nama tidak boleh kosong", "error");
+    if (!trimmed) return showToast(t("Nama tidak boleh kosong"), "error");
     setChannels(cs => cs.map(x => x.id === c.id ? { ...x, name: trimmed } : x));
-    try { await renameChannel(c._id, trimmed); showToast("Nama channel diperbarui", "success"); }
-    catch (e) { showToast(`Gagal: ${e.message || e}`, "error"); await reload(); }
+    try { await renameChannel(c._id, trimmed); showToast(t("Nama channel diperbarui"), "success"); }
+    catch (e) { showToast(t("Gagal: {0}", [e.message || e]), "error"); await reload(); }
   };
   // Archive (remove) a channel — disappears from the app, its rules stop firing.
   const archiveChannelFn = async (c) => {
     setChannels(cs => cs.filter(x => x.id !== c.id));
-    try { await archiveChannel(c._id); showToast(`${c.name} dihapus — rule-nya berhenti memposting`, "success"); }
-    catch (e) { showToast(`Gagal menghapus: ${e.message || e}`, "error"); await reload(); }
+    try { await archiveChannel(c._id); showToast(t("{0} dihapus — rule-nya berhenti memposting", [c.name]), "success"); }
+    catch (e) { showToast(t("Gagal menghapus: {0}", [e.message || e]), "error"); await reload(); }
   };
   // Export the user's data as a downloadable JSON file (client-side).
   const exportData = () => {
@@ -386,8 +396,8 @@ export default function SinaraCast() {
       a.href = url; a.download = `sinaracast-export-${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
-      showToast("Data diekspor — JSON terunduh", "success");
-    } catch (e) { showToast(`Gagal ekspor: ${e.message || e}`, "error"); }
+      showToast(t("Data diekspor — JSON terunduh"), "success");
+    } catch (e) { showToast(t("Gagal ekspor: {0}", [e.message || e]), "error"); }
   };
   // Wipe all of the user's content (channels cascade + notifications).
   const deleteEverything = async () => {
@@ -395,23 +405,38 @@ export default function SinaraCast() {
       await deleteAllData();
       await reload();
       setView("connections");
-      showToast("Semua data dihapus", "success");
-    } catch (e) { showToast(`Gagal menghapus: ${e.message || e}`, "error"); }
+      showToast(t("Semua data dihapus"), "success");
+    } catch (e) { showToast(t("Gagal menghapus: {0}", [e.message || e]), "error"); }
   };
 
   // Persist Settings-view preference fields (telegram, daily ping, grace).
   // Optimistic: apply the patch, write it, revert to the prior snapshot on error.
-  const saveSettings = async (patch, { toast: t = false } = {}) => {
+  const saveSettings = async (patch, { toast: withToast = false } = {}) => {
     let prev;
     setSettings(p => { prev = p; return { ...p, ...patch }; });
     try {
       await saveSettingsFields(patch);
-      if (t) showToast("Pengaturan disimpan", "success");
+      if (withToast) showToast(t("Pengaturan disimpan"), "success");
     } catch (e) {
       if (prev) setSettings(prev);
-      showToast(`Gagal menyimpan: ${e.message || e}`, "error");
+      showToast(t("Gagal menyimpan: {0}", [e.message || e]), "error");
     }
   };
+
+  const setLang = useCallback((id) => {
+    setCurrentLang(id);
+    writeLang(id);
+    setLangState(id);
+  }, []);
+  // dataLayer builds a few labels while mapping Supabase rows ("Today, 17.00 WIB",
+  // the cadence text), so those are frozen in whatever language was active at load
+  // — a switch has to refetch. Skipped on mount: loadAll has just run.
+  const langMounted = React.useRef(false);
+  React.useEffect(() => {
+    if (!langMounted.current) { langMounted.current = true; return; }
+    if (session) reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
 
   const ctx = { view, params, go, channel, setChannel, brands: liveBrands, brand, activeBrand, brandAccounts, selectBrand, rules, setRules, runs, setRuns, oneoffs, plans, ideas, followerSeries, specialDays, setSpecialDays, library, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm, alert,
@@ -419,8 +444,10 @@ export default function SinaraCast() {
     toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, connectTikTokChannel, saveSettings,
     connectTelegram, disconnectTelegram, testTelegram, renameChannel: renameChannelFn, archiveChannel: archiveChannelFn, exportData, deleteEverything,
     skipToday, unskipToday, swapToday,
-    theme, setTheme,
+    theme, setTheme, lang, setLang,
     isMobile, openMenu: () => setDrawerOpen(true) };
+
+  const langCtx = { lang, setLang };
 
   // Auth gate
   if (session === undefined || (session && dataLoading)) {
@@ -428,14 +455,18 @@ export default function SinaraCast() {
   }
   if (!session) {
     // Landing renders directly into <body> (window scroll); sign-in keeps #sc-stage.
-    return showSignIn ? (
-      <div id="sc-stage">
-        <div style={{ width: "100%", height: "100%" }}>
-          <SignInView onBack={() => setShowSignIn(false)} />
-        </div>
-      </div>
-    ) : (
-      <Landing onMasuk={() => setShowSignIn(true)} />
+    return (
+      <LangCtx.Provider value={langCtx}>
+        {showSignIn ? (
+          <div id="sc-stage">
+            <div style={{ width: "100%", height: "100%" }}>
+              <SignInView onBack={() => setShowSignIn(false)} />
+            </div>
+          </div>
+        ) : (
+          <Landing onMasuk={() => setShowSignIn(true)} />
+        )}
+      </LangCtx.Provider>
     );
   }
 
@@ -451,6 +482,7 @@ export default function SinaraCast() {
   return (
     <div id="sc-stage">
       <div id="sc-root">
+        <LangCtx.Provider value={langCtx}>
         <AppCtx.Provider value={ctx}>
           {view === "signin" ? (
             <>
@@ -479,11 +511,12 @@ export default function SinaraCast() {
             </>
           )}
         </AppCtx.Provider>
+        </LangCtx.Provider>
       </div>
     </div>
   );
 }
 
 function Stub({ name }) {
-  return <Panel pad={0} style={{ marginTop: 40 }}><EmptyState icon={<Icons.layers size={28} />} title={`View “${name}”`} body="Sedang dibangun pada langkah berikutnya." /></Panel>;
+  return <Panel pad={0} style={{ marginTop: 40 }}><EmptyState icon={<Icons.layers size={28} />} title={t("View “{0}”", [name])} body={t("Sedang dibangun pada langkah berikutnya.")} /></Panel>;
 }

@@ -2,10 +2,11 @@
 import { useRef } from "react";
 import Image from "next/image";
 import { Icons } from "../icons";
-import { Button, PlatIcon } from "../ui";
+import { Button, PlatIcon, LangSwitch } from "../ui";
 import { useLandingMotion } from "../landing/useLandingMotion";
 import { BrandBumper } from "../landing/BrandBumper";
 import blur from "../landing/blur.json";
+import { t } from "../i18n";
 
 // Public marketing landing at "/" for logged-out visitors. Rendered OUTSIDE #sc-stage
 // (SinaraCast.jsx) so it uses native window scroll driven by GSAP + Lenis. Client-as-
@@ -82,9 +83,10 @@ export function Landing({ onMasuk }) {
         <header className="lp-nav" data-nav>
           <Logo size={34} />
           <div className="lp-nav-act">
-            <a href="#lp-how" onClick={(e) => { e.preventDefault(); goTo("#lp-how"); }} className="lp-navlink">Cara kerja</a>
-            <a href="#lp-faq" onClick={(e) => { e.preventDefault(); goTo("#lp-faq"); }} className="lp-navlink lp-navlink-hide">FAQ</a>
-            <Button variant="amber" size="sm" onClick={onMasuk} icon={<Icons.user size={15} sw={2} />}>Masuk</Button>
+            <a href="#lp-how" onClick={(e) => { e.preventDefault(); goTo("#lp-how"); }} className="lp-navlink">{t("Cara kerja")}</a>
+            <a href="#lp-faq" onClick={(e) => { e.preventDefault(); goTo("#lp-faq"); }} className="lp-navlink lp-navlink-hide">{t("FAQ")}</a>
+            <LangSwitch size="sm" />
+            <Button variant="amber" size="sm" onClick={onMasuk} icon={<Icons.user size={15} sw={2} />}>{t("Masuk")}</Button>
           </div>
         </header>
 
@@ -92,23 +94,21 @@ export function Landing({ onMasuk }) {
         <section className="lp-hero" data-parallax-scope data-tilt-scope>
           <span className="lp-glow" data-parallax="0.32" aria-hidden="true" />
           <div className="lp-hero-copy lp-up">
-            <div className="lp-overline">Untuk kreator, UMKM & tim kreatif Indonesia</div>
-            <h1 className="lp-h1">Media sosialmu,<br /><span className="lp-h1-accent">jalan sendiri.</span></h1>
+            <div className="lp-overline">{t("Untuk kreator, UMKM & tim kreatif Indonesia")}</div>
+            <h1 className="lp-h1">{t("Media sosialmu,")}<br /><span className="lp-h1-accent">{t("jalan sendiri.")}</span></h1>
             <p className="lp-lead">
-              Kamu punya karya dan bisnis untuk diurus, bukan feed yang harus dijaga tiap
-              hari. SinaraCast menjaga Instagram & TikTok-mu tetap tayang otomatis, jadi kamu
-              bisa kembali fokus berkarya.
+              {t("Kamu punya karya dan bisnis untuk diurus, bukan feed yang harus dijaga tiap\n              hari. SinaraCast menjaga Instagram & TikTok-mu tetap tayang otomatis, jadi kamu\n              bisa kembali fokus berkarya.")}
             </p>
             <div className="lp-cta-row">
-              <Button variant="amber" size="lg" data-magnetic onClick={onMasuk} icon={<Icons.user size={17} sw={2} />}>Mulai sekarang</Button>
-              <Button variant="secondary" size="lg" data-magnetic onClick={() => goTo("#lp-how")} icon={<Icons.play size={15} />}>Lihat cara kerja</Button>
+              <Button variant="amber" size="lg" data-magnetic onClick={onMasuk} icon={<Icons.user size={17} sw={2} />}>{t("Mulai sekarang")}</Button>
+              <Button variant="secondary" size="lg" data-magnetic onClick={() => goTo("#lp-how")} icon={<Icons.play size={15} />}>{t("Lihat cara kerja")}</Button>
             </div>
             <div className="lp-trust">
               <span className="lp-trust-item"><PlatIcon p="instagram" size={16} /> Instagram</span>
               <span className="lp-trust-dot" />
               <span className="lp-trust-item"><PlatIcon p="tiktok" size={15} color="var(--ink-700)" /> TikTok</span>
               <span className="lp-trust-dot" />
-              <span className="lp-trust-item"><Icons.clock size={14} sw={2} /> Waktu WIB</span>
+              <span className="lp-trust-item"><Icons.clock size={14} sw={2} /> {t("Waktu WIB")}</span>
             </div>
           </div>
 
@@ -124,39 +124,39 @@ export function Landing({ onMasuk }) {
                   <span className="lp-win-url"><Icons.grid size={10} sw={2} /> sinaracast</span>
                 </div>
                 <div className="lp-win-body">
-                  <div className="lp-win-head"><span className="lp-win-title">Akan tayang</span><span className="lp-win-wib">WIB</span></div>
+                  <div className="lp-win-head"><span className="lp-win-title">{t("Akan tayang")}</span><span className="lp-win-wib">WIB</span></div>
                   <SchedRow plat="instagram" label="Story" who="tiska" time="17.00" tone={["var(--primary-100)", "var(--primary-500)"]} />
                   <SchedRow plat="instagram" label="Reels" who="mahakan" time="19.00" tone={["#ECE3F7", "#8B6FB0"]} />
-                  <SchedRow plat="tiktok" label="Video" who="outentika" time="besok" tone={["var(--green-100)", "var(--green-500)"]} />
-                  <div className="lp-win-foot"><span className="lp-livedot" /> Mesin aktif · cek tiap menit</div>
+                  <SchedRow plat="tiktok" label="Video" who="outentika" time={t("besok")} tone={["var(--green-100)", "var(--green-500)"]} />
+                  <div className="lp-win-foot"><span className="lp-livedot" /> {t("Mesin aktif · cek tiap menit")}</div>
                 </div>
               </div>
             </div>
             <div className="lp-chip lp-chip-tr lp-float" style={{ animationDelay: ".9s" }}>
               <span className="lp-chip-ic" style={{ background: "var(--green-100)", color: "var(--green-500)" }}><Icons.check size={14} sw={2.6} /></span>
-              <div><div className="lp-chip-t">Terbit otomatis</div><div className="lp-chip-s">Story · 17.00 WIB</div></div>
+              <div><div className="lp-chip-t">{t("Terbit otomatis")}</div><div className="lp-chip-s">{t("Story · 17.00 WIB")}</div></div>
             </div>
             <div className="lp-chip lp-chip-bl lp-float" style={{ animationDelay: "1.6s" }}>
               <span className="lp-chip-ic" style={{ background: "#ECE3F7", color: "#8B6FB0" }}><Icons.telegram size={14} sw={2} /></span>
-              <div className="lp-chip-t">Semua aman ✓</div>
+              <div className="lp-chip-t">{t("Semua aman ✓")}</div>
             </div>
           </div>
         </section>
 
         {/* social band */}
         <section className="lp-band">
-          <span className="lp-band-label" data-reveal>Cocok untuk siapa pun yang sibuk berkarya</span>
-          <div className="lp-cats">{CATS.map((c) => <span key={c} className="lp-cat" data-reveal>{c}</span>)}</div>
-          <div className="lp-band-trust" data-reveal><Icons.check size={13} sw={2.6} /> Login resmi · token terenkripsi · tanpa simpan kata sandi</div>
+          <span className="lp-band-label" data-reveal>{t("Cocok untuk siapa pun yang sibuk berkarya")}</span>
+          <div className="lp-cats">{CATS.map((c) => <span key={c} className="lp-cat" data-reveal>{t(c)}</span>)}</div>
+          <div className="lp-band-trust" data-reveal><Icons.check size={13} sw={2.6} /> {t("Login resmi · token terenkripsi · tanpa simpan kata sandi")}</div>
         </section>
 
         {/* pinned horizontal showcase */}
         <section className="lp-show" data-hsection>
           <div className="lp-show-track" data-htrack>
             <div className="lp-show-intro">
-              <div className="lp-eyebrow">Satu jadwal</div>
-              <h2 className="lp-h2">Semua format,<br />jalan sendiri.</h2>
-              <p className="lp-show-sub">Geser, lihat tiap format kontenmu terbit otomatis di waktunya.</p>
+              <div className="lp-eyebrow">{t("Satu jadwal")}</div>
+              <h2 className="lp-h2">{t("Semua format,")}<br />{t("jalan sendiri.")}</h2>
+              <p className="lp-show-sub">{t("Geser, lihat tiap format kontenmu terbit otomatis di waktunya.")}</p>
             </div>
             {SHOWCASE.map((s) => (
               <article key={s.tag} className="lp-panel" data-cardtilt>
@@ -164,9 +164,9 @@ export function Landing({ onMasuk }) {
                   <Image src={`/marketing/${s.img}.webp`} alt="" fill sizes="260px" placeholder="blur" blurDataURL={blur[s.img]} style={{ objectFit: "cover" }} />
                   <span className="lp-photo-tint" />
                   <span className="lp-panel-tag"><PlatIcon p={s.plat} size={12} color={s.plat === "tiktok" ? "#fff" : undefined} /> {s.tag}</span>
-                  <span className="lp-panel-badge"><Icons.check size={11} sw={2.6} /> 17.00 WIB</span>
+                  <span className="lp-panel-badge"><Icons.check size={11} sw={2.6} /> {t("17.00 WIB")}</span>
                 </div>
-                <p className="lp-panel-cap">{s.cap}</p>
+                <p className="lp-panel-cap">{t(s.cap)}</p>
               </article>
             ))}
           </div>
@@ -174,13 +174,13 @@ export function Landing({ onMasuk }) {
 
         {/* features bento */}
         <section className="lp-section">
-          <div className="lp-eyebrow" data-reveal>Yang kamu dapat</div>
-          <h2 className="lp-h2" data-reveal>Dibuat untuk berhenti dipegang.</h2>
+          <div className="lp-eyebrow" data-reveal>{t("Yang kamu dapat")}</div>
+          <h2 className="lp-h2" data-reveal>{t("Dibuat untuk berhenti dipegang.")}</h2>
           <div className="lp-bento">
             <article className="lp-card lp-card-warm" data-reveal data-cardtilt>
               <span className="lp-card-ic" style={{ background: "rgba(255,255,255,.7)", color: "var(--primary-500)" }}><Icons.power size={18} sw={2} /></span>
-              <h3 className="lp-card-t">Terbit otomatis</h3>
-              <p className="lp-card-b">Story, Feed, Reels, dan TikTok terjadwal. Atur sekali, terus jalan.</p>
+              <h3 className="lp-card-t">{t("Terbit otomatis")}</h3>
+              <p className="lp-card-b">{t("Story, Feed, Reels, dan TikTok terjadwal. Atur sekali, terus jalan.")}</p>
               <div className="lp-plats">
                 <span className="lp-pill"><PlatIcon p="instagram" size={13} /> Story</span>
                 <span className="lp-pill"><PlatIcon p="instagram" size={13} /> Reels</span>
@@ -190,30 +190,30 @@ export function Landing({ onMasuk }) {
             </article>
             <article className="lp-card" data-reveal data-cardtilt>
               <span className="lp-card-ic" style={{ background: "var(--green-100)", color: "var(--green-500)" }}><Icons.calendar size={17} sw={2} /></span>
-              <h3 className="lp-card-t">Kalender konten</h3>
-              <p className="lp-card-b">Semua yang akan tayang dalam satu layar tenang.</p>
+              <h3 className="lp-card-t">{t("Kalender konten")}</h3>
+              <p className="lp-card-b">{t("Semua yang akan tayang dalam satu layar tenang.")}</p>
               <div className="lp-minical">{Array.from({ length: 21 }).map((_, i) => { const m = i === 7 ? "a" : i === 10 ? "m" : i === 15 ? "g" : null; return <span key={i} className={`lp-cell${m ? " lp-cell-" + m : ""}`} />; })}</div>
             </article>
             <article className="lp-card lp-card-lilac" data-reveal data-cardtilt>
               <span className="lp-card-ic" style={{ background: "rgba(255,255,255,.7)", color: "#8B6FB0" }}><Icons.telegram size={17} sw={2} /></span>
-              <h3 className="lp-card-t">Lapor sendiri</h3>
-              <p className="lp-card-b">Kamu cuma dikabari kalau perlu, lewat Telegram. Tenang, tak perlu dipelototi.</p>
+              <h3 className="lp-card-t">{t("Lapor sendiri")}</h3>
+              <p className="lp-card-b">{t("Kamu cuma dikabari kalau perlu, lewat Telegram. Tenang, tak perlu dipelototi.")}</p>
             </article>
             <article className="lp-card" data-reveal data-cardtilt>
               <span className="lp-card-ic" style={{ background: "var(--green-100)", color: "var(--green-500)" }}><Icons.activity size={17} sw={2} /></span>
-              <h3 className="lp-card-t">Metrik otomatis</h3>
-              <p className="lp-card-b">Tahu performa tiap posting tanpa buka aplikasi sosialmu.</p>
+              <h3 className="lp-card-t">{t("Metrik otomatis")}</h3>
+              <p className="lp-card-b">{t("Tahu performa tiap posting tanpa buka aplikasi sosialmu.")}</p>
               <svg className="lp-spark" viewBox="0 0 120 26" preserveAspectRatio="none"><polyline points="0,22 18,18 34,20 52,11 70,14 88,6 104,9 120,3" fill="none" stroke="var(--green-500)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </article>
             <article className="lp-card" data-reveal data-cardtilt>
               <span className="lp-card-ic" style={{ background: "var(--primary-100)", color: "var(--primary-500)" }}><Icons.layers size={17} sw={2} /></span>
-              <h3 className="lp-card-t">Banyak akun & brand</h3>
-              <p className="lp-card-b">Kelola beberapa akun sekaligus, masing-masing terpisah rapi.</p>
+              <h3 className="lp-card-t">{t("Banyak akun & brand")}</h3>
+              <p className="lp-card-b">{t("Kelola beberapa akun sekaligus, masing-masing terpisah rapi.")}</p>
             </article>
             <article className="lp-card" data-reveal data-cardtilt>
               <span className="lp-card-ic" style={{ background: "var(--green-100)", color: "var(--green-500)" }}><Icons.check size={17} sw={2.4} /></span>
-              <h3 className="lp-card-t">Tidak pernah dobel</h3>
-              <p className="lp-card-b">Mesin andal: tak posting dua kali, coba lagi sendiri kalau gagal.</p>
+              <h3 className="lp-card-t">{t("Tidak pernah dobel")}</h3>
+              <p className="lp-card-b">{t("Mesin andal: tak posting dua kali, coba lagi sendiri kalau gagal.")}</p>
             </article>
           </div>
         </section>
@@ -222,21 +222,21 @@ export function Landing({ onMasuk }) {
         <section className="lp-stats" data-reveal>
           {STATS.map((s) => (
             <div key={s.label} className="lp-stat">
-              <div className="lp-stat-n" style={{ color: s.c }}><span data-count={s.n} data-snap="1">0</span>{s.suffix}</div>
-              <div className="lp-stat-l">{s.label}</div>
+              <div className="lp-stat-n" style={{ color: s.c }}><span data-count={s.n} data-snap="1">0</span>{t(s.suffix)}</div>
+              <div className="lp-stat-l">{t(s.label)}</div>
             </div>
           ))}
         </section>
 
         {/* tenang & aman */}
         <section className="lp-section">
-          <div className="lp-eyebrow" data-reveal>Tenang & aman</div>
-          <h2 className="lp-h2" data-reveal>Datamu, kendalimu.</h2>
+          <div className="lp-eyebrow" data-reveal>{t("Tenang & aman")}</div>
+          <h2 className="lp-h2" data-reveal>{t("Datamu, kendalimu.")}</h2>
           <div className="lp-safe">
             {SAFE.map((s) => (
               <div key={s.t} className="lp-safe-item" data-reveal data-cardtilt>
                 <span className="lp-safe-ic">{s.icon}</span>
-                <div><div className="lp-safe-t">{s.t}</div><p className="lp-safe-b">{s.b}</p></div>
+                <div><div className="lp-safe-t">{t(s.t)}</div><p className="lp-safe-b">{t(s.b)}</p></div>
               </div>
             ))}
           </div>
@@ -244,14 +244,14 @@ export function Landing({ onMasuk }) {
 
         {/* how it works */}
         <section className="lp-section" id="lp-how">
-          <div className="lp-eyebrow" data-reveal>Cara kerja</div>
-          <h2 className="lp-h2" data-reveal>Tiga langkah, lalu lupakan.</h2>
+          <div className="lp-eyebrow" data-reveal>{t("Cara kerja")}</div>
+          <h2 className="lp-h2" data-reveal>{t("Tiga langkah, lalu lupakan.")}</h2>
           <div className="lp-steps">
             {STEPS.map((s, i) => (
               <div key={s.n} className="lp-step" data-reveal data-cardtilt>
                 <div className="lp-step-top"><span className="lp-step-n">{s.n}</span><span className="lp-step-ic">{s.icon}</span></div>
-                <h3 className="lp-step-t">{s.title}</h3>
-                <p className="lp-step-b">{s.body}</p>
+                <h3 className="lp-step-t">{t(s.title)}</h3>
+                <p className="lp-step-b">{t(s.body)}</p>
                 {i < STEPS.length - 1 && <span className="lp-step-arrow"><Icons.chevRight size={16} /></span>}
               </div>
             ))}
@@ -260,13 +260,13 @@ export function Landing({ onMasuk }) {
 
         {/* FAQ */}
         <section className="lp-section" id="lp-faq">
-          <div className="lp-eyebrow" data-reveal>Pertanyaan umum</div>
-          <h2 className="lp-h2" data-reveal>Yang biasanya ditanyakan.</h2>
+          <div className="lp-eyebrow" data-reveal>{t("Pertanyaan umum")}</div>
+          <h2 className="lp-h2" data-reveal>{t("Yang biasanya ditanyakan.")}</h2>
           <div className="lp-faq">
             {FAQ.map((f) => (
               <div key={f.q} className="lp-faq-item" data-reveal>
-                <div className="lp-faq-q"><span className="lp-faq-mark">?</span>{f.q}</div>
-                <p className="lp-faq-a">{f.a}</p>
+                <div className="lp-faq-q"><span className="lp-faq-mark">?</span>{t(f.q)}</div>
+                <p className="lp-faq-a">{t(f.a)}</p>
               </div>
             ))}
           </div>
@@ -274,37 +274,37 @@ export function Landing({ onMasuk }) {
 
         {/* closing CTA */}
         <section className="lp-final" data-reveal>
-          <h2 className="lp-final-h">Kembali fokus berkarya.</h2>
-          <p className="lp-final-p">Urus hal yang penting buat kamu. Biar kontenmu yang jalan sendiri.</p>
-          <Button variant="amber" size="lg" data-magnetic onClick={onMasuk} icon={<Icons.user size={17} sw={2} />}>Masuk ke SinaraCast</Button>
+          <h2 className="lp-final-h">{t("Kembali fokus berkarya.")}</h2>
+          <p className="lp-final-p">{t("Urus hal yang penting buat kamu. Biar kontenmu yang jalan sendiri.")}</p>
+          <Button variant="amber" size="lg" data-magnetic onClick={onMasuk} icon={<Icons.user size={17} sw={2} />}>{t("Masuk ke SinaraCast")}</Button>
         </section>
 
         {/* footer */}
         <footer className="lp-footer">
           <div className="lp-foot-brand">
             <Logo size={30} />
-            <p className="lp-foot-tag">Media sosial yang jalan sendiri. Untuk kreator, UMKM & tim kreatif di Indonesia.</p>
+            <p className="lp-foot-tag">{t("Media sosial yang jalan sendiri. Untuk kreator, UMKM & tim kreatif di Indonesia.")}</p>
           </div>
           <div className="lp-foot-links">
             <div className="lp-foot-col">
-              <div className="lp-foot-h">Produk</div>
-              <button className="lp-foot-a" onClick={onMasuk}>Masuk</button>
-              <a className="lp-foot-a" href="#lp-how" onClick={(e) => { e.preventDefault(); goTo("#lp-how"); }}>Cara kerja</a>
-              <a className="lp-foot-a" href="#lp-faq" onClick={(e) => { e.preventDefault(); goTo("#lp-faq"); }}>FAQ</a>
+              <div className="lp-foot-h">{t("Produk")}</div>
+              <button className="lp-foot-a" onClick={onMasuk}>{t("Masuk")}</button>
+              <a className="lp-foot-a" href="#lp-how" onClick={(e) => { e.preventDefault(); goTo("#lp-how"); }}>{t("Cara kerja")}</a>
+              <a className="lp-foot-a" href="#lp-faq" onClick={(e) => { e.preventDefault(); goTo("#lp-faq"); }}>{t("FAQ")}</a>
             </div>
             <div className="lp-foot-col">
-              <div className="lp-foot-h">Legal</div>
-              <a className="lp-foot-a" href="/privacy">Privasi</a>
-              <a className="lp-foot-a" href="/terms">Ketentuan</a>
-              <a className="lp-foot-a" href="/data-deletion">Hapus Data</a>
+              <div className="lp-foot-h">{t("Legal")}</div>
+              <a className="lp-foot-a" href="/privacy">{t("Privasi")}</a>
+              <a className="lp-foot-a" href="/terms">{t("Ketentuan")}</a>
+              <a className="lp-foot-a" href="/data-deletion">{t("Hapus Data")}</a>
             </div>
             <div className="lp-foot-col">
-              <div className="lp-foot-h">Perusahaan</div>
-              <a className="lp-foot-a" href="/about">Tentang</a>
-              <a className="lp-foot-a" href="mailto:support@[domainanda].com">Kontak</a>
+              <div className="lp-foot-h">{t("Perusahaan")}</div>
+              <a className="lp-foot-a" href="/about">{t("Tentang")}</a>
+              <a className="lp-foot-a" href="mailto:support@[domainanda].com">{t("Kontak")}</a>
             </div>
           </div>
-          <div className="lp-foot-base">© 2026 SinaraCast · Indonesia</div>
+          <div className="lp-foot-base">{t("© 2026 SinaraCast · Indonesia")}</div>
         </footer>
       </div>
     </div>

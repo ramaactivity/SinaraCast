@@ -6,6 +6,7 @@ import { Topbar } from "../shell";
 import { loadContentPlan, createContentPlan, updateContentPlan, deleteContentPlan, linkPlanToRule, unlinkPlan, adaptContentPlan, uploadPlanImage } from "../dataLayer";
 import { BrandAvatar, Panel, Button, Field, Input, Textarea, Select, Segmented, TimeField, DateField, SectionTitle, Spinner, PlatIcon, Modal } from "../ui";
 import { Lightbox } from "../lightbox";
+import { t } from "../i18n";
 const { useState: uCE, useEffect } = React;
 const FCE = "var(--font)";
 
@@ -140,13 +141,13 @@ export function ContentEditorView() {
   if (!brandObj) {
     return (
       <div>
-        <Topbar title="Konten" />
-        <Panel><div style={{ padding: 40, textAlign: "center", fontFamily: FCE, color: "var(--ink-400)" }}>Tambahkan akun dulu sebelum merencanakan konten.<div style={{ marginTop: 14 }}><Button variant="secondary" onClick={() => app.go("connections")}>Buka Manajemen Akun</Button></div></div></Panel>
+        <Topbar title={t("Konten")} />
+        <Panel><div style={{ padding: 40, textAlign: "center", fontFamily: FCE, color: "var(--ink-400)" }}>{t("Tambahkan akun dulu sebelum merencanakan konten.")}<div style={{ marginTop: 14 }}><Button variant="secondary" onClick={() => app.go("connections")}>{t("Buka Manajemen Akun")}</Button></div></div></Panel>
       </div>
     );
   }
   if (loading) {
-    return <div><Topbar title="Konten" /><Panel style={{ height: 280, display: "grid", placeItems: "center" }}><Spinner size={28} /></Panel></div>;
+    return <div><Topbar title={t("Konten")} /><Panel style={{ height: 280, display: "grid", placeItems: "center" }}><Spinner size={28} /></Panel></div>;
   }
 
   function payload() {
@@ -162,12 +163,12 @@ export function ContentEditorView() {
   // Save the form (create or update) and return the plan id — shared by the Save
   // button and the auto-publish link actions (which need a persisted id first).
   async function persist() {
-    if (!valid) { app.toast("Lengkapi brand, platform, dan tanggal tayang.", "error"); return null; }
+    if (!valid) { app.toast(t("Lengkapi brand, platform, dan tanggal tayang."), "error"); return null; }
     setSaving(true);
     try {
       if (planId) { await updateContentPlan(planId, payload()); return planId; }
       return await createContentPlan(payload());
-    } catch (e) { app.toast("Gagal menyimpan: " + (e.message || e), "error"); return null; }
+    } catch (e) { app.toast(t("Gagal menyimpan: {0}", [e.message || e]), "error"); return null; }
     finally { setSaving(false); }
   }
 
@@ -175,14 +176,14 @@ export function ContentEditorView() {
     const id = await persist();
     if (!id) return;
     await app.reload();
-    app.toast(planId ? "Konten diperbarui" : "Konten direncanakan ✓", "success");
+    app.toast(planId ? t("Konten diperbarui") : t("Konten direncanakan ✓"), "success");
     app.go("planner");
   }
 
   // "Jadwalkan otomatis via SinaraCast" → persist, then open the composer to build
   // the linked one-off (it links back on schedule). IG only.
   async function scheduleAuto() {
-    if (!igAccount) { app.toast("Hubungkan akun Instagram di brand ini dulu (Manajemen Akun).", "error"); return; }
+    if (!igAccount) { app.toast(t("Hubungkan akun Instagram di brand ini dulu (Manajemen Akun)."), "error"); return; }
     const id = await persist();
     if (!id) return;
     app.go("composer", { ch: igAccount.id, planId: id });
@@ -195,36 +196,36 @@ export function ContentEditorView() {
       const acct = app.channels.find((c) => c.brandId === brandId && c.platform === toPlatform) || null;
       const newId = await adaptContentPlan(id, { platform: toPlatform, channelDbId: acct?._id || null });
       await app.reload();
-      app.toast(`Disalin ke ${PLATFORM[toPlatform]?.label || toPlatform} ✓`, "success");
+      app.toast(t("Disalin ke {0} ✓", [PLATFORM[toPlatform]?.label || toPlatform]), "success");
       app.go("contentEditor", { id: newId });
-    } catch (e) { app.toast("Gagal menyalin: " + (e.message || e), "error"); }
+    } catch (e) { app.toast(t("Gagal menyalin: {0}", [e.message || e]), "error"); }
   }
   async function linkRule(ruleId) {
     const id = await persist();
     if (!id) return;
-    try { await linkPlanToRule(id, ruleId); await app.reload(); app.toast("Terhubung ke jadwal rutin ✓", "success"); app.go("contentEditor", { id }); }
-    catch (e) { app.toast("Gagal menghubungkan: " + (e.message || e), "error"); }
+    try { await linkPlanToRule(id, ruleId); await app.reload(); app.toast(t("Terhubung ke jadwal rutin ✓"), "success"); app.go("contentEditor", { id }); }
+    catch (e) { app.toast(t("Gagal menghubungkan: {0}", [e.message || e]), "error"); }
   }
   function disconnect() {
     if (!planId) return;
     app.confirm({
-      title: "Putuskan dari publikasi otomatis?", danger: false, confirmLabel: "Putuskan",
-      body: "Konten kembali dilacak manual. Postingan terjadwal yang sudah dibuat tidak ikut dibatalkan.",
+      title: t("Putuskan dari publikasi otomatis?"), danger: false, confirmLabel: t("Putuskan"),
+      body: t("Konten kembali dilacak manual. Postingan terjadwal yang sudah dibuat tidak ikut dibatalkan."),
       onConfirm: async () => {
-        try { await unlinkPlan(planId); await app.reload(); app.toast("Tautan dilepas — kembali manual", "info"); app.go("contentEditor", { id: planId }); }
-        catch (e) { app.toast("Gagal: " + (e.message || e), "error"); }
+        try { await unlinkPlan(planId); await app.reload(); app.toast(t("Tautan dilepas — kembali manual"), "info"); app.go("contentEditor", { id: planId }); }
+        catch (e) { app.toast(t("Gagal: {0}", [e.message || e]), "error"); }
       },
     });
   }
 
   function remove() {
     app.confirm({
-      title: "Hapus konten ini?", danger: true, confirmLabel: "Hapus",
-      body: "Entri perencanaan ini akan dihapus.",
-      consequence: "Catatan perencanaan hilang. Tindakan ini tidak bisa dibatalkan.",
+      title: t("Hapus konten ini?"), danger: true, confirmLabel: t("Hapus"),
+      body: t("Entri perencanaan ini akan dihapus."),
+      consequence: t("Catatan perencanaan hilang. Tindakan ini tidak bisa dibatalkan."),
       onConfirm: async () => {
-        try { await deleteContentPlan(planId); await app.reload(); app.toast("Konten dihapus", "success"); app.go("planner"); }
-        catch (e) { app.toast("Gagal menghapus: " + (e.message || e), "error"); }
+        try { await deleteContentPlan(planId); await app.reload(); app.toast(t("Konten dihapus"), "success"); app.go("planner"); }
+        catch (e) { app.toast(t("Gagal menghapus: {0}", [e.message || e]), "error"); }
       },
     });
   }
@@ -235,55 +236,55 @@ export function ContentEditorView() {
 
   return (
     <div>
-      <Topbar title={planId ? "Edit Konten" : "Konten Baru"}
-        sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={brandAvatar} size={18} /> {brandObj.name} · {plat.label}{account ? ` · ${account.handle}` : ""}</span>}
+      <Topbar title={planId ? t("Edit Konten") : t("Konten Baru")}
+        sub={<span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><BrandAvatar brand={brandAvatar} size={18} /> {brandObj.name} · {t(plat.label)}{account ? ` · ${account.handle}` : ""}</span>}
         right={<div style={{ display: "flex", gap: 10 }}>
-          <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("planner")}>Kembali</Button>
-          {planId && <Button variant="danger" icon={<Icons.trash size={15} />} disabled={saving} onClick={remove}>Hapus</Button>}
-          <Button variant="primary" icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.check size={16} sw={2.2} />} disabled={!valid || saving} onClick={save}>{planId ? "Simpan" : "Simpan konten"}</Button>
+          <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("planner")}>{t("Kembali")}</Button>
+          {planId && <Button variant="danger" icon={<Icons.trash size={15} />} disabled={saving} onClick={remove}>{t("Hapus")}</Button>}
+          <Button variant="primary" icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.check size={16} sw={2.2} />} disabled={!valid || saving} onClick={save}>{planId ? t("Simpan") : t("Simpan konten")}</Button>
         </div>} />
 
       <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr" : "minmax(0,1fr) 340px", gap: 18, alignItems: "start" }}>
         {/* main column */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel>
-            <SectionTitle sub="Akun, platform, dan jadwal tayang">Utama</SectionTitle>
+            <SectionTitle sub={t("Akun, platform, dan jadwal tayang")}>{t("Utama")}</SectionTitle>
             <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
-              <Field label="Brand" hint={account ? `Akun: ${account.handle}` : "Plan-only (belum ada akun untuk platform ini)"}>
+              <Field label={t("Brand")} hint={account ? t("Akun: {0}", [account.handle]) : t("Plan-only (belum ada akun untuk platform ini)")}>
                 <Select value={brandId} onChange={setBrandId} options={app.brands.map((br) => ({ value: br.id, label: br.name }))} />
               </Field>
-              <Field label="Platform">
+              <Field label={t("Platform")}>
                 <Select value={platform} onChange={setPlatform} options={PLATFORM_OPTS} />
               </Field>
-              <Field label="Tanggal tayang"><DateField value={date} onChange={setDate} /></Field>
-              <Field label="Jam (opsional, WIB)"><TimeField value={time || "09:00"} onChange={setTime} /></Field>
+              <Field label={t("Tanggal tayang")}><DateField value={date} onChange={setDate} /></Field>
+              <Field label={t("Jam (opsional, WIB)")}><TimeField value={time || "09:00"} onChange={setTime} /></Field>
             </div>
-            <Field label="Judul / headline" style={{ marginTop: 14 }}>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="mis. Promo kopi akhir pekan" />
+            <Field label={t("Judul / headline")} style={{ marginTop: 14 }}>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("mis. Promo kopi akhir pekan")} />
             </Field>
             {canAuto
               ? <div style={{ display: "flex", gap: 9, marginTop: 14, background: "var(--st-publishing-bg)", borderRadius: 11, padding: "10px 12px" }}>
                   <Icons.sparkle size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-                  <span style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Instagram ({igAccount.handle}) bisa dijadwalkan otomatis lewat SinaraCast — status & link terisi sendiri saat terbit. Atur di panel <b>Otomatis</b>.</span>
+                  <span style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>{t("Instagram (")}{igAccount.handle}{t(") bisa dijadwalkan otomatis lewat SinaraCast — status & link terisi sendiri saat terbit. Atur di panel")} <b>{t("Otomatis")}</b>.</span>
                 </div>
               : plat.auto
                 ? <div style={{ display: "flex", gap: 9, marginTop: 14, background: "rgba(140,144,158,.09)", borderRadius: 11, padding: "10px 12px" }}>
                     <Icons.info size={15} style={{ color: "var(--ink-400)", flex: "0 0 auto", marginTop: 1 }} />
-                    <span style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>Brand ini belum punya akun Instagram terhubung. <b onClick={() => app.go("connections")} style={{ color: "var(--primary-500)", cursor: "pointer" }}>Hubungkan akun IG</b> untuk auto-publish; sementara ini rencanakan & lacak manual.</span>
+                    <span style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>{t("Brand ini belum punya akun Instagram terhubung.")} <b onClick={() => app.go("connections")} style={{ color: "var(--primary-500)", cursor: "pointer" }}>{t("Hubungkan akun IG")}</b> {t("untuk auto-publish; sementara ini rencanakan & lacak manual.")}</span>
                   </div>
                 : <div style={{ display: "flex", gap: 9, marginTop: 14, background: "rgba(140,144,158,.09)", borderRadius: 11, padding: "10px 12px" }}>
                     <Icons.info size={15} style={{ color: "var(--ink-400)", flex: "0 0 auto", marginTop: 1 }} />
-                    <span style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}><b>Auto-publish: Segera hadir</b> untuk {plat.label}. Untuk sekarang, rencanakan & lacak manual (tandai Posted + tempel link sendiri).</span>
+                    <span style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}><b>{t("Auto-publish: Segera hadir")}</b> {t("untuk")} {t(plat.label)}{t(". Untuk sekarang, rencanakan & lacak manual (tandai Posted + tempel link sendiri).")}</span>
                   </div>}
           </Panel>
 
           <Panel>
-            <SectionTitle sub="Tipe, pilar, format, dan tujuan">Strategi</SectionTitle>
+            <SectionTitle sub={t("Tipe, pilar, format, dan tujuan")}>{t("Strategi")}</SectionTitle>
             <div style={{ display: "grid", gridTemplateColumns: app.isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
-              <Field label="Tipe konten"><Input value={contentType} onChange={(e) => setContentType(e.target.value)} placeholder="mis. Edukasi, Promosi" /></Field>
-              <Field label="Content pillar"><Input value={pillar} onChange={(e) => setPillar(e.target.value)} placeholder="mis. Behind the scenes" /></Field>
-              <Field label="Format"><Select value={format} onChange={setFormat} options={FORMAT_OPTS} placeholder="Pilih format…" /></Field>
-              <Field label="Goal"><Select value={goal} onChange={setGoal} options={GOAL_OPTS} placeholder="Pilih tujuan…" /></Field>
+              <Field label={t("Tipe konten")}><Input value={contentType} onChange={(e) => setContentType(e.target.value)} placeholder={t("mis. Edukasi, Promosi")} /></Field>
+              <Field label={t("Content pillar")}><Input value={pillar} onChange={(e) => setPillar(e.target.value)} placeholder={t("mis. Behind the scenes")} /></Field>
+              <Field label={t("Format")}><Select value={format} onChange={setFormat} options={FORMAT_OPTS} placeholder={t("Pilih format…")} /></Field>
+              <Field label={t("Goal")}><Select value={goal} onChange={setGoal} options={GOAL_OPTS} placeholder={t("Pilih tujuan…")} /></Field>
             </div>
           </Panel>
 
@@ -296,11 +297,11 @@ export function ContentEditorView() {
           />
 
           <Panel>
-            <SectionTitle sub="Hook, caption, script, dan catatan">Copywriting</SectionTitle>
-            <Field label="Hook / teks cover"><Input value={hook} onChange={(e) => setHook(e.target.value)} placeholder="Kalimat pembuka di cover…" /></Field>
-            <Field label="Caption" style={{ marginTop: 14 }}><Textarea value={caption} onChange={(e) => setCaption(e.target.value)} style={{ minHeight: 110 }} placeholder="Tulis draft caption…" /></Field>
-            <Field label="Naskah / script" hint="Reels/video: hook, isi, CTA per adegan. Diisi AI atau tulis sendiri." style={{ marginTop: 14 }}><Textarea value={script} onChange={(e) => setScript(e.target.value)} style={{ minHeight: 120 }} placeholder="Naskah produksi…" /></Field>
-            <Field label="Catatan" style={{ marginTop: 14 }}><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ minHeight: 64 }} placeholder="Catatan produksi, ide visual, dll." /></Field>
+            <SectionTitle sub={t("Hook, caption, script, dan catatan")}>{t("Copywriting")}</SectionTitle>
+            <Field label={t("Hook / teks cover")}><Input value={hook} onChange={(e) => setHook(e.target.value)} placeholder={t("Kalimat pembuka di cover…")} /></Field>
+            <Field label={t("Caption")} style={{ marginTop: 14 }}><Textarea value={caption} onChange={(e) => setCaption(e.target.value)} style={{ minHeight: 110 }} placeholder={t("Tulis draft caption…")} /></Field>
+            <Field label={t("Naskah / script")} hint={t("Reels/video: hook, isi, CTA per adegan. Diisi AI atau tulis sendiri.")} style={{ marginTop: 14 }}><Textarea value={script} onChange={(e) => setScript(e.target.value)} style={{ minHeight: 120 }} placeholder={t("Naskah produksi…")} /></Field>
+            <Field label={t("Catatan")} style={{ marginTop: 14 }}><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ minHeight: 64 }} placeholder={t("Catatan produksi, ide visual, dll.")} /></Field>
           </Panel>
 
           <VisualBoard
@@ -313,21 +314,21 @@ export function ContentEditorView() {
           />
 
           <Panel>
-            <SectionTitle sub="Tautan referensi & aset">Produksi</SectionTitle>
-            <Field label="Link referensi"><Input value={referenceUrl} onChange={(e) => setReferenceUrl(e.target.value)} icon={<Icons.link size={16} />} placeholder="https://…" /></Field>
-            <Field label="Brief (Google Docs)" style={{ marginTop: 14 }}><Input value={briefUrl} onChange={(e) => setBriefUrl(e.target.value)} icon={<Icons.external size={16} />} placeholder="https://docs.google.com/…" /></Field>
-            <Field label="Desain (Canva / Drive)" style={{ marginTop: 14 }}><Input value={designUrl} onChange={(e) => setDesignUrl(e.target.value)} icon={<Icons.image size={16} />} placeholder="https://canva.com/…" /></Field>
+            <SectionTitle sub={t("Tautan referensi & aset")}>{t("Produksi")}</SectionTitle>
+            <Field label={t("Link referensi")}><Input value={referenceUrl} onChange={(e) => setReferenceUrl(e.target.value)} icon={<Icons.link size={16} />} placeholder="https://…" /></Field>
+            <Field label={t("Brief (Google Docs)")} style={{ marginTop: 14 }}><Input value={briefUrl} onChange={(e) => setBriefUrl(e.target.value)} icon={<Icons.external size={16} />} placeholder="https://docs.google.com/…" /></Field>
+            <Field label={t("Desain (Canva / Drive)")} style={{ marginTop: 14 }}><Input value={designUrl} onChange={(e) => setDesignUrl(e.target.value)} icon={<Icons.image size={16} />} placeholder="https://canva.com/…" /></Field>
           </Panel>
         </div>
 
         {/* side column: status & hasil */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel strong>
-            <SectionTitle sub="Tahap & hasil">Status</SectionTitle>
+            <SectionTitle sub={t("Tahap & hasil")}>{t("Status")}</SectionTitle>
             {linked ? (
               <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", background: "rgba(140,144,158,.09)", borderRadius: 11 }}>
                 <Icons.sparkle size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto" }} />
-                <span style={{ fontFamily: FCE, fontSize: 12.5, color: "var(--ink-600)", lineHeight: 1.4 }}>Status <b>{LEAN.includes(status) ? LEAN_OPTS.find(o => o.value === status)?.label : ALL_STATUS_OPTS.find(o => o.value === status)?.label}</b> — diatur otomatis oleh SinaraCast.</span>
+                <span style={{ fontFamily: FCE, fontSize: 12.5, color: "var(--ink-600)", lineHeight: 1.4 }}>{t("Status")} <b>{LEAN.includes(status) ? LEAN_OPTS.find(o => o.value === status)?.label : ALL_STATUS_OPTS.find(o => o.value === status)?.label}</b> {t("— diatur otomatis oleh SinaraCast.")}</span>
               </div>
             ) : (
               <>
@@ -336,19 +337,19 @@ export function ContentEditorView() {
                   : <Segmented full options={LEAN_OPTS} value={LEAN.includes(status) ? status : "idea"} onChange={setStatus} />}
                 <div style={{ marginTop: 8 }}>
                   {extraStages
-                    ? <button onClick={() => { setExtraStages(false); if (!LEAN.includes(status)) setStatus("idea"); }} style={ghostLink}>← Tahap ringkas saja</button>
-                    : <button onClick={() => setExtraStages(true)} style={ghostLink}>+ Tahap lain (Draf, Review, Disetujui, Revisi)</button>}
+                    ? <button onClick={() => { setExtraStages(false); if (!LEAN.includes(status)) setStatus("idea"); }} style={ghostLink}>{t("← Tahap ringkas saja")}</button>
+                    : <button onClick={() => setExtraStages(true)} style={ghostLink}>{t("+ Tahap lain (Draf, Review, Disetujui, Revisi)")}</button>}
                 </div>
               </>
             )}
 
             {isPosted && (
               <div style={{ marginTop: 16, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
-                <Field label="Link postingan">
+                <Field label={t("Link postingan")}>
                   <Input value={postLink} onChange={(e) => setPostLink(e.target.value)} icon={<Icons.link size={16} />} placeholder="https://instagram.com/…" disabled={metricsLocked} />
                 </Field>
                 <div style={{ fontFamily: FCE, fontSize: 11.5, fontWeight: 600, color: "var(--ink-500)", textTransform: "uppercase", letterSpacing: ".04em", margin: "16px 0 8px" }}>
-                  Performa {metricsLocked ? "· diisi otomatis" : "· diisi manual"}
+                  {t("Performa")} {metricsLocked ? t("· diisi otomatis") : t("· diisi manual")}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   {[["views", "Dilihat"], ["reach", "Jangkauan"], ["likes", "Suka"], ["comments", "Komentar"], ["shares", "Dibagikan"], ["saves", "Disimpan"]].map(([k, label]) => (
@@ -357,7 +358,7 @@ export function ContentEditorView() {
                     </Field>
                   ))}
                 </div>
-                {metricsLocked && <div style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-400)", marginTop: 10, lineHeight: 1.45 }}>Metrik ini ditarik otomatis dari Instagram dan tidak bisa diedit manual.</div>}
+                {metricsLocked && <div style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-400)", marginTop: 10, lineHeight: 1.45 }}>{t("Metrik ini ditarik otomatis dari Instagram dan tidak bisa diedit manual.")}</div>}
               </div>
             )}
           </Panel>
@@ -365,50 +366,50 @@ export function ContentEditorView() {
           {/* Otomatis — hybrid auto-publish link (Instagram only, FR-46) */}
           {plat.auto ? (
             <Panel>
-              <SectionTitle sub="Hubungkan ke publikasi SinaraCast">Otomatis</SectionTitle>
+              <SectionTitle sub={t("Hubungkan ke publikasi SinaraCast")}>{t("Otomatis")}</SectionTitle>
               {isPosted ? (
                 <div style={{ display: "flex", gap: 9, padding: "10px 12px", background: "var(--green-100)", borderRadius: 11 }}>
                   <Icons.checkCircle size={15} style={{ color: "var(--green-500)", flex: "0 0 auto", marginTop: 1 }} />
-                  <span style={{ fontFamily: FCE, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.45 }}>Sudah terbit. {linked ? "Terbit otomatis lewat SinaraCast." : "Ditandai posted manual."}</span>
+                  <span style={{ fontFamily: FCE, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.45 }}>{t("Sudah terbit.")} {linked ? t("Terbit otomatis lewat SinaraCast.") : t("Ditandai posted manual.")}</span>
                 </div>
               ) : source === "linked_oneoff" ? (
                 <div>
                   <div style={{ display: "flex", gap: 9, padding: "10px 12px", background: "var(--st-publishing-bg)", borderRadius: 11, marginBottom: 10 }}>
                     <Icons.calendar size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-                    <span style={{ fontFamily: FCE, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.45 }}>Terhubung ke postingan terjadwal{linkedOneoff ? <> · {linkedOneoff.type} · {pad(linkedOneoff.day)}/{linkedOneoff.ym.slice(5)} {linkedOneoff.time} WIB</> : ""}. Status & link terisi otomatis saat terbit.</span>
+                    <span style={{ fontFamily: FCE, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.45 }}>{t("Terhubung ke postingan terjadwal")}{linkedOneoff ? <> · {linkedOneoff.type} · {pad(linkedOneoff.day)}/{linkedOneoff.ym.slice(5)} {linkedOneoff.time} WIB</> : ""}{t(". Status & link terisi otomatis saat terbit.")}</span>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
-                    {scheduledPostId && <Button size="sm" variant="secondary" full icon={<Icons.edit size={15} />} onClick={() => app.go("composer", { ch: igAccount?.id, postId: scheduledPostId })}>Buka postingan</Button>}
-                    <Button size="sm" variant="ghost" full onClick={disconnect}>Putuskan</Button>
+                    {scheduledPostId && <Button size="sm" variant="secondary" full icon={<Icons.edit size={15} />} onClick={() => app.go("composer", { ch: igAccount?.id, postId: scheduledPostId })}>{t("Buka postingan")}</Button>}
+                    <Button size="sm" variant="ghost" full onClick={disconnect}>{t("Putuskan")}</Button>
                   </div>
                 </div>
               ) : source === "linked_rule" ? (
                 <div>
                   <div style={{ display: "flex", gap: 9, padding: "10px 12px", background: "var(--st-publishing-bg)", borderRadius: 11, marginBottom: 10 }}>
                     <Icons.rules size={15} style={{ color: "var(--st-publishing)", flex: "0 0 auto", marginTop: 1 }} />
-                    <span style={{ fontFamily: FCE, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.45 }}>Terhubung ke jadwal rutin <b>{linkedRule?.name || "(jadwal)"}</b>. Akan terbit otomatis sesuai jadwalnya.</span>
+                    <span style={{ fontFamily: FCE, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.45 }}>{t("Terhubung ke jadwal rutin")} <b>{linkedRule?.name || t("(jadwal)")}</b>{t(". Akan terbit otomatis sesuai jadwalnya.")}</span>
                   </div>
-                  <Button size="sm" variant="ghost" full onClick={disconnect}>Putuskan</Button>
+                  <Button size="sm" variant="ghost" full onClick={disconnect}>{t("Putuskan")}</Button>
                 </div>
               ) : !canAuto ? (
                 <div style={{ display: "flex", gap: 9, padding: "10px 12px", background: "rgba(140,144,158,.09)", borderRadius: 11 }}>
                   <Icons.info size={15} style={{ color: "var(--ink-400)", flex: "0 0 auto", marginTop: 1 }} />
-                  <span style={{ fontFamily: FCE, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.45 }}>Brand ini belum punya akun Instagram terhubung. <b onClick={() => app.go("connections")} style={{ color: "var(--primary-500)", cursor: "pointer" }}>Hubungkan akun IG</b> untuk menjadwalkan otomatis.</span>
+                  <span style={{ fontFamily: FCE, fontSize: 12, color: "var(--ink-600)", lineHeight: 1.45 }}>{t("Brand ini belum punya akun Instagram terhubung.")} <b onClick={() => app.go("connections")} style={{ color: "var(--primary-500)", cursor: "pointer" }}>{t("Hubungkan akun IG")}</b> {t("untuk menjadwalkan otomatis.")}</span>
                 </div>
               ) : (
                 <div>
-                  <Button variant="primary" full disabled={saving} icon={<Icons.sparkle size={16} />} onClick={scheduleAuto}>Jadwalkan otomatis via SinaraCast</Button>
-                  <div style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-400)", margin: "8px 0 12px", lineHeight: 1.45 }}>Buat postingan sekali (Story/Feed/Reels) yang terbit otomatis di tanggal & jam ini.</div>
+                  <Button variant="primary" full disabled={saving} icon={<Icons.sparkle size={16} />} onClick={scheduleAuto}>{t("Jadwalkan otomatis via SinaraCast")}</Button>
+                  <div style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-400)", margin: "8px 0 12px", lineHeight: 1.45 }}>{t("Buat postingan sekali (Story/Feed/Reels) yang terbit otomatis di tanggal & jam ini.")}</div>
                   {showRulePicker ? (
                     <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-                      <Field label="Pilih jadwal rutin">
+                      <Field label={t("Pilih jadwal rutin")}>
                         {igRules.length
-                          ? <Select value="" onChange={(v) => v && linkRule(v)} options={igRules.map((r) => ({ value: r.id, label: r.name }))} placeholder="Pilih jadwal…" />
-                          : <div style={{ fontFamily: FCE, fontSize: 12, color: "var(--ink-400)" }}>Belum ada jadwal rutin di akun ini.</div>}
+                          ? <Select value="" onChange={(v) => v && linkRule(v)} options={igRules.map((r) => ({ value: r.id, label: r.name }))} placeholder={t("Pilih jadwal…")} />
+                          : <div style={{ fontFamily: FCE, fontSize: 12, color: "var(--ink-400)" }}>{t("Belum ada jadwal rutin di akun ini.")}</div>}
                       </Field>
                     </div>
                   ) : (
-                    <button onClick={() => setShowRulePicker(true)} style={ghostLink}>atau hubungkan ke jadwal rutin yang ada →</button>
+                    <button onClick={() => setShowRulePicker(true)} style={ghostLink}>{t("atau hubungkan ke jadwal rutin yang ada →")}</button>
                   )}
                 </div>
               )}
@@ -418,16 +419,16 @@ export function ContentEditorView() {
           {/* Adapt to another of the brand's platforms (plan once → per-platform variants) */}
           {brandPlatforms.length > 0 && (
             <Panel>
-              <SectionTitle sub="Plan sekali, sebar ke platform lain brand ini">Salin ke platform lain</SectionTitle>
+              <SectionTitle sub={t("Plan sekali, sebar ke platform lain brand ini")}>{t("Salin ke platform lain")}</SectionTitle>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {brandPlatforms.map((pf) => {
                   const m = PLATFORM[pf] || { label: pf, accent: "var(--ink-500)" };
                   return (
-                    <Button key={pf} size="sm" variant="secondary" disabled={saving} icon={<PlatIcon p={pf} size={15} />} onClick={() => adapt(pf)}>{m.label}</Button>
+                    <Button key={pf} size="sm" variant="secondary" disabled={saving} icon={<PlatIcon p={pf} size={15} />} onClick={() => adapt(pf)}>{t(m.label)}</Button>
                   );
                 })}
               </div>
-              <div style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-400)", marginTop: 10, lineHeight: 1.45 }}>Menyalin judul, caption, dan strategi sebagai konten baru (status Ide) untuk platform itu.</div>
+              <div style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-400)", marginTop: 10, lineHeight: 1.45 }}>{t("Menyalin judul, caption, dan strategi sebagai konten baru (status Ide) untuk platform itu.")}</div>
             </Panel>
           )}
         </div>
@@ -435,9 +436,9 @@ export function ContentEditorView() {
 
       {/* this brand's other plan entries */}
       <Panel style={{ marginTop: 18 }}>
-        <SectionTitle sub={`Rencana konten untuk ${brandObj.name}`}>Konten brand ini</SectionTitle>
+        <SectionTitle sub={t("Rencana konten untuk {0}", [brandObj.name])}>{t("Konten brand ini")}</SectionTitle>
         {myPlans.length === 0 ? (
-          <div style={{ fontFamily: FCE, fontSize: 12.5, color: "var(--ink-400)", padding: "8px 2px" }}>Belum ada konten lain untuk brand ini. Yang kamu simpan akan muncul di sini, di Rencana Konten, dan di kalender.</div>
+          <div style={{ fontFamily: FCE, fontSize: 12.5, color: "var(--ink-400)", padding: "8px 2px" }}>{t("Belum ada konten lain untuk brand ini. Yang kamu simpan akan muncul di sini, di Rencana Konten, dan di kalender.")}</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {myPlans.map((p) => {
@@ -449,8 +450,8 @@ export function ContentEditorView() {
                   style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px", border: "1px solid var(--line)", borderRadius: 13, cursor: "pointer", background: "var(--surface)", textAlign: "left", width: "100%", boxShadow: "var(--shadow-sm)", transition: "box-shadow .14s, border-color .14s" }}>
                   <PlatIcon p={p.platform} size={16} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: FCE, fontWeight: 600, fontSize: 13, color: p.title ? "var(--ink-900)" : "var(--ink-300)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title || "(tanpa judul)"}</div>
-                    <div style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{pm.label} · {p.plannedDate}{p.plannedTime ? ` · ${p.plannedTime} WIB` : ""}</div>
+                    <div style={{ fontFamily: FCE, fontWeight: 600, fontSize: 13, color: p.title ? "var(--ink-900)" : "var(--ink-300)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title || t("(tanpa judul)")}</div>
+                    <div style={{ fontFamily: FCE, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{t(pm.label)} · {p.plannedDate}{p.plannedTime ? t(" · {0} WIB", [p.plannedTime]) : ""}</div>
                   </div>
                   <span style={{ fontFamily: FCE, fontSize: 11, fontWeight: 600, color: "var(--ink-500)", background: "rgba(140,144,158,.13)", padding: "3px 9px", borderRadius: 999, flex: "0 0 auto" }}>{p.statusUi}</span>
                   <Icons.chevRight size={16} style={{ color: "var(--ink-300)", flex: "0 0 auto" }} />
@@ -479,7 +480,7 @@ function PlanAI({ token, toast, brandName, platform, persona, fields, apply, has
         title: fields.title, pillar: fields.pillar, format: fields.format, goal: fields.goal, hook: fields.hook }),
     });
     const j = await r.json();
-    if (!j.ok) throw new Error(j.error || "Gagal");
+    if (!j.ok) throw new Error(j.error || t("Gagal"));
     return j;
   }
 
@@ -488,13 +489,13 @@ function PlanAI({ token, toast, brandName, platform, persona, fields, apply, has
     try {
       const { concept } = await callPlan("concept");
       if (concept.hook) apply.setHook(concept.hook);
-      const noteParts = [concept.concept, concept.visualIdeas?.length ? "Ide visual:\n- " + concept.visualIdeas.join("\n- ") : ""].filter(Boolean);
+      const noteParts = [concept.concept, concept.visualIdeas?.length ? t("Ide visual:") + "\n- " + concept.visualIdeas.join("\n- ") : ""].filter(Boolean);
       if (noteParts.length) apply.setNotes(noteParts.join("\n\n"));
       if (concept.format && !fields.format) apply.setFormat(concept.format);
       if (concept.bestTime && !hasTime) apply.setTime(concept.bestTime);
-      setMsg("Konsep, hook" + (concept.bestTime && !hasTime ? `, jam (${concept.bestTime})` : "") + " terisi ✓");
-      toast("Konsep & hook dibuat ✓", "success");
-    } catch (e) { toast("Gagal: " + (e.message || e), "error"); }
+      setMsg(concept.bestTime && !hasTime ? t("Konsep, hook, jam ({0}) terisi ✓", [concept.bestTime]) : t("Konsep & hook terisi ✓"));
+      toast(t("Konsep & hook dibuat ✓"), "success");
+    } catch (e) { toast(t("Gagal: {0}", [e.message || e]), "error"); }
     finally { setBusy(""); }
   }
 
@@ -504,8 +505,8 @@ function PlanAI({ token, toast, brandName, platform, persona, fields, apply, has
       const { script } = await callPlan("script");
       apply.setScript(script);
       setMsg("Naskah/script terisi di bawah ✓");
-      toast("Script dibuat ✓", "success");
-    } catch (e) { toast("Gagal: " + (e.message || e), "error"); }
+      toast(t("Script dibuat ✓"), "success");
+    } catch (e) { toast(t("Gagal: {0}", [e.message || e]), "error"); }
     finally { setBusy(""); }
   }
 
@@ -518,11 +519,11 @@ function PlanAI({ token, toast, brandName, platform, persona, fields, apply, has
         body: JSON.stringify({ mode: "generate", instruction, persona, platform, postType: fields.format, brandName }),
       });
       const j = await r.json();
-      if (!j.ok) throw new Error(j.error || "Gagal");
+      if (!j.ok) throw new Error(j.error || t("Gagal"));
       apply.setCaption(j.caption);
-      setMsg("Caption terisi ✓");
-      toast("Caption dibuat ✓", "success");
-    } catch (e) { toast("Gagal: " + (e.message || e), "error"); }
+      setMsg(t("Caption terisi ✓"));
+      toast(t("Caption dibuat ✓"), "success");
+    } catch (e) { toast(t("Gagal: {0}", [e.message || e]), "error"); }
     finally { setBusy(""); }
   }
 
@@ -531,22 +532,22 @@ function PlanAI({ token, toast, brandName, platform, persona, fields, apply, has
     return (
       <button onClick={() => setOpen(true)} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 15px", borderRadius: 13, cursor: "pointer",
         border: `1px solid ${accent}`, background: "var(--st-publishing-bg)", color: accent, fontFamily: FCE, fontSize: 13, fontWeight: 600, alignSelf: "flex-start" }}>
-        <Icons.sparkle size={16} /> Kembangkan dengan AI — konsep, script, caption
+        <Icons.sparkle size={16} /> {t("Kembangkan dengan AI — konsep, script, caption")}
       </button>
     );
   }
   return (
     <Panel>
-      <SectionTitle sub="Konsep, hook, script & caption — ikut karakter akun" right={<button onClick={() => setOpen(false)} aria-label="Tutup" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--ink-400)", display: "inline-flex" }}><Icons.x size={16} /></button>}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ color: accent, display: "inline-flex" }}><Icons.sparkle size={16} /></span>Bantuan AI</span>
+      <SectionTitle sub={t("Konsep, hook, script & caption — ikut karakter akun")} right={<button onClick={() => setOpen(false)} aria-label={t("Tutup")} style={{ border: "none", background: "none", cursor: "pointer", color: "var(--ink-400)", display: "inline-flex" }}><Icons.x size={16} /></button>}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ color: accent, display: "inline-flex" }}><Icons.sparkle size={16} /></span>{t("Bantuan AI")}</span>
       </SectionTitle>
-      <Field label="Arahan singkat (opsional)" hint="Mis. angkat sisi keluarga, target ibu muda. Judul & strategi di atas juga dipakai.">
-        <Textarea value={seed} onChange={(e) => setSeed(e.target.value)} style={{ minHeight: 48 }} placeholder="Kosongkan pun tidak apa-apa…" />
+      <Field label={t("Arahan singkat (opsional)")} hint={t("Mis. angkat sisi keluarga, target ibu muda. Judul & strategi di atas juga dipakai.")}>
+        <Textarea value={seed} onChange={(e) => setSeed(e.target.value)} style={{ minHeight: 48 }} placeholder={t("Kosongkan pun tidak apa-apa…")} />
       </Field>
       <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginTop: 12 }}>
-        <Button size="sm" variant="primary" disabled={!!busy} icon={busy === "concept" ? <Spinner size={14} color="#fff" /> : <Icons.sparkle size={15} />} onClick={doConcept}>Konsep & hook</Button>
-        <Button size="sm" variant="secondary" disabled={!!busy} icon={busy === "script" ? <Spinner size={14} /> : <Icons.film size={15} />} onClick={doScript}>Buatkan script</Button>
-        <Button size="sm" variant="secondary" disabled={!!busy} icon={busy === "caption" ? <Spinner size={14} /> : <Icons.edit size={15} />} onClick={doCaption}>Buatkan caption</Button>
+        <Button size="sm" variant="primary" disabled={!!busy} icon={busy === "concept" ? <Spinner size={14} color="#fff" /> : <Icons.sparkle size={15} />} onClick={doConcept}>{t("Konsep & hook")}</Button>
+        <Button size="sm" variant="secondary" disabled={!!busy} icon={busy === "script" ? <Spinner size={14} /> : <Icons.film size={15} />} onClick={doScript}>{t("Buatkan script")}</Button>
+        <Button size="sm" variant="secondary" disabled={!!busy} icon={busy === "caption" ? <Spinner size={14} /> : <Icons.edit size={15} />} onClick={doCaption}>{t("Buatkan caption")}</Button>
       </div>
       {msg && <div style={{ fontFamily: FCE, fontSize: 12, color: "var(--st-success)", marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}><Icons.checkCircle size={14} /> {msg}</div>}
     </Panel>
@@ -563,15 +564,15 @@ function VisualBoard({ token, toast, brandName, platform, persona, fields, refer
 
   async function onFiles(list) {
     const arr = [...(list || [])].filter((f) => ["image/jpeg", "image/png", "image/webp"].includes(f.type));
-    if (!arr.length) { toast("Hanya gambar JPG / PNG / WebP", "error"); return; }
+    if (!arr.length) { toast(t("Hanya gambar JPG / PNG / WebP"), "error"); return; }
     setUploading(true);
     try {
       for (const f of arr) {
-        if (f.size > 10 * 1024 * 1024) { toast(`"${f.name}" lewat 10 MB, dilewati`, "info"); continue; }
+        if (f.size > 10 * 1024 * 1024) { toast(t("\"{0}\" lewat 10 MB, dilewati", [f.name]), "info"); continue; }
         const url = await uploadPlanImage(f);
         setReferenceImages((prev) => [...prev, url]);
       }
-    } catch (e) { toast("Gagal unggah: " + (e.message || e), "error"); }
+    } catch (e) { toast(t("Gagal unggah: {0}", [e.message || e]), "error"); }
     finally { setUploading(false); }
   }
   const addFromBank = (url) => { setReferenceImages((prev) => (prev.includes(url) ? prev : [...prev, url])); };
@@ -585,10 +586,10 @@ function VisualBoard({ token, toast, brandName, platform, persona, fields, refer
         body: JSON.stringify({ task: "storyboard", brandName, platform, persona, title: fields.title, format: fields.format, hook: fields.hook, script: fields.script, concept: fields.notes, goal: fields.goal }),
       });
       const j = await r.json();
-      if (!j.ok) { toast(j.error || "Gagal membuat storyboard", "error"); return; }
+      if (!j.ok) { toast(j.error || t("Gagal membuat storyboard"), "error"); return; }
       setStoryboard(j.frames || []);
-      toast("Storyboard dibuat ✓", "success");
-    } catch (e) { toast("Gagal: " + (e.message || e), "error"); }
+      toast(t("Storyboard dibuat ✓"), "success");
+    } catch (e) { toast(t("Gagal: {0}", [e.message || e]), "error"); }
     finally { setGenBusy(false); }
   }
   const setFrame = (i, k, v) => setStoryboard((prev) => prev.map((fr, x) => (x === i ? { ...fr, [k]: v } : fr)));
@@ -597,37 +598,37 @@ function VisualBoard({ token, toast, brandName, platform, persona, fields, refer
 
   const thumb = (url, i) => (
     <div key={i} style={{ position: "relative", width: 92, height: 92, flex: "0 0 auto" }}>
-      <div onClick={() => setPreview(i)} title="Pratinjau" style={{ width: "100%", height: "100%", borderRadius: 11, border: "1px solid var(--line)", cursor: "zoom-in", background: `#f2f3f5 center/cover no-repeat url("${url}")` }} />
-      <button onClick={() => removeImg(i)} aria-label="Hapus" style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
+      <div onClick={() => setPreview(i)} title={t("Pratinjau")} style={{ width: "100%", height: "100%", borderRadius: 11, border: "1px solid var(--line)", cursor: "zoom-in", background: `#f2f3f5 center/cover no-repeat url("${url}")` }} />
+      <button onClick={() => removeImg(i)} aria-label={t("Hapus")} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", cursor: "pointer", background: "#fff", color: "var(--danger)", boxShadow: "var(--shadow-sm)", display: "grid", placeItems: "center" }}><Icons.x size={13} sw={2.4} /></button>
     </div>
   );
 
   return (
     <Panel>
-      <SectionTitle sub="Moodboard referensi & storyboard adegan">Papan Visual</SectionTitle>
+      <SectionTitle sub={t("Moodboard referensi & storyboard adegan")}>{t("Papan Visual")}</SectionTitle>
 
       {/* Moodboard */}
-      <div style={{ fontFamily: FCE, fontSize: 11.5, fontWeight: 700, color: "var(--ink-500)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 10 }}>Referensi visual</div>
+      <div style={{ fontFamily: FCE, fontSize: 11.5, fontWeight: 700, color: "var(--ink-500)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 10 }}>{t("Referensi visual")}</div>
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple style={{ display: "none" }} onChange={(e) => { const fs = e.target.files; e.target.value = ""; onFiles(fs); }} />
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         {referenceImages.map((u, i) => thumb(u, i))}
-        <button onClick={() => !uploading && fileRef.current?.click()} title="Unggah gambar" style={{ width: 92, height: 92, borderRadius: 11, border: "1.5px dashed var(--line)", background: "rgba(140,144,158,.045)", cursor: "pointer", display: "grid", placeItems: "center", color: "var(--ink-400)", flex: "0 0 auto" }}>{uploading ? <Spinner size={18} /> : <Icons.upload size={20} />}</button>
+        <button onClick={() => !uploading && fileRef.current?.click()} title={t("Unggah gambar")} style={{ width: 92, height: 92, borderRadius: 11, border: "1.5px dashed var(--line)", background: "rgba(140,144,158,.045)", cursor: "pointer", display: "grid", placeItems: "center", color: "var(--ink-400)", flex: "0 0 auto" }}>{uploading ? <Spinner size={18} /> : <Icons.upload size={20} />}</button>
       </div>
       <div style={{ display: "flex", gap: 9, marginTop: 12, flexWrap: "wrap" }}>
-        <Button size="sm" variant="secondary" icon={<Icons.upload size={14} />} disabled={uploading} onClick={() => fileRef.current?.click()}>Unggah gambar</Button>
-        <Button size="sm" variant="ghost" icon={<Icons.bookmark size={14} />} onClick={() => setPicker(true)}>Dari Bank Ide</Button>
+        <Button size="sm" variant="secondary" icon={<Icons.upload size={14} />} disabled={uploading} onClick={() => fileRef.current?.click()}>{t("Unggah gambar")}</Button>
+        <Button size="sm" variant="ghost" icon={<Icons.bookmark size={14} />} onClick={() => setPicker(true)}>{t("Dari Bank Ide")}</Button>
       </div>
 
       {/* Storyboard */}
       <div style={{ borderTop: "1px solid var(--line)", marginTop: 18, paddingTop: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-          <span style={{ fontFamily: FCE, fontSize: 11.5, fontWeight: 700, color: "var(--ink-500)", textTransform: "uppercase", letterSpacing: ".04em", flex: 1 }}>Storyboard</span>
-          {storyboard.length > 0 && <Button size="sm" variant="ghost" disabled={genBusy} icon={genBusy ? <Spinner size={13} /> : <Icons.retry size={14} />} onClick={genStory}>Buat ulang</Button>}
+          <span style={{ fontFamily: FCE, fontSize: 11.5, fontWeight: 700, color: "var(--ink-500)", textTransform: "uppercase", letterSpacing: ".04em", flex: 1 }}>{t("Storyboard")}</span>
+          {storyboard.length > 0 && <Button size="sm" variant="ghost" disabled={genBusy} icon={genBusy ? <Spinner size={13} /> : <Icons.retry size={14} />} onClick={genStory}>{t("Buat ulang")}</Button>}
         </div>
         {storyboard.length === 0 ? (
           <div style={{ border: "1.5px dashed var(--line)", borderRadius: 12, padding: "20px 16px", textAlign: "center", background: "rgba(140,144,158,.03)" }}>
-            <div style={{ fontFamily: FCE, fontSize: 12.5, color: "var(--ink-500)", marginBottom: 12, lineHeight: 1.5 }}>Belum ada storyboard. Biarkan AI memecah konsep/naskah jadi adegan bergambar.</div>
-            <Button size="sm" variant="primary" disabled={genBusy} icon={genBusy ? <Spinner size={14} color="#fff" /> : <Icons.film size={15} />} onClick={genStory}>Buatkan storyboard (AI)</Button>
+            <div style={{ fontFamily: FCE, fontSize: 12.5, color: "var(--ink-500)", marginBottom: 12, lineHeight: 1.5 }}>{t("Belum ada storyboard. Biarkan AI memecah konsep/naskah jadi adegan bergambar.")}</div>
+            <Button size="sm" variant="primary" disabled={genBusy} icon={genBusy ? <Spinner size={14} color="#fff" /> : <Icons.film size={15} />} onClick={genStory}>{t("Buatkan storyboard (AI)")}</Button>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -635,16 +636,16 @@ function VisualBoard({ token, toast, brandName, platform, persona, fields, refer
               <div key={i} style={{ display: "flex", gap: 12, padding: 12, border: "1px solid var(--line)", borderRadius: 12, background: "#fff" }}>
                 <div style={{ width: 30, height: 30, flex: "0 0 auto", borderRadius: 9, background: "var(--st-publishing-bg)", color: "var(--st-publishing)", display: "grid", placeItems: "center", fontFamily: FCE, fontWeight: 700, fontSize: 13 }}>{fr.scene || i + 1}</div>
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <Field label="Visual" style={{ marginBottom: 0 }}><Textarea value={fr.visual || ""} onChange={(e) => setFrame(i, "visual", e.target.value)} style={{ minHeight: 44 }} placeholder="Apa yang tampak di layar…" /></Field>
+                  <Field label={t("Visual")} style={{ marginBottom: 0 }}><Textarea value={fr.visual || ""} onChange={(e) => setFrame(i, "visual", e.target.value)} style={{ minHeight: 44 }} placeholder={t("Apa yang tampak di layar…")} /></Field>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <div style={{ flex: 1 }}><Field label="Teks / voiceover" style={{ marginBottom: 0 }}><Textarea value={fr.voiceover || ""} onChange={(e) => setFrame(i, "voiceover", e.target.value)} style={{ minHeight: 40 }} placeholder="Teks di layar / narasi…" /></Field></div>
-                    <div style={{ width: 96, flex: "0 0 auto" }}><Field label="Durasi" style={{ marginBottom: 0 }}><Input value={fr.duration || ""} onChange={(e) => setFrame(i, "duration", e.target.value)} placeholder="3 dtk" /></Field></div>
+                    <div style={{ flex: 1 }}><Field label={t("Teks / voiceover")} style={{ marginBottom: 0 }}><Textarea value={fr.voiceover || ""} onChange={(e) => setFrame(i, "voiceover", e.target.value)} style={{ minHeight: 40 }} placeholder={t("Teks di layar / narasi…")} /></Field></div>
+                    <div style={{ width: 96, flex: "0 0 auto" }}><Field label={t("Durasi")} style={{ marginBottom: 0 }}><Input value={fr.duration || ""} onChange={(e) => setFrame(i, "duration", e.target.value)} placeholder={t("3 dtk")} /></Field></div>
                   </div>
                 </div>
-                <button onClick={() => removeFrame(i)} aria-label="Hapus adegan" style={{ width: 28, height: 28, flex: "0 0 auto", borderRadius: 8, border: "1px solid var(--line)", background: "#fff", cursor: "pointer", color: "var(--ink-400)", display: "grid", placeItems: "center", alignSelf: "flex-start" }}><Icons.x size={14} /></button>
+                <button onClick={() => removeFrame(i)} aria-label={t("Hapus adegan")} style={{ width: 28, height: 28, flex: "0 0 auto", borderRadius: 8, border: "1px solid var(--line)", background: "#fff", cursor: "pointer", color: "var(--ink-400)", display: "grid", placeItems: "center", alignSelf: "flex-start" }}><Icons.x size={14} /></button>
               </div>
             ))}
-            <button onClick={addFrame} style={{ ...ghostLink, alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6 }}><Icons.plus size={14} /> Tambah adegan</button>
+            <button onClick={addFrame} style={{ ...ghostLink, alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6 }}><Icons.plus size={14} /> {t("Tambah adegan")}</button>
           </div>
         )}
       </div>
@@ -652,24 +653,24 @@ function VisualBoard({ token, toast, brandName, platform, persona, fields, refer
       {/* Picker Bank Ide */}
       <Modal open={picker} onClose={() => setPicker(false)} width={620}>
         <div style={{ padding: 22 }}>
-          <SectionTitle sub="Pilih gambar dari item Bank Ide untuk brand ini">Ambil dari Bank Ide</SectionTitle>
+          <SectionTitle sub={t("Pilih gambar dari item Bank Ide untuk brand ini")}>{t("Ambil dari Bank Ide")}</SectionTitle>
           {bankImages.length === 0 ? (
-            <div style={{ fontFamily: FCE, fontSize: 13, color: "var(--ink-400)", textAlign: "center", padding: 20 }}>Belum ada item Bank Ide bergambar untuk brand ini.</div>
+            <div style={{ fontFamily: FCE, fontSize: 13, color: "var(--ink-400)", textAlign: "center", padding: 20 }}>{t("Belum ada item Bank Ide bergambar untuk brand ini.")}</div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, maxHeight: 360, overflowY: "auto" }} className="sc-scroll">
               {bankImages.map((it) => {
                 const on = referenceImages.includes(it.imageUrl);
                 return (
-                  <button key={it.id} onClick={() => addFromBank(it.imageUrl)} title={it.title || "Tambah"} style={{ position: "relative", padding: 0, border: on ? "2px solid var(--primary-400)" : "1px solid var(--line)", borderRadius: 11, overflow: "hidden", cursor: "pointer", background: "#fff" }}>
+                  <button key={it.id} onClick={() => addFromBank(it.imageUrl)} title={it.title || t("Tambah")} style={{ position: "relative", padding: 0, border: on ? "2px solid var(--primary-400)" : "1px solid var(--line)", borderRadius: 11, overflow: "hidden", cursor: "pointer", background: "#fff" }}>
                     <div style={{ height: 92, background: `#f2f3f5 center/cover no-repeat url("${it.imageUrl}")` }} />
-                    <div style={{ padding: "6px 8px", fontFamily: FCE, fontSize: 10.5, color: "var(--ink-700)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "left" }}>{it.title || "(tanpa judul)"}</div>
+                    <div style={{ padding: "6px 8px", fontFamily: FCE, fontSize: 10.5, color: "var(--ink-700)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "left" }}>{it.title || t("(tanpa judul)")}</div>
                     {on && <span style={{ position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: "50%", background: "var(--primary-500)", color: "#fff", display: "grid", placeItems: "center" }}><Icons.check size={12} sw={2.6} /></span>}
                   </button>
                 );
               })}
             </div>
           )}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}><Button variant="primary" onClick={() => setPicker(false)}>Selesai</Button></div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}><Button variant="primary" onClick={() => setPicker(false)}>{t("Selesai")}</Button></div>
         </div>
       </Modal>
 
