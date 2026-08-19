@@ -386,6 +386,59 @@ export function DateField({ value, onChange, min, style }) {
 }
 const navBtn = { width: 30, height: 30, borderRadius: 9, border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-500)", display: "grid", placeItems: "center" };
 
+/* ---------------- MultiDateCalendar (custom, inline) ----------------
+   Pick any number of dates in one month view — consecutive or with gaps.
+   Inline rather than a popup: choosing several dates means many clicks, and a
+   popup that closes on each pick (like DateField) would fight the user.
+   `value` is an array of "YYYY-MM-DD"; the month shown follows the earliest
+   pick so reopening an existing series lands where the dates actually are. */
+export function MultiDateCalendar({ value = [], onChange, min, style }) {
+  const today = todayID();
+  const anchorDate = [...value].sort()[0] || min || today;
+  const [vm, setVm] = useState(() => { const [y, m] = anchorDate.split("-").map(Number); return { y, m: m - 1 }; });
+  const days = new Date(Date.UTC(vm.y, vm.m + 1, 0)).getUTCDate();
+  const lead = (new Date(Date.UTC(vm.y, vm.m, 1)).getUTCDay() + 6) % 7;
+  const cells = []; for (let i = 0; i < lead; i++) cells.push(null); for (let d = 1; d <= days; d++) cells.push(d);
+  const shift = (n) => setVm((s2) => { const dt = new Date(Date.UTC(s2.y, s2.m + n, 1)); return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() }; });
+  const set = new Set(value);
+  const toggle = (d) => {
+    const next = new Set(set);
+    if (next.has(d)) next.delete(d); else next.add(d);
+    onChange && onChange([...next].sort());
+  };
+  return (
+    <div style={{ border: "1px solid var(--line)", borderRadius: 14, background: "var(--surface)", padding: 10, boxShadow: "var(--shadow-sm)", ...style }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+        <button type="button" onClick={() => shift(-1)} aria-label={t("Bulan sebelumnya")} style={navBtn}><Icons.chevLeft size={17} /></button>
+        <span style={{ fontFamily: F, fontWeight: 700, fontSize: 13, color: "var(--ink-900)" }}>{t(MONFULL_ID[vm.m])} {vm.y}</span>
+        <button type="button" onClick={() => shift(1)} aria-label={t("Bulan berikutnya")} style={navBtn}><Icons.chevRight size={17} /></button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
+        {DOW_ID.map((d) => <div key={d} style={{ textAlign: "center", fontFamily: F, fontSize: 9.5, fontWeight: 700, color: "var(--ink-300)", padding: "1px 0 5px" }}>{t(d)}</div>)}
+        {cells.map((d, i) => {
+          if (d == null) return <div key={"e" + i} />;
+          const iso = ymd(vm.y, vm.m, d);
+          const on = set.has(iso), isToday = iso === today;
+          // A past date can never be picked, but one that is already picked stays
+          // clickable — otherwise reopening an old post would trap you with a date
+          // you cannot remove.
+          const disabled = !!min && iso < min && !on;
+          return (
+            <button key={d} type="button" disabled={disabled} aria-pressed={on} onClick={() => toggle(iso)}
+              style={{ height: 32, borderRadius: 9, border: "none", padding: 0, cursor: disabled ? "not-allowed" : "pointer",
+                fontFamily: F, fontSize: 12.5, fontWeight: on ? 700 : 500, fontVariantNumeric: "tabular-nums", opacity: disabled ? 0.3 : 1,
+                background: on ? "var(--primary-grad)" : "transparent", color: on ? "#fff" : isToday ? "var(--primary-500)" : "var(--ink-700)",
+                boxShadow: on ? "var(--shadow-primary)" : isToday ? "inset 0 0 0 1.5px var(--primary-200)" : "none",
+                transition: "background .12s, box-shadow .12s" }}
+              onMouseEnter={(e) => { if (!on && !disabled) e.currentTarget.style.background = "var(--line-soft)"; }}
+              onMouseLeave={(e) => { if (!on) e.currentTarget.style.background = "transparent"; }}>{d}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- Checkbox (custom) ---------------- */
 export function Checkbox({ checked, onChange, disabled, size = 18 }) {
   return (

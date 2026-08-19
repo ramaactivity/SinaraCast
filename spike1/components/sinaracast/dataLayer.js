@@ -160,7 +160,7 @@ export async function loadAll() {
     supabase.from("pool_image").select("id, pool_id, used_in_cycle, storage_path, position, bytes").order("position"),
     supabase.from("media_asset").select("id, channel_id, storage_path, tag, created_at").order("created_at", { ascending: false }),
     supabase.from("post_run").select("id, channel_id, rule_id, scheduled_post_id, pool_role, image_id, status, trigger, scheduled_at, published_at, permalink, fail_reason, created_at, m_views, m_reach, m_likes, m_comments, m_shares, m_saves, m_replies, metrics_pulled_at").order("created_at", { ascending: false }).limit(150),
-    supabase.from("scheduled_post").select("id, channel_id, post_type, caption, scheduled_at, status").not("scheduled_at", "is", null),
+    supabase.from("scheduled_post").select("id, channel_id, post_type, caption, scheduled_at, status, series_id").not("scheduled_at", "is", null),
     supabase.from("notification").select("id, channel_id, type, title, body, run_id, read, created_at").order("created_at", { ascending: false }).limit(50),
     supabase.from("app_settings").select("*").maybeSingle(),
     supabase.from("app_user").select("*").maybeSingle(),
@@ -328,7 +328,7 @@ export async function loadAll() {
   const oneoffs = (schedRaw || []).map((s) => {
     const d = toWib(s.scheduled_at);
     return {
-      id: s.id, ch: slugById[s.channel_id] || "", day: d.getUTCDate(),
+      id: s.id, ch: slugById[s.channel_id] || "", day: d.getUTCDate(), seriesId: s.series_id || null,
       ym: `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}`,
       type: s.post_type === "feed" ? "Feed" : s.post_type === "reels" ? "Reels" : s.post_type === "tiktok_video" ? "TikTok" : "Story",
       title: s.caption ? s.caption.slice(0, 40) : (s.post_type === "feed" ? "Feed post" : s.post_type === "tiktok_video" ? "Video TikTok" : "Story"),
@@ -803,6 +803,13 @@ export async function createRuleWithPools(p) {
 // images: [{ storage_path, width, height, format, bytes, aspect_ok }] (already uploaded).
 // status: "scheduled" (cron will publish Story posts when due) or "draft".
 export async function createScheduledPost(p) {
+  // A one-off Story can be scheduled on SEVERAL dates. One scheduled_post row per
+  // date, all sharing series_id — the publish engine then treats each date as an
+  // ordinary one-off, so the atomic claim, retries and post_run history all apply
+  // unchanged. See migrations/2026-08-19-oneoff-series.sql.
+  const whens = (p.scheduledAtISOs && p.scheduledAtISOs.length) ? p.scheduledAtISOs : [p.scheduledAtISO || null];
+  // Media assets are created ONCE and linked from every date, so the same file is
+  // reused rather than uploaded N times.
   const assetIds = [];
   for (const im of (p.images || [])) {
     const { data: a, error: ea } = await supabase.from("media_asset").insert({
@@ -812,23 +819,36 @@ export async function createScheduledPost(p) {
     if (ea) throw ea;
     assetIds.push(a.id);
   }
-  const { data: post, error: ep } = await supabase.from("scheduled_post").insert({
-    channel_id: p.channelDbId, post_type: p.postType, caption: p.caption || null,
-    first_comment: p.firstComment || null, scheduled_at: p.scheduledAtISO || null, status: p.status,
-    cover_offset_ms: p.coverOffsetMs ?? null, cover_path: p.coverPath || null,
-    ...(p.tiktokOptions ? { tiktok_options: p.tiktokOptions } : {}),
-  }).select("id").single();
-  if (ep) throw ep;
-  for (let i = 0; i < assetIds.length; i++) {
-    const { error: em } = await supabase.from("scheduled_post_media").insert({ post_id: post.id, asset_id: assetIds[i], position: i });
-    if (em) throw em;
+  const seriesId = whens.length > 1 ? crypto.randomUUID() : null;
+  const ids = [];
+  for (const when of whens) {
+    const { data: post, error: ep } = await supabase.from("scheduled_post").insert({
+      channel_id: p.channelDbId, post_type: p.postType, caption: p.caption || null,
+      first_comment: p.firstComment || null, scheduled_at: when, status: p.status,
+      cover_offset_ms: p.coverOffsetMs ?? null, cover_path: p.coverPath || null, series_id: seriesId,
+      ...(p.tiktokOptions ? { tiktok_options: p.tiktokOptions } : {}),
+    }).select("id").single();
+    if (ep) throw ep;
+    for (let i = 0; i < assetIds.length; i++) {
+      const { error: em } = await supabase.from("scheduled_post_media").insert({ post_id: post.id, asset_id: assetIds[i], position: i });
+      if (em) throw em;
+    }
+    ids.push(post.id);
   }
-  return post.id;
+  return ids[0];
 }
 
 // Load a one-off scheduled_post + its media (for editing in the composer).
 export async function loadScheduledPost(id) {
   const { data: post } = await supabase.from("scheduled_post").select("*").eq("id", id).single();
+  // Every date this one-off is scheduled on (itself included). Lets the composer
+  // reopen a multi-date Story with all its dates already ticked.
+  let seriesDates = [];
+  if (post?.series_id) {
+    const { data: sib = [] } = await supabase.from("scheduled_post")
+      .select("id, scheduled_at, status").eq("series_id", post.series_id).order("scheduled_at");
+    seriesDates = sib || [];
+  }
   const { data: links = [] } = await supabase.from("scheduled_post_media").select("asset_id, position").eq("post_id", id).order("position");
   const assetIds = (links || []).map((l) => l.asset_id);
   let assets = [];
@@ -844,16 +864,24 @@ export async function loadScheduledPost(id) {
   const coverUrl = post?.cover_path
     ? (/^https?:\/\//i.test(post.cover_path) ? post.cover_path : supabase.storage.from(BUCKET).getPublicUrl(post.cover_path).data.publicUrl)
     : null;
-  return { post, media, coverUrl };
+  return { post, media, coverUrl, seriesDates };
 }
 
 // Update a one-off scheduled_post incl. media (full replace of media links).
 // images entries already in DB carry `assetId`; freshly uploaded ones don't.
+//
+// A multi-date Story is a set of rows sharing series_id, so this reconciles the
+// whole set against the dates you picked: rows on a date you kept are updated in
+// place, rows on a date you removed are deleted, new dates get new rows. Dates
+// that already published (or are mid-publish) are never touched — history stays
+// honest and a live publish is never yanked out from under the engine.
 export async function updateScheduledPost(id, p) {
+  const { data: cur } = await supabase.from("scheduled_post").select("cover_path, series_id").eq("id", id).maybeSingle();
   // A replaced/removed cover image leaves its old file behind — drop it here so
   // storage doesn't fill up with abandoned covers.
-  const { data: prev } = await supabase.from("scheduled_post").select("cover_path").eq("id", id).maybeSingle();
-  if (prev?.cover_path && prev.cover_path !== (p.coverPath || null)) await deleteStoredImage(prev.cover_path);
+  if (cur?.cover_path && cur.cover_path !== (p.coverPath || null)) await deleteStoredImage(cur.cover_path);
+
+  // Resolve media once; every date links to the same assets.
   const finalAssetIds = [];
   for (const im of (p.images || [])) {
     if (im.assetId) { finalAssetIds.push(im.assetId); continue; }
@@ -864,23 +892,78 @@ export async function updateScheduledPost(id, p) {
     if (error) throw error;
     finalAssetIds.push(a.id);
   }
-  const { error: eu } = await supabase.from("scheduled_post").update({
-    post_type: p.postType, caption: p.caption || null, first_comment: p.firstComment || null,
-    scheduled_at: p.scheduledAtISO || null, status: p.status,
-    cover_offset_ms: p.coverOffsetMs ?? null, cover_path: p.coverPath || null,
-    ...(p.tiktokOptions ? { tiktok_options: p.tiktokOptions } : {}),
-  }).eq("id", id);
-  if (eu) throw eu;
-  await supabase.from("scheduled_post_media").delete().eq("post_id", id);
-  for (let i = 0; i < finalAssetIds.length; i++) {
-    const { error } = await supabase.from("scheduled_post_media").insert({ post_id: id, asset_id: finalAssetIds[i], position: i });
-    if (error) throw error;
+
+  const whens = (p.scheduledAtISOs && p.scheduledAtISOs.length) ? p.scheduledAtISOs : [p.scheduledAtISO || null];
+
+  // The rows this post is made of today.
+  let rows;
+  if (cur?.series_id) {
+    const { data: sib = [] } = await supabase.from("scheduled_post")
+      .select("id, scheduled_at, status").eq("series_id", cur.series_id).order("scheduled_at");
+    rows = sib || [];
+  } else {
+    const { data: one } = await supabase.from("scheduled_post").select("id, scheduled_at, status").eq("id", id).maybeSingle();
+    rows = one ? [one] : [];
   }
-  return id;
+  const editable = (r) => r.status === "scheduled" || r.status === "draft";
+  const pending = rows.filter(editable);
+
+  const seriesId = whens.length > 1 ? (cur?.series_id || crypto.randomUUID()) : (cur?.series_id || null);
+  const content = {
+    post_type: p.postType, caption: p.caption || null, first_comment: p.firstComment || null, status: p.status,
+    cover_offset_ms: p.coverOffsetMs ?? null, cover_path: p.coverPath || null, series_id: seriesId,
+    ...(p.tiktokOptions ? { tiktok_options: p.tiktokOptions } : {}),
+  };
+  const relink = async (postId) => {
+    await supabase.from("scheduled_post_media").delete().eq("post_id", postId);
+    for (let i = 0; i < finalAssetIds.length; i++) {
+      const { error } = await supabase.from("scheduled_post_media").insert({ post_id: postId, asset_id: finalAssetIds[i], position: i });
+      if (error) throw error;
+    }
+  };
+
+  // Match on the WIB calendar day, not the exact timestamp: changing the hour
+  // should move the existing rows, not delete and recreate every one of them.
+  const byDay = new Map(pending.map((r) => [dateKeyWib(r.scheduled_at), r]));
+  const kept = new Set();
+  const survivors = [];
+  for (const when of whens) {
+    const row = byDay.get(dateKeyWib(when));
+    if (row) {
+      kept.add(row.id);
+      const { error } = await supabase.from("scheduled_post").update({ ...content, scheduled_at: when }).eq("id", row.id);
+      if (error) throw error;
+      await relink(row.id);
+      survivors.push(row.id);
+    } else {
+      const { data: added, error } = await supabase.from("scheduled_post")
+        .insert({ channel_id: p.channelDbId, ...content, scheduled_at: when }).select("id").single();
+      if (error) throw error;
+      await relink(added.id);
+      survivors.push(added.id);
+    }
+  }
+  for (const r of pending) {
+    if (!kept.has(r.id)) {
+      const { error } = await supabase.from("scheduled_post").delete().eq("id", r.id);
+      if (error) throw error;
+    }
+  }
+  return survivors.includes(id) ? id : (survivors[0] || id);
 }
 
-// Delete (cancel) a one-off scheduled_post. scheduled_post_media cascades.
-export async function deleteScheduledPost(id) {
+// Delete a one-off. scope "series" removes every date of a multi-date Story that
+// has not published yet; already-published dates are kept as history.
+export async function deleteScheduledPost(id, { scope = "one" } = {}) {
+  if (scope === "series") {
+    const { data: cur } = await supabase.from("scheduled_post").select("series_id").eq("id", id).maybeSingle();
+    if (cur?.series_id) {
+      const { error } = await supabase.from("scheduled_post")
+        .delete().eq("series_id", cur.series_id).in("status", ["scheduled", "draft"]);
+      if (error) throw error;
+      return;
+    }
+  }
   const { error } = await supabase.from("scheduled_post").delete().eq("id", id);
   if (error) throw error;
 }

@@ -4,7 +4,7 @@ import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { uploadPoolImage, uploadReelVideo, createScheduledPost, loadScheduledPost, updateScheduledPost, deleteScheduledPost, loadContentPlan, linkPlanToOneoff, updateChannelPersona } from "../dataLayer";
-import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, DateField, Checkbox, MediaThumb, SectionTitle, Spinner, Select, Status, Segmented, Slider } from "../ui";
+import { BRANDS, BrandAvatar, Panel, Button, Field, Textarea, TimeField, DateField, MultiDateCalendar, Checkbox, MediaThumb, SectionTitle, Spinner, Select, Status, Segmented, Slider } from "../ui";
 import { Lightbox } from "../lightbox";
 import { t } from "../i18n";
 const { useState: uCo, useRef, useEffect } = React;
@@ -93,6 +93,26 @@ const isVid = (m) => !!(m && (m.isVideo || ["mp4", "mov"].includes(m.format) || 
 const pad = (n) => String(n).padStart(2, "0");
 const todayWib = () => { const d = new Date(Date.now() + 7 * 3600 * 1000); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
 const tomorrowWib = () => { const d = new Date(Date.now() + 31 * 3600 * 1000); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
+// Date maths for multi-date Stories, all in WIB calendar days.
+const addDaysWib = (ymd, n) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + n));
+  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+};
+const runOfDays = (start, count, step = 1) => Array.from({ length: count }, (_, i) => addDaysWib(start, i * step));
+const weekdayRun = (start, count) => {
+  const out = [];
+  for (let i = 0; out.length < count && i < 90; i++) {
+    const s = addDaysWib(start, i);
+    const [y, m, d] = s.split("-").map(Number);
+    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    if (dow !== 0 && dow !== 6) out.push(s);
+  }
+  return out;
+};
+const MON_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const fmtDayShort = (ymd) => { const [, m, d] = ymd.split("-").map(Number); return `${d} ${t(MON_SHORT[m - 1])}`; };
+const sameDates = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
 const isoToWibParts = (iso) => { const d = new Date(new Date(iso).getTime() + 7 * 3600 * 1000); return { date: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`, time: `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}` }; };
 // content_plan.format → composer post type (Instagram one-off).
 const PLAN_FORMAT_TYPE = { story: "story", reels: "reels", video: "reels", feed: "feed", carousel: "feed", single_image: "feed", thread: "feed" };
@@ -128,6 +148,39 @@ function TypeCards({ options, value, onChange, accent, soft }) {
 }
 
 // One-tap presets for schedule date/time — the most repeated action on this page.
+// Date picker for Stories: any number of days, back to back or with gaps. The
+// quick fills only seed the calendar — every date stays individually toggleable,
+// so an awkward day can just be switched off.
+function StoryDates({ dates, setDates }) {
+  const today = todayWib();
+  const fills = [
+    { label: t("Hari ini"), make: () => [today] },
+    { label: t("Besok"), make: () => [tomorrowWib()] },
+    { label: t("7 hari"), make: () => runOfDays(today, 7) },
+    { label: t("Tiap 2 hari"), make: () => runOfDays(today, 7, 2) },
+    { label: t("Sen–Jum"), make: () => weekdayRun(today, 10) },
+  ];
+  return (
+    <Field label={t("Tanggal")}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 9 }}>
+        {fills.map((f) => {
+          const made = f.make();
+          return <QuickChip key={f.label} on={sameDates(dates, made)} onClick={() => setDates(made)}>{f.label}</QuickChip>;
+        })}
+      </div>
+      <MultiDateCalendar value={dates} min={today} onChange={setDates} />
+      <div style={{ marginTop: 8, fontFamily: FCo, fontSize: 11.5, lineHeight: 1.5, color: dates.length ? "var(--ink-500)" : "var(--danger)" }}>
+        {dates.length === 0 ? t("Pilih minimal satu tanggal.") : (
+          <>
+            <b style={{ color: "var(--ink-900)", fontWeight: 600 }}>{t("{0} tanggal dipilih", [dates.length])}</b>
+            {" · "}{dates.map(fmtDayShort).join(", ")}
+          </>
+        )}
+      </div>
+    </Field>
+  );
+}
+
 function QuickChip({ on, children, onClick }) {
   return (
     <button onClick={onClick} style={{ border: on ? "1px solid var(--primary-300)" : "1px solid var(--line)", background: on ? "var(--primary-100)" : "var(--surface)",
@@ -151,7 +204,11 @@ export function ComposerView() {
   const [caption, setCaption] = uCo("");
   const [firstComment, setFirstComment] = uCo("");
   // params.date (e.g. from the Hari Spesial page) pre-fills the schedule date.
-  const [date, setDate] = uCo(app.params.date || todayWib());
+  // Publish dates (WIB, "YYYY-MM-DD"). A Story may run on several dates; every
+  // other type keeps exactly one, so this array simply holds a single entry.
+  const [dates, setDates] = uCo([app.params.date || todayWib()]);
+  const date = dates[0] || todayWib();
+  const setDate = (v) => setDates([v]);
   const [time, setTime] = uCo("09:00");
   const [uploading, setUploading] = uCo(false);
   const [saving, setSaving] = uCo(false);
@@ -180,7 +237,7 @@ export function ComposerView() {
   useEffect(() => {
     if (!postId) return;
     let active = true;
-    loadScheduledPost(postId).then(({ post, media: m, coverUrl }) => {
+    loadScheduledPost(postId).then(({ post, media: m, coverUrl, seriesDates }) => {
       if (!active || !post) { if (active) setLoading(false); return; }
       setType(["feed", "reels", "tiktok_video"].includes(post.post_type) ? post.post_type : "story");
       setCaption(post.caption || "");
@@ -188,7 +245,15 @@ export function ComposerView() {
       setOrigStatus(post.status);
       const o = post.tiktok_options || {};
       if (post.post_type === "tiktok_video") setTk((s) => ({ ...s, privacy: o.privacy_level || "SELF_ONLY", allowComment: o.allow_comment !== false, allowDuet: o.allow_duet !== false, allowStitch: o.allow_stitch !== false, commercial: !!o.commercial_content, yourBrand: !!o.your_brand, branded: !!o.branded_content, musicOk: !!o.music_ok }));
-      if (post.scheduled_at) { const p = isoToWibParts(post.scheduled_at); setDate(p.date); setTime(p.time); }
+      if (post.scheduled_at) {
+        const p = isoToWibParts(post.scheduled_at);
+        setTime(p.time);
+        // Only dates that have not published yet are still editable.
+        const open = (seriesDates || [])
+          .filter((r) => r.status === "scheduled" || r.status === "draft")
+          .map((r) => isoToWibParts(r.scheduled_at).date);
+        setDates(open.length ? [...new Set(open)].sort() : [p.date]);
+      }
       if (post.cover_path) { setCoverMode("image"); setCoverImg({ storage_path: post.cover_path, url: coverUrl }); }
       else if (post.cover_offset_ms != null) { setCoverMode("frame"); setCoverMs(post.cover_offset_ms); }
       setMedia(m || []);
@@ -255,6 +320,7 @@ export function ComposerView() {
     if (isFinite(t) && Math.abs(v.currentTime - t) > 0.05) { try { v.currentTime = t; } catch (_) { /* belum siap seek */ } }
   }, [coverMs, coverMode]);
 
+  const isStory = type === "story";
   const isFeed = type === "feed";
   const isReels = type === "reels";
   const isTikVid = type === "tiktok_video";
@@ -267,7 +333,7 @@ export function ComposerView() {
   // disclosure; branded content can't be private.
   const tkValid = !isTikVid || (tk.musicOk && (!tk.commercial || tk.yourBrand || tk.branded) && !(tk.branded && tk.privacy === "SELF_ONLY"));
   // Feed needs a caption; others optional. All need media.
-  const valid = media.length > 0 && !overCap && (!isFeed || caption.trim()) && tkValid;
+  const valid = media.length > 0 && dates.length > 0 && !overCap && (!isFeed || caption.trim()) && tkValid;
   // Postingan yang sudah terbit tidak bisa dijadwalkan ulang (cegah terbit dua kali).
   const locked = !!postId && ["published", "publishing"].includes(origStatus);
 
@@ -374,10 +440,14 @@ export function ComposerView() {
   }
 
   // Combine the WIB date + time into a UTC ISO timestamp.
-  const scheduledISO = () => new Date(`${date}T${time}:00+07:00`).toISOString();
+  const scheduledISOs = () => dates.map((d) => new Date(`${d}T${time}:00+07:00`).toISOString());
 
   async function save(status) {
-    if (!valid) { app.toast("Lengkapi media" + (isFeed ? " & caption" : "") + " dulu", "error"); return; }
+    if (!valid) {
+      app.toast(!dates.length ? t("Pilih minimal satu tanggal.")
+        : isFeed ? t("Lengkapi media & caption dulu") : t("Lengkapi media dulu"), "error");
+      return;
+    }
     setSaving(true);
     const tiktokOptions = isTikVid ? {
       privacy_level: audited ? tk.privacy : "SELF_ONLY",
@@ -391,7 +461,7 @@ export function ComposerView() {
     } : null;
     const payload = {
       channelDbId: channel._id, postType: type, caption: hasCaption ? caption.trim() : null,
-      firstComment: (hasCaption && !isTikVid) ? firstComment.trim() : null, scheduledAtISO: scheduledISO(), status, images: media,
+      firstComment: (hasCaption && !isTikVid) ? firstComment.trim() : null, scheduledAtISOs: scheduledISOs(), status, images: media,
       coverOffsetMs: isVideoType && coverMode === "frame" ? Math.round(coverMs) : null,
       coverPath: isReels && coverMode === "image" ? (coverImg?.storage_path || null) : null,
       tiktokOptions,
@@ -405,21 +475,34 @@ export function ComposerView() {
       const linked = planId && !postId && status === "scheduled";
       if (linked) await linkPlanToOneoff(planId, newPostId);
       await app.reload();
-      app.toast(linked ? t("Konten terhubung & dijadwalkan otomatis ✓") : postId ? t("Perubahan disimpan") : (status === "scheduled" ? t("Postingan dijadwalkan {0} {1} WIB", [date, time]) : t("Disimpan sebagai draf")), "success");
+      app.toast(linked ? t("Konten terhubung & dijadwalkan otomatis ✓") : postId ? t("Perubahan disimpan") : (status === "scheduled" ? (dates.length > 1 ? t("Dijadwalkan di {0} tanggal, jam {1} WIB", [dates.length, time]) : t("Postingan dijadwalkan {0} {1} WIB", [date, time])) : t("Disimpan sebagai draf")), "success");
       app.go(linked ? "contentEditor" : "calendar", linked ? { id: planId } : {});
     } catch (e) {
       app.toast(t("Gagal menyimpan: {0}", [e.message || e]), "error");
     } finally { setSaving(false); }
   }
 
+  // Deleting removes the whole run. To drop a single day you untick it in the
+  // calendar and save — that keeps one meaning per control.
   function remove() {
+    const many = dates.length > 1;
     app.confirm({
-      title: t("Hapus postingan ini?"), danger: true, confirmLabel: t("Hapus"),
-      body: t("Postingan terjadwal ini akan dibatalkan dan dihapus."),
-      consequence: t("Postingan tidak akan terbit. Tindakan ini tidak bisa dibatalkan."),
+      title: many ? t("Hapus semua {0} tanggal?", [dates.length]) : t("Hapus postingan ini?"),
+      danger: true,
+      confirmLabel: many ? t("Hapus semua tanggal") : t("Hapus"),
+      body: many
+        ? t("Semua tanggal yang belum terbit dari postingan ini akan dibatalkan. Tanggal yang sudah terbit tetap tersimpan di Riwayat.")
+        : t("Postingan terjadwal ini akan dibatalkan dan dihapus."),
+      consequence: many
+        ? t("Mau membuang satu tanggal saja? Hilangkan centangnya di kalender lalu simpan.")
+        : t("Postingan tidak akan terbit. Tindakan ini tidak bisa dibatalkan."),
       onConfirm: async () => {
-        try { await deleteScheduledPost(postId); await app.reload(); app.toast(t("Postingan dihapus"), "success"); app.go("calendar"); }
-        catch (e) { app.toast(t("Gagal menghapus: {0}", [e.message || e]), "error"); }
+        try {
+          await deleteScheduledPost(postId, { scope: many ? "series" : "one" });
+          await app.reload();
+          app.toast(many ? t("{0} tanggal dihapus", [dates.length]) : t("Postingan dihapus"), "success");
+          app.go("calendar");
+        } catch (e) { app.toast(t("Gagal menghapus: {0}", [e.message || e]), "error"); }
       },
     });
   }
@@ -430,11 +513,25 @@ export function ComposerView() {
 
   // This channel's one-off posts (drafts + scheduled), newest first, excluding the
   // one being edited — so you can see & jump to your queue without leaving this page.
-  const myPosts = app.oneoffs
-    .filter((o) => o.ch === channel.id && o.id !== postId)
-    .map((o) => ({ ...o, _key: `${o.ym}-${pad(o.day)} ${o.time}` }))
-    .sort((a, b) => b._key.localeCompare(a._key))
-    .slice(0, 8);
+  // A multi-date Story is many rows; collapse it into one entry (earliest date +
+  // a count) so a 7-day run doesn't swallow the whole list.
+  const myPosts = (() => {
+    const rows = app.oneoffs
+      .filter((o) => o.ch === channel.id && o.id !== postId)
+      .map((o) => ({ ...o, _key: `${o.ym}-${pad(o.day)} ${o.time}` }))
+      .sort((a, b) => a._key.localeCompare(b._key));
+    const bySeries = new Map();
+    const out = [];
+    for (const o of rows) {
+      if (!o.seriesId) { out.push({ ...o, seriesCount: 1 }); continue; }
+      const head = bySeries.get(o.seriesId);
+      if (head) { head.seriesCount += 1; continue; }
+      const entry = { ...o, seriesCount: 1 };
+      bySeries.set(o.seriesId, entry);
+      out.push(entry);
+    }
+    return out.sort((a, b) => b._key.localeCompare(a._key)).slice(0, 8);
+  })();
 
   return (
     <div>
@@ -443,7 +540,7 @@ export function ComposerView() {
           <Button variant="ghost" icon={<Icons.chevLeft size={17} />} onClick={() => app.go("calendar")}>{t("Kembali")}</Button>
           {postId && <Button variant="danger" icon={<Icons.trash size={15} />} disabled={saving} onClick={remove}>{t("Hapus")}</Button>}
           <Button variant="secondary" icon={saving ? <Spinner size={15} /> : <Icons.layers size={16} />} disabled={saving || !media.length || locked} onClick={() => save("draft")}>{t("Simpan draf")}</Button>
-          <Button variant="primary" icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.calendar size={16} />} disabled={!valid || saving || locked} onClick={() => save("scheduled")}>{postId ? t("Simpan & jadwalkan") : t("Jadwalkan")}</Button>
+          <Button variant="primary" icon={saving ? <Spinner size={15} color="#fff" /> : <Icons.calendar size={16} />} disabled={!valid || saving || locked} onClick={() => save("scheduled")}>{postId ? t("Simpan & jadwalkan") : dates.length > 1 ? t("Jadwalkan {0} tanggal", [dates.length]) : t("Jadwalkan")}</Button>
         </div>} />
 
       {locked && <div style={{ display: "flex", gap: 9, marginBottom: 16, background: "var(--green-100)", borderRadius: 12, padding: "11px 14px" }}>
@@ -600,11 +697,15 @@ export function ComposerView() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16, position: app.isMobile ? "static" : "sticky", top: 92 }}>
           <Panel strong>
             <SectionTitle sub={t("Waktu WIB")}><StepTitle n={hasCaption ? 4 : 3} accent={b.accent} soft={b.soft}>{t("Kapan terbit")}</StepTitle></SectionTitle>
-            <Field label={t("Tanggal")}><DateField value={date} min={todayWib()} onChange={setDate} /></Field>
-            <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-              <QuickChip on={date === todayWib()} onClick={() => setDate(todayWib())}>{t("Hari ini")}</QuickChip>
-              <QuickChip on={date === tomorrowWib()} onClick={() => setDate(tomorrowWib())}>{t("Besok")}</QuickChip>
-            </div>
+            {isStory ? <StoryDates dates={dates} setDates={setDates} /> : (
+              <>
+                <Field label={t("Tanggal")}><DateField value={date} min={todayWib()} onChange={setDate} /></Field>
+                <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                  <QuickChip on={date === todayWib()} onClick={() => setDate(todayWib())}>{t("Hari ini")}</QuickChip>
+                  <QuickChip on={date === tomorrowWib()} onClick={() => setDate(tomorrowWib())}>{t("Besok")}</QuickChip>
+                </div>
+              </>
+            )}
             <Field label={t("Jam")} style={{ marginTop: 14 }}><TimeField value={time} onChange={setTime} /></Field>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 8 }}>
               {["07:00", "09:00", "12:00", "17:00", "19:30", "21:00"].map((t) => (
@@ -613,7 +714,9 @@ export function ComposerView() {
             </div>
             <div style={{ display: "flex", gap: 9, marginTop: 14, background: "var(--green-100)", borderRadius: 11, padding: "10px 12px" }}>
               <Icons.info size={15} style={{ color: "var(--green-500)", flex: "0 0 auto", marginTop: 1 }} />
-              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>{t("Terbit otomatis sekali di waktu yang kamu pilih. Dijamin tidak terbit dua kali.")}</span>
+              <span style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-600)", lineHeight: 1.45 }}>{dates.length > 1
+                ? t("Terbit sekali di tiap tanggal yang kamu pilih, jam {0} WIB. Tiap tanggal dijamin tidak terbit dua kali.", [time.replace(":", ".")])
+                : t("Terbit otomatis sekali di waktu yang kamu pilih. Dijamin tidak terbit dua kali.")}</span>
             </div>
           </Panel>
           <Panel>
@@ -638,7 +741,7 @@ export function ComposerView() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontFamily: FCo, fontWeight: 600, fontSize: 13, color: "var(--ink-900)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.title}</span>
-                    <span style={{ fontFamily: FCo, fontSize: 9.5, fontWeight: 600, color: b.accent, background: b.soft, padding: "1px 7px", borderRadius: 999, flex: "0 0 auto" }}>{o.type} {t("· sekali")}</span>
+                    <span style={{ fontFamily: FCo, fontSize: 9.5, fontWeight: 600, color: b.accent, background: b.soft, padding: "1px 7px", borderRadius: 999, flex: "0 0 auto" }}>{o.type} {o.seriesCount > 1 ? t("· {0} tanggal", [o.seriesCount]) : t("· sekali")}</span>
                   </div>
                   <div style={{ fontFamily: FCo, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{pad(o.day)}/{o.ym.slice(5)} · {o.time} WIB</div>
                 </div>

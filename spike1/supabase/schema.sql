@@ -246,9 +246,13 @@ create table if not exists scheduled_post (
   scheduled_at  timestamptz,
   status        sched_status not null default 'draft',
   campaign_id   uuid references campaign(id) on delete set null,
+  -- Rangkaian tanggal: satu baris per tanggal, semuanya berbagi series_id.
+  -- NULL = postingan sekali biasa. Lihat migrations/2026-08-19-oneoff-series.sql.
+  series_id     uuid,
   created_at    timestamptz not null default now()
 );
 create index if not exists scheduled_post_channel_idx on scheduled_post (channel_id, scheduled_at);
+create index if not exists scheduled_post_series_idx on scheduled_post (series_id);
 
 create table if not exists scheduled_post_media (
   post_id   uuid not null references scheduled_post(id) on delete cascade,

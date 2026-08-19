@@ -367,6 +367,25 @@ export const EN = {
   "Gagal membaca video": "Couldn't read the video",
   "Hanya gambar JPG/PNG/WebP atau video MP4": "Only JPG/PNG/WebP images or MP4 video",
 
+  // ---------- create post: dates ----------
+  "{0} tanggal dipilih": "{0} date selected|{0} dates selected",
+  "· {0} tanggal": "· {0} date|· {0} dates",
+  "{0} tanggal dihapus": "{0} date deleted|{0} dates deleted",
+  "Jadwalkan {0} tanggal": "Schedule {0} date|Schedule {0} dates",
+  "Dijadwalkan di {0} tanggal, jam {1} WIB": "Scheduled on {0} date at {1} WIB|Scheduled on {0} dates at {1} WIB",
+  "Pilih minimal satu tanggal.": "Pick at least one date.",
+  "7 hari": "7 days", "Tiap 2 hari": "Every 2 days", "Sen–Jum": "Mon–Fri",
+  "Terbit sekali di tiap tanggal yang kamu pilih, jam {0} WIB. Tiap tanggal dijamin tidak terbit dua kali.":
+    "Publishes once on each date you pick, at {0} WIB. Every date is guaranteed never to post twice.",
+  "Hapus semua {0} tanggal?": "Delete all {0} dates?",
+  "Hapus semua tanggal": "Delete every date",
+  "Semua tanggal yang belum terbit dari postingan ini akan dibatalkan. Tanggal yang sudah terbit tetap tersimpan di Riwayat.":
+    "Every date of this post that hasn't published yet will be cancelled. Dates that already went out stay in History.",
+  "Mau membuang satu tanggal saja? Hilangkan centangnya di kalender lalu simpan.":
+    "Want to drop just one date? Untick it on the calendar and save.",
+  "Lengkapi media dulu": "Add your media first",
+  "Lengkapi media & caption dulu": "Add your media and caption first",
+
   // ---------- create post (composer) ----------
   "Sambungkan akun Instagram atau TikTok dulu sebelum membuat postingan.": "Connect an Instagram or TikTok account before creating a post.",
   "Buka Manajemen Akun": "Open Account Management",

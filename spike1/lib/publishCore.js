@@ -105,6 +105,25 @@ async function removeStoredMedia(svc, storagePath) {
   } catch (_) { /* cleanup must never break publishing */ }
 }
 
+// Free a one-off's transit video — but ONLY when no other pending post still
+// needs the same file. A multi-date Story series shares one media_asset across
+// every date, so freeing it on the first publish would leave every later date
+// pointing at a deleted object. Falls back to a plain delete when the asset is
+// unknown, which is the old behaviour.
+async function releaseSharedMedia(svc, { assetId, storagePath, exceptPostId }) {
+  if (!storagePath) return;
+  if (assetId) {
+    const { data: links = [] } = await svc.from("scheduled_post_media").select("post_id").eq("asset_id", assetId);
+    const others = (links || []).map((l) => l.post_id).filter((id) => id !== exceptPostId);
+    if (others.length) {
+      const { data: pending = [] } = await svc.from("scheduled_post")
+        .select("id").in("id", others).in("status", ["scheduled", "publishing"]);
+      if ((pending || []).length) return; // a later date in the series still needs it
+    }
+  }
+  await removeStoredMedia(svc, storagePath);
+}
+
 // Write an in-app notification row (best-effort; never throws into the publish path).
 // Also fans out to Telegram if the owner has it connected.
 export async function notify(svc, { ownerId, channelId, type, title, body, runId }) {
@@ -550,7 +569,9 @@ export async function publishStoryOneoff(svc, { channel, post }) {
   await svc.from("scheduled_post").update({ status: "published" }).eq("id", post.id);
   await fillLinkedPlan(svc, { scheduledPostId: post.id, runId: run.id, permalink });
   await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `Story terbit — ${chLabel}`, body: "Story berhasil terbit ke Instagram.", runId: run.id });
-  if (isVideo) await removeStoredMedia(svc, storagePath); // free the transit video file
+  // Story is the only type that can be scheduled across several dates, so this is
+  // the one path where the media may still be needed after a successful publish.
+  if (isVideo) await releaseSharedMedia(svc, { assetId: media[0]?.asset_id, storagePath, exceptPostId: post.id });
   return { ok: true, permalink, runId: run.id };
 }
 
