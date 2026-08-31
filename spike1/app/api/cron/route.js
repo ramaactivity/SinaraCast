@@ -70,13 +70,33 @@ export async function POST(request) {
   const dow = nowWib.getUTCDay();
   const today = wibDateStr(nowWib);
   const nowMin = nowWib.getUTCHours() * 60 + nowWib.getUTCMinutes();
+  const staleIso = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+
+  // One round trip both claims this minute and reports which subsystems actually
+  // have work. pg_net times out after 5s and the request gets replayed, so a slow
+  // tick used to run twice; the claim turns the replay into a no-op. The counters
+  // stand in for ~16 "is anything due?" queries that previously ran every single
+  // minute just to come back empty. If the planner is missing (a deploy that has
+  // run ahead of its migration) every gate opens and the tick behaves as before.
+  let plan = null;
+  try {
+    const { data } = await svc.rpc("sinaracast_tick_plan", {
+      p_today: today,
+      p_stale: staleIso,
+      p_minute: new Date(Math.floor(Date.now() / 60000) * 60000).toISOString(),
+    });
+    plan = data;
+  } catch (_) { /* planner unavailable → fall through and run the whole tick */ }
+  if (plan?.claimed === false) {
+    return NextResponse.json({ ok: true, at: nowWib.toISOString(), skipped: "minute already claimed" });
+  }
+  const due = (k) => !plan || Number(plan[k]) > 0;
 
   // Recover anything stuck in "publishing" (e.g. a video transcode that ran past
   // the 60s function budget last tick): mark it failed + alert so it isn't stranded.
-  const staleIso = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   try {
-    const { data: stuck = [] } = await svc.from("scheduled_post")
-      .select("id, channel_id").eq("status", "publishing").lt("scheduled_at", staleIso);
+    const { data: stuck = [] } = due("stuck_posts") ? await svc.from("scheduled_post")
+      .select("id, channel_id").eq("status", "publishing").lt("scheduled_at", staleIso) : { data: [] };
     for (const sp of stuck || []) {
       await svc.from("scheduled_post").update({ status: "failed" }).eq("id", sp.id);
       await svc.from("post_run").update({ status: "failed", fail_reason: "Instagram tidak selesai memproses video tepat waktu (mungkin video terlalu berat)." }).eq("scheduled_post_id", sp.id).eq("status", "publishing");
@@ -86,9 +106,9 @@ export async function POST(request) {
     // Recurring-rule runs (no scheduled_post row) stuck past the window — since
     // video Stories now legitimately wait across ticks, these must alert too
     // instead of failing silently.
-    const { data: stuckRules = [] } = await svc.from("post_run")
+    const { data: stuckRules = [] } = due("stuck_runs") ? await svc.from("post_run")
       .select("id, channel_id, rule_id").eq("status", "publishing")
-      .lt("created_at", staleIso).is("scheduled_post_id", null);
+      .lt("created_at", staleIso).is("scheduled_post_id", null) : { data: [] };
     for (const run of stuckRules || []) {
       await svc.from("post_run").update({ status: "failed", fail_reason: "Tidak selesai diproses tepat waktu." }).eq("id", run.id);
       const { data: ch } = await svc.from("channel").select("owner_id, slug, handle").eq("id", run.channel_id).maybeSingle();
@@ -102,7 +122,9 @@ export async function POST(request) {
   // Keep long-lived Instagram tokens fresh (~60d lifetime). Cheap: only touches
   // channels expiring within 10 days, so it's a no-op on almost every tick.
   let refreshed = [];
-  try { refreshed = await refreshTokensDue(svc); } catch (_) { /* don't abort the tick on refresh error */ }
+  if (due("token_due")) {
+    try { refreshed = await refreshTokensDue(svc); } catch (_) { /* don't abort the tick on refresh error */ }
+  }
 
   // eligible channels (connected, not paused, not archived) + owners not globally paused
   const { data: channels = [] } = await svc.from("channel")
@@ -244,10 +266,10 @@ export async function POST(request) {
   // failed them yet.
   const resumed = [];
   try {
-    const { data: pending = [] } = await svc.from("post_run")
+    const { data: pending = [] } = due("resume_runs") ? await svc.from("post_run")
       .select("id, channel_id, scheduled_post_id, rule_id, image_id, ig_media_id")
       .eq("status", "publishing").not("ig_media_id", "is", null)
-      .gte("created_at", staleIso);
+      .gte("created_at", staleIso) : { data: [] };
     for (const run of pending || []) {
       if (overBudget()) break;
       const { data: ch } = await svc.from("channel").select("id, owner_id, slug, handle, platform, ig_user_id, access_token, refresh_token, token_expires_at").eq("id", run.channel_id).maybeSingle();
@@ -273,7 +295,7 @@ export async function POST(request) {
   // ---- one-off posts (Story / Feed / Reels) due now, on eligible channels ----
   const oneoffs = [];
   const chIds = Object.keys(chById);
-  if (chIds.length) {
+  if (chIds.length && due("due_posts")) {
     const { data: posts = [] } = await svc.from("scheduled_post")
       .select("id, channel_id, post_type, caption, first_comment, scheduled_at, status, cover_offset_ms, cover_path")
       .eq("status", "scheduled")
@@ -298,7 +320,7 @@ export async function POST(request) {
   // ---- TikTok one-off VIDEO posts due now, on eligible TikTok channels ----
   const tiktoks = [];
   const ttIds = Object.keys(ttById);
-  if (ttIds.length) {
+  if (ttIds.length && due("due_posts")) {
     const { data: posts = [] } = await svc.from("scheduled_post")
       .select("id, channel_id, post_type, caption, scheduled_at, status, tiktok_options, cover_offset_ms")
       .eq("status", "scheduled").eq("post_type", "tiktok_video")
@@ -321,34 +343,34 @@ export async function POST(request) {
   // ---- Content Planner: refresh auto-managed IG plan metrics (best-effort; gated
   // off by default until the insights permission is granted — see publishCore). ----
   let planMetrics = { enabled: false };
-  if (!overBudget()) {
+  if (!overBudget() && due("plan_metrics_due")) {
     try { planMetrics = await refreshPlanMetricsDue(svc); } catch (e) { planMetrics = { enabled: true, error: String(e?.message || e) }; }
   }
 
   // ---- daily follower snapshot for the Ringkasan trend (self-guarding, cheap) ----
   let followers = { snapped: 0 };
-  if (!overBudget()) {
+  if (!overBudget() && due("followers_due")) {
     try { followers = await snapshotFollowersDue(svc); } catch (e) { followers = { error: String(e?.message || e) }; }
   }
 
   // ---- per-post metrics auto-pull (post_run) — small cap per tick; Stories have
   // a 20–26h pull window so this runs every tick, not once a day ----
   let runMetrics = { enabled: false };
-  if (!overBudget()) {
+  if (!overBudget() && due("run_metrics_due")) {
     try { runMetrics = await refreshRunMetricsDue(svc, { limit: 4 }); } catch (e) { runMetrics = { enabled: true, error: String(e?.message || e) }; }
   }
 
   // ---- Hari Spesial: daily API sync + H-7/H-1 reminders (self-guarding) ----
   // Reminders wait until 08:00 WIB so the Telegram ping lands at a humane hour.
   let specialDays = {};
-  if (!overBudget()) {
+  if (!overBudget() && due("special_sync_due")) {
     try { specialDays.sync = await syncSpecialDaysDue(svc); } catch (e) { specialDays.sync = { error: String(e?.message || e) }; }
   }
-  if (!overBudget() && nowWib.getUTCHours() >= 8) {
+  if (!overBudget() && nowWib.getUTCHours() >= 8 && due("special_reminder_due")) {
     try { specialDays.reminders = await specialDayRemindersDue(svc); } catch (e) { specialDays.reminders = { error: String(e?.message || e) }; }
   }
 
-  return NextResponse.json({ ok: true, at: nowWib.toISOString(), refreshed, fired, expired, resumed, oneoffs, tiktoks, planMetrics, runMetrics, followers, specialDays });
+  return NextResponse.json({ ok: true, at: nowWib.toISOString(), ms: Date.now() - startMs, plan, refreshed, fired, expired, resumed, oneoffs, tiktoks, planMetrics, runMetrics, followers, specialDays });
 }
 
 // allow GET for a quick manual ping/health (still secret-gated)

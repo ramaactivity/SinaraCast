@@ -24,13 +24,17 @@ else await q("select vault.create_secret($1, 'sinaracast_cron_secret');", [SECRE
 
 try { await q("select cron.unschedule(jobid) from cron.job where jobname = 'sinaracast-tick';"); } catch {}
 
+// pg_net defaults to a 5s timeout, which every tick used to blow past — the response
+// was discarded and the request replayed, so each minute ran twice. 50s covers a real
+// publish while still finishing inside the one-minute schedule.
 const command = `select net.http_post(
   url := '${ENDPOINT}',
   headers := jsonb_build_object(
     'Content-Type','application/json',
     'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'sinaracast_cron_secret')
   ),
-  body := '{}'::jsonb
+  body := '{}'::jsonb,
+  timeout_milliseconds := 50000
 );`;
 await q("select cron.schedule('sinaracast-tick', '* * * * *', $job$" + command + "$job$);");
 
