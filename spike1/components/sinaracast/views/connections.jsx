@@ -11,6 +11,13 @@ const FC = "var(--font)";
 
 const PLAT = { instagram: { l: "Instagram", c: "#C2387E" }, tiktok: { l: "TikTok", c: "#3B3B3F" } };
 const brandAv = (name) => ({ name: name || "—", short: (name || "?").slice(0, 2).toUpperCase(), grad: "var(--primary-grad)" });
+// Izin Instagram yang ditampilkan per akun (basic selalu ada, tidak perlu ditampilkan).
+const IG_PERMS = [
+  ["instagram_business_content_publish", "Terbitkan postingan"],
+  ["instagram_business_manage_insights", "Statistik"],
+  ["instagram_business_manage_comments", "Komentar"],
+  ["instagram_business_manage_messages", "Pesan (DM)"],
+];
 const acctStyle = (c) => BRANDS[c.brand] || { name: c.name || c.handle, short: (c.name || "?").slice(0, 2).toUpperCase(), accent: "var(--ink-500)", soft: "var(--line)", grad: "linear-gradient(135deg,#9aa0ab,#7a8090)" };
 
 export function ConnectionsView() {
@@ -83,6 +90,19 @@ export function ConnectionsView() {
               consequence: t("Jadwal & postingannya berhenti. Akun disembunyikan, bukan dihapus permanen."), onConfirm: () => app.archiveChannel(c) })} />
           </div>
         </div>
+        {!isTT && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 10, fontFamily: FC, fontSize: 11 }}>
+            <span style={{ color: "var(--ink-400)", marginRight: 2 }}>{t("Izin:")}</span>
+            {c.igScopes
+              ? IG_PERMS.map(([k, label]) => {
+                  const on = c.igScopes.includes(k);
+                  return <span key={k} title={on ? t("Aktif") : t("Tidak aktif")} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px 2px 6px", borderRadius: 999, fontWeight: 600, color: on ? "var(--st-success)" : "var(--st-skipped)", background: on ? "var(--st-success-bg)" : "var(--st-skipped-bg)" }}>
+                    {on ? <Icons.check size={11} sw={2.4} /> : <Icons.x size={11} sw={2.4} />}{t(label)}
+                  </span>;
+                })
+              : <span style={{ color: "var(--ink-400)" }}>{t("belum tercatat. Sambungkan ulang untuk melihat izin akun ini.")}</span>}
+          </div>
+        )}
         {c.status === "Needs reconnect" && <div style={{ marginTop: 11, background: "var(--danger-bg)", borderRadius: 11, padding: "9px 12px", fontFamily: FC, fontSize: 11.5, color: "var(--danger)", display: "flex", gap: 8 }}><Icons.alert size={15} style={{ flex: "0 0 auto" }} />{t("Koneksi ke")} {PLAT[c.platform]?.l || c.platform} {t("putus. Posting dihentikan sampai disambungkan kembali.")}</div>}
       </div>
     );

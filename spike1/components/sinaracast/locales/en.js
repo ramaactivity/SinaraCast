@@ -1092,4 +1092,10 @@ export const EN = {
   "Reels (sekali)": "Reels (one-off)",
   "Video TikTok (sekali)": "TikTok video (one-off)",
   "Story (sekali)": "Story (one-off)",
+  "Terbitkan postingan": "Publish posts",
+  "Statistik": "Insights",
+  "Pesan (DM)": "Messages (DM)",
+  "Izin:": "Permissions:",
+  "Tidak aktif": "Not active",
+  "belum tercatat. Sambungkan ulang untuk melihat izin akun ini.": "not recorded yet. Reconnect to see this account's permissions.",
 };

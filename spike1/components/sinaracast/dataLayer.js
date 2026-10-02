@@ -117,6 +117,7 @@ function mapChannel(c) {
     avatarUrl: c.avatar_url || null,
     brandId: c.brand_id || null,
     aiPersona: c.ai_persona || null, // karakter AI caption per akun
+    igScopes: c.ig_scopes || null, // izin Instagram yang diberikan saat terakhir disambungkan (null = belum tercatat)
     _id: c.id,
   };
 }
@@ -154,7 +155,7 @@ export async function loadAll() {
   // Fire every independent read in parallel. allSettled (not all) so a single
   // failed query can NEVER blank the whole app — each just falls back to empty.
   const results = await Promise.allSettled([
-    supabase.from("channel").select("id, slug, name, handle, platform, brand_id, token_status, token_expires_at, last_refresh_at, paused, resume_date, followers, color_token, avatar_url, ai_persona").is("archived_at", null).order("created_at", { ascending: true }),
+    supabase.from("channel").select("id, slug, name, handle, platform, brand_id, token_status, token_expires_at, last_refresh_at, paused, resume_date, followers, color_token, avatar_url, ai_persona, ig_scopes").is("archived_at", null).order("created_at", { ascending: true }),
     supabase.from("recurring_rule").select("*").is("archived_at", null),
     supabase.from("pool").select("id, rule_id, role"),
     supabase.from("pool_image").select("id, pool_id, used_in_cycle, storage_path, position, bytes").order("position"),
