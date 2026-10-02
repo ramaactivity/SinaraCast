@@ -163,10 +163,13 @@ test("threads_balas di postingan Tetra: 500 karakter, idempoten", async () => {
 
 test("threads_balas nimbrung: 300 karakter, kompetitor ditolak, 8/hari, log target", async () => {
   const f = fakeThreads();
+  const after = [];
+  f.deps.after = async (x) => { after.push(x); };
   assert.match((await call(f.deps, "threads_balas", { reply_to_id: "900", teks: "x".repeat(301) })).data.error, /300/);
   assert.match((await call(f.deps, "threads_balas", { reply_to_id: "901", teks: "halo" })).data.error, /kompetitor/);
   assert.equal((await call(f.deps, "threads_balas", { reply_to_id: "900", teks: "Halo kak, Tetra bisa ke Bogor" })).isError, false);
   const row = f.rows.find((r) => r.comment_id === "900");
+  assert.deepEqual(after.map((x) => [x.kind, x.target_username]), [["threads_reply_luar", "budi_wedding"]]);
   assert.equal(row.kind, "threads_reply_luar");
   assert.equal(row.target_username, "budi_wedding");
   assert.equal(row.target_url, "https://threads.net/900");

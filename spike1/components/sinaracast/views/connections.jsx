@@ -4,7 +4,7 @@ import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { BRANDS, BrandAvatar, Panel, Button, IconButton, Status, Field, Input, Select, SectionTitle, Skeleton, Modal, PlatIcon } from "../ui";
-import { createBrand, renameBrand, setChannelBrand, deleteBrand, listKompetitor, addKompetitor, removeKompetitor } from "../dataLayer";
+import { createBrand, renameBrand, setChannelBrand, deleteBrand, listKompetitor, addKompetitor, removeKompetitor, listBrunoActivity } from "../dataLayer";
 import { t } from "../i18n";
 const { useState: uCn } = React;
 const FC = "var(--font)";
@@ -53,6 +53,48 @@ function KompetitorList() {
         <Button size="sm" variant="secondary" icon={<Icons.plus size={14} />} disabled={!draft.trim()}>{t("Tambah")}</Button>
       </form>
     </div>
+  );
+}
+
+// Jejak semua yang dikirim Bruno (agen Hermes), supaya isi balasannya bisa dicek.
+const KIND = {
+  reply: ["Balas komentar Instagram", "instagram"],
+  private_reply: ["DM ke pengomentar Instagram", "instagram"],
+  threads_post: ["Posting Threads", "threads"],
+  threads_reply: ["Balas komentar Threads", "threads"],
+  threads_reply_luar: ["Ikut mengobrol di Threads", "threads"],
+};
+function BrunoActivity() {
+  const app = useApp();
+  const [items, setItems] = uCn(null);
+  React.useEffect(() => { listBrunoActivity().then(setItems).catch(() => setItems([])); }, []);
+  const when = (iso) => new Date(iso).toLocaleString(app.lang === "en" ? "en-GB" : "id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return (
+    <Panel pad={0}>
+      <div style={{ padding: app.isMobile ? "14px 14px" : "15px 18px" }}>
+        <div style={{ fontFamily: FC, fontWeight: 700, fontSize: 15.5, color: "var(--ink-900)" }}>{t("Aktivitas Bruno")}</div>
+        <div style={{ fontFamily: FC, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{t("Semua balasan, DM, dan postingan yang dikirim agen Hermes atas nama akunmu.")}</div>
+      </div>
+      {items === null && <div style={{ padding: "0 18px 16px" }}><Skeleton w="60%" h={12} /></div>}
+      {items?.length === 0 && <div style={{ borderTop: "1px solid var(--line-soft)", padding: "14px 18px", fontFamily: FC, fontSize: 12.5, color: "var(--ink-400)" }}>{t("Belum ada aktivitas.")}</div>}
+      {(items || []).map(a => {
+        const [label, plat] = KIND[a.kind] || [a.kind, "instagram"];
+        return (
+          <div key={a.id} style={{ borderTop: "1px solid var(--line-soft)", padding: app.isMobile ? "11px 14px" : "11px 18px", display: "flex", gap: 10 }}>
+            <span style={{ flex: "0 0 auto", marginTop: 2 }}><PlatIcon p={plat} size={15} /></span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "baseline", fontFamily: FC, fontSize: 12 }}>
+                <span style={{ fontWeight: 600, color: "var(--ink-900)" }}>{t(label)}</span>
+                {a.target_username && <span style={{ color: "var(--ink-500)" }}>{t("ke")} @{a.target_username}</span>}
+                <span style={{ color: "var(--ink-400)", marginLeft: "auto" }}>{when(a.at)}</span>
+              </div>
+              <div style={{ fontFamily: FC, fontSize: 12.5, color: "var(--ink-700, var(--ink-900))", marginTop: 3, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{a.text}</div>
+              {a.target_url && <a href={a.target_url} target="_blank" rel="noreferrer" style={{ fontFamily: FC, fontSize: 11.5, color: "var(--primary-500)", marginTop: 3, display: "inline-block" }}>{t("Lihat postingan")}</a>}
+            </div>
+          </div>
+        );
+      })}
+    </Panel>
   );
 }
 
@@ -207,6 +249,7 @@ export function ConnectionsView() {
               <KompetitorList />
             </Panel>
           )}
+          {phase === "ready" && <BrunoActivity />}
         </div>
 
         {/* right: telegram + meta checklist */}

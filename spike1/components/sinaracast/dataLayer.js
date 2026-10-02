@@ -638,6 +638,15 @@ export async function clearDayOverride(ruleId, dateWib) {
 }
 export const todayWibKey = () => dateKeyWib(new Date().toISOString());
 
+// What the Hermes agent (Bruno) actually sent: replies, DMs, Threads posts. Newest first.
+export async function listBrunoActivity(limit = 30) {
+  const { data, error } = await supabase.from("ig_comment_action")
+    .select("id, kind, text, target_username, target_url, result_id, at")
+    .not("result_id", "is", null).order("at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+
 // Threads competitor blocklist: usernames the Hermes agent must never reply to.
 export async function listKompetitor() {
   const { data, error } = await supabase.from("threads_kompetitor").select("id, username").order("username");

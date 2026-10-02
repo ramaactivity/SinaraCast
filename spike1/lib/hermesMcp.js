@@ -12,6 +12,7 @@
 //   deps.log.release(channelId, commentId, kind)   batalkan klaim kalau Instagram menolak
 //   deps.log.finish(channelId, commentId, kind, resultId)
 //   deps.now()                   -> Date
+//   deps.after?(aksi)            dipanggil setelah aksi tulis berhasil ({kind, teks, target_username, target_url})
 //
 // ponytail: polling saat ig_komentar dipanggil (25 postingan terbaru), tanpa
 // webhook. Tambah webhook comments kalau Bruno butuh lebih cepat dari polling.
@@ -174,6 +175,7 @@ async function aksiTulis({ kind, key, teks, deps, kirim, dobel, gagal, izin = IZ
     return err(igError(r.json, gagal, izin));
   }
   await deps.log.finish(ch.id, key, kind, String(resultId));
+  await deps.after?.({ kind, teks, ...extra });
   return { ok: true, id: String(resultId), ...(/^\d+$/.test(key) ? { comment_id: key } : {}) };
 }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
-import { svcClient } from "../../../lib/publishCore";
+import { svcClient, notify } from "../../../lib/publishCore";
 import { handleMcp } from "../../../lib/hermesMcp";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +66,13 @@ export async function POST(request) {
       url.searchParams.set("access_token", channel.access_token);
       const res = await fetch(url, { method });
       return { status: res.status, json: await res.json().catch(() => ({})) };
+    },
+    // Balasan ke orang asing → kabari Rama (lonceng + Telegram) supaya bisa dicek cepat.
+    after: async (a) => {
+      if (a.kind !== "threads_reply_luar") return;
+      await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "info",
+        title: `Bruno membalas @${a.target_username || "?"} di Threads`,
+        body: `${a.teks}${a.target_url ? `\n${a.target_url}` : ""}`, runId: null }).catch(() => {});
     },
     kompetitor: async () => {
       const { data } = await svc.from("threads_kompetitor").select("username").eq("owner_id", channel.owner_id);
