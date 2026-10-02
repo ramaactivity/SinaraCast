@@ -47,7 +47,8 @@ test("tools/list: semua tool dengan anotasi benar", async () => {
   const r = await handleMcp({ jsonrpc: "2.0", id: 1, method: "tools/list" }, fake().deps);
   const t = Object.fromEntries(r.body.result.tools.map((x) => [x.name, x.annotations.readOnlyHint]));
   assert.deepEqual(t, { ig_komentar: true, ig_balas_komentar: false, ig_private_reply: false,
-    threads_postingan_saya: true, threads_komentar: true, threads_posting: false, threads_balas: false });
+    threads_postingan_saya: true, threads_komentar: true, threads_posting: false, threads_balas: false,
+    threads_cari: true, threads_daftar_kompetitor: true });
 });
 
 test("tanpa izin komentar → error sambung ulang", async () => {
@@ -108,40 +109,81 @@ test("awal hari WIB", () => {
 function fakeThreads() {
   const f = fake();
   const calls = [];
+  const media = {
+    p1: { id: "p1", username: "tetraphotobooth", permalink: "https://threads.net/p1" },
+    "501": { id: "501", username: "andi", permalink: "https://threads.net/501", root_post: { id: "p1" } },
+    "100": { id: "100", username: "tetraphotobooth" },
+    "900": { id: "900", username: "budi_wedding", permalink: "https://threads.net/900" },
+    "901": { id: "901", username: "saingan.booth", permalink: "https://threads.net/901" },
+  };
   f.deps.channel = { id: "th", owner_id: "o", platform: "threads", threads_user_id: "77", handle: "@tetraphotobooth" };
+  f.deps.kompetitor = async () => new Set(["saingan.booth"]);
   f.deps.th = async (method, path, opts) => {
     calls.push({ method, path, q: opts?.query });
     if (path === "/77/threads" && method === "GET") return { status: 200, json: { data: [{ id: "p1", text: "Sewa photobooth Bogor", timestamp: ago(1) }] } };
     if (path === "/p1/replies") return { status: 200, json: { data: [
       { id: "501", text: "harga?", username: "andi", timestamp: ago(0.2) },
-      { id: "502", text: "cek DM", username: "tetraphotobooth", timestamp: ago(0.1) },
+      { id: "502", text: "cek DM", username: "tetraphotobooth", timestamp: ago(0.1), is_reply_owned_by_me: true },
       { id: "503", text: "lama", username: "rina", timestamp: ago(5) },
+    ] } };
+    if (path === "/keyword_search") return { status: 200, json: { data: [
+      { id: "900", username: "budi_wedding", text: "cari photobooth bogor", has_replies: true },
+      { id: "901", username: "saingan.booth", text: "promo booth" },
     ] } };
     if (path === "/77/threads" && method === "POST") return { status: 200, json: { id: `c${calls.length}` } };
     if (path === "/77/threads_publish") return { status: 200, json: { id: `pub${calls.length}` } };
+    if (method === "GET" && media[path.slice(1)]) return { status: 200, json: media[path.slice(1)] };
     return { status: 400, json: { error: { message: "?" } } };
   };
   return { ...f, calls };
 }
 
-test("threads_komentar: buang milik sendiri dan di luar rentang", async () => {
-  const { data } = await call(fakeThreads().deps, "threads_komentar", { hari: 3 });
-  assert.deepEqual(data.komentar.map((c) => c.reply_id), ["501"]);
+const posts = (f) => f.calls.filter((c) => c.method === "POST");
+
+test("threads_komentar: buang milik sendiri; hari opsional", async () => {
+  const f = fakeThreads();
+  assert.deepEqual((await call(f.deps, "threads_komentar", {})).data.komentar.map((c) => c.reply_id), ["501", "503"]);
+  assert.deepEqual((await call(f.deps, "threads_komentar", { hari: 3 })).data.komentar.map((c) => c.reply_id), ["501"]);
 });
 
 test("threads_posting: dua langkah, teks sama ditolak", async () => {
   const f = fakeThreads();
-  const a = await call(f.deps, "threads_posting", { teks: "Photobooth unlimited Bogor!" });
-  assert.equal(a.isError, false);
-  assert.deepEqual(f.calls.map((c) => c.path), ["/77/threads", "/77/threads_publish"]);
+  assert.equal((await call(f.deps, "threads_posting", { teks: "Photobooth unlimited Bogor!" })).isError, false);
+  assert.deepEqual(posts(f).map((c) => c.path), ["/77/threads", "/77/threads_publish"]);
   assert.match((await call(f.deps, "threads_posting", { teks: "Photobooth unlimited Bogor!" })).data.error, /sudah pernah diposting/);
 });
 
-test("threads_balas: reply_to_id terpasang, idempoten", async () => {
+test("threads_balas di postingan Tetra: 500 karakter, idempoten", async () => {
   const f = fakeThreads();
-  assert.equal((await call(f.deps, "threads_balas", { reply_id: "501", teks: "Halo kak, cek DM ya" })).isError, false);
-  assert.equal(f.calls[0].q.reply_to_id, "501");
-  assert.match((await call(f.deps, "threads_balas", { reply_id: "501", teks: "lagi" })).data.error, /sudah pernah dibalas/);
+  assert.equal((await call(f.deps, "threads_balas", { reply_id: "501", teks: "x".repeat(400) })).isError, false);
+  assert.equal(posts(f)[0].q.reply_to_id, "501");
+  assert.equal(f.rows[0].kind, "threads_reply");
+  assert.match((await call(f.deps, "threads_balas", { reply_to_id: "501", teks: "lagi" })).data.error, /sudah pernah dibalas/);
+});
+
+test("threads_balas nimbrung: 300 karakter, kompetitor ditolak, 8/hari, log target", async () => {
+  const f = fakeThreads();
+  assert.match((await call(f.deps, "threads_balas", { reply_to_id: "900", teks: "x".repeat(301) })).data.error, /300/);
+  assert.match((await call(f.deps, "threads_balas", { reply_to_id: "901", teks: "halo" })).data.error, /kompetitor/);
+  assert.equal((await call(f.deps, "threads_balas", { reply_to_id: "900", teks: "Halo kak, Tetra bisa ke Bogor" })).isError, false);
+  const row = f.rows.find((r) => r.comment_id === "900");
+  assert.equal(row.kind, "threads_reply_luar");
+  assert.equal(row.target_username, "budi_wedding");
+  assert.equal(row.target_url, "https://threads.net/900");
+  for (let i = 0; i < 7; i++) f.rows.push({ kind: "threads_reply_luar", comment_id: `z${i}`, at: NOW.toISOString(), result_id: "r" });
+  assert.match((await call(f.deps, "threads_balas", { reply_to_id: "100", teks: "hai" })).data.error, /sendiri/);
+  f.deps.th = ((th) => async (m, p, o) => (p === "/902" ? { status: 200, json: { id: "902", username: "cici" } } : th(m, p, o)))(f.deps.th);
+  assert.match((await call(f.deps, "threads_balas", { reply_to_id: "902", teks: "hai" })).data.error, /Batas harian/);
+});
+
+test("threads_cari: tandai kompetitor; peringatan kalau hanya post sendiri", async () => {
+  const f = fakeThreads();
+  const { data } = await call(f.deps, "threads_cari", { q: "photobooth bogor" });
+  assert.deepEqual(data.hasil.map((h) => [h.id, h.is_kompetitor]), [["900", false], ["901", true]]);
+  assert.equal(data.peringatan, undefined);
+  f.deps.th = async () => ({ status: 200, json: { data: [{ id: "p1", username: "tetraphotobooth" }] } });
+  assert.match((await call(f.deps, "threads_cari", { q: "x" })).data.peringatan, /belum disetujui/);
+  assert.deepEqual((await call(fakeThreads().deps, "threads_daftar_kompetitor", {})).data.kompetitor, ["@saingan.booth"]);
 });
 
 test("tool threads dengan channel bukan Threads → minta sambung ulang", async () => {

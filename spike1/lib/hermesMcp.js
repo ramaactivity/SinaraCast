@@ -5,6 +5,7 @@
 //   deps.channel                 baris channel Tetra untuk tool ini (IG atau Threads, dipilih route) atau null
 //   deps.ig(method, path, {query, body})  -> { status, json }   (graph.instagram.com, token sudah terpasang)
 //   deps.th(method, path, {query})        -> { status, json }   (graph.threads.net/v1.0, token sudah terpasang)
+//   deps.kompetitor()            -> Set username Threads kompetitor (huruf kecil, tanpa @)
 //   deps.log.done(channelId, kind)        -> Set comment_id yang sudah pernah ditindak
 //   deps.log.countSince(channelId, kind, iso) -> jumlah aksi sejak iso
 //   deps.log.claim(row)          -> true kalau berhasil klaim, false kalau sudah ada (unik per komentar+jenis)
@@ -19,7 +20,7 @@ import crypto from "node:crypto";
 
 const PROTOCOL_VERSION = "2025-06-18";
 const DAY = 86400 * 1000;
-export const LIMITS = { reply: 60, private_reply: 30, threads_post: 10, threads_reply: 60 };
+export const LIMITS = { reply: 60, private_reply: 30, threads_post: 10, threads_reply: 60, threads_reply_luar: 8 };
 const SCOPE_COMMENTS = "instagram_business_manage_comments";
 const SCOPE_MESSAGES = "instagram_business_manage_messages";
 const IZIN_TH = "Izin Threads belum lengkap — sambung ulang akun Threads Tetra di SinaraCast (Manajemen Akun).";
@@ -47,27 +48,47 @@ export const TOOLS = [
   },
   {
     name: "threads_postingan_saya",
-    description: "Daftar postingan Threads terbaru milik Tetra Photobooth.",
-    inputSchema: { type: "object", properties: { jumlah: { type: "integer", minimum: 1, maximum: 25, description: "Default 10." } } },
+    description: "Daftar postingan Threads terbaru milik Tetra Photobooth (id, teks, waktu, link).",
+    inputSchema: { type: "object", properties: { jumlah: { type: "integer", minimum: 1, maximum: 25, description: "1-25, default 10. (Alias: maks.)" } } },
     annotations: { readOnlyHint: true },
   },
   {
     name: "threads_komentar",
-    description: "Balasan orang lain di postingan Threads Tetra dalam N hari terakhir (balasan milik Tetra sendiri dibuang).",
-    inputSchema: { type: "object", properties: { hari: { type: "integer", minimum: 1, maximum: 7, description: "Rentang hari ke belakang, 1-7. Default 3." } } },
+    description: "Komentar orang lain di postingan Threads terbaru Tetra (reply_id, username, teks, waktu, sudah_dibalas).",
+    inputSchema: { type: "object", properties: {
+      postingan: { type: "integer", minimum: 1, maximum: 10, description: "Berapa postingan terbaru yang dicek, 1-10, default 5." },
+      hari: { type: "integer", minimum: 1, maximum: 7, description: "Opsional: hanya komentar N hari terakhir." },
+    } },
     annotations: { readOnlyHint: true },
   },
   {
     name: "threads_posting",
-    description: "Terbitkan postingan teks baru di Threads Tetra (publik). Maks 500 karakter. Teks yang persis sama tidak bisa diposting dua kali.",
+    description: "Terbitkan satu postingan teks di Threads Tetra (publik). Maks 500 karakter. Teks yang persis sama tidak bisa diposting dua kali.",
     inputSchema: { type: "object", properties: { teks: { type: "string", maxLength: 500 } }, required: ["teks"] },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   },
   {
     name: "threads_balas",
-    description: "Balas komentar (reply) di Threads secara publik. Satu balasan per komentar. Maks 500 karakter.",
-    inputSchema: { type: "object", properties: { reply_id: { type: "string" }, teks: { type: "string", maxLength: 500 } }, required: ["reply_id", "teks"] },
+    description: "Balas secara publik di Threads: komentar di postingan Tetra (maks 500 karakter, 60/hari) ATAU postingan orang lain dari threads_cari (maks 300 karakter, 8/hari, akun kompetitor ditolak). Sekali per reply_id.",
+    inputSchema: { type: "object", properties: { reply_id: { type: "string", description: "reply_id dari threads_komentar atau id dari threads_cari. (Alias: reply_to_id.)" }, teks: { type: "string", maxLength: 500 } }, required: ["reply_id", "teks"] },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  {
+    name: "threads_cari",
+    description: "Cari postingan Threads publik berdasarkan kata kunci atau topik (tag). Hasil menandai is_kompetitor dan sudah_dibalas. Sebelum App Review Meta disetujui, hasil hanya berisi postingan Tetra sendiri.",
+    inputSchema: { type: "object", properties: {
+      q: { type: "string", description: "Kata kunci, mis. \"photobooth bogor\"." },
+      mode: { type: "string", enum: ["KEYWORD", "TAG"], description: "Default KEYWORD." },
+      urutan: { type: "string", enum: ["TOP", "RECENT"], description: "Default TOP." },
+      maks: { type: "integer", minimum: 1, maximum: 25, description: "Default 10." },
+    }, required: ["q"] },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: "threads_daftar_kompetitor",
+    description: "Username Threads kompetitor yang tidak boleh dibalas (diatur Rama di SinaraCast).",
+    inputSchema: { type: "object", properties: {} },
+    annotations: { readOnlyHint: true },
   },
 ];
 
@@ -138,13 +159,13 @@ async function igKomentar(args, deps) {
 }
 
 // Klaim → panggil API → selesai/batal. Klaim unik (channel, key, kind) = idempoten.
-async function aksiTulis({ kind, key, teks, deps, kirim, dobel, gagal, izin = IZIN }) {
+async function aksiTulis({ kind, key, teks, deps, kirim, dobel, gagal, izin = IZIN, extra = {} }) {
   const ch = deps.channel;
   const since = startOfDayWib(deps.now());
   if ((await deps.log.countSince(ch.id, kind, since)) >= LIMITS[kind]) {
     return err(`Batas harian tercapai (${LIMITS[kind]}/hari untuk ${kind}). Coba lagi besok.`);
   }
-  const claimed = await deps.log.claim({ owner_id: ch.owner_id, channel_id: ch.id, comment_id: key, kind, text: teks, actor: "hermes" });
+  const claimed = await deps.log.claim({ owner_id: ch.owner_id, channel_id: ch.id, comment_id: key, kind, text: teks, actor: "hermes", ...extra });
   if (!claimed) return err(dobel);
   const r = await kirim();
   const resultId = r.json?.id || r.json?.message_id || null;
@@ -190,7 +211,8 @@ async function igPrivateReply(args, deps) {
 }
 
 // ---- Threads ----
-const thOk = (ch) => ch.platform === "threads";
+const thOk = (ch) => ch?.platform === "threads";
+const uname = (u) => String(u || "").replace(/^@/, "").toLowerCase();
 
 // Threads menerbitkan dua langkah: buat container, lalu publish.
 async function thTerbit(deps, query) {
@@ -202,33 +224,33 @@ async function thTerbit(deps, query) {
 
 async function thPostingan(args, deps) {
   const ch = deps.channel;
-  const n = Math.min(25, Math.max(1, Math.floor(+args.jumlah) || 10));
-  const r = await deps.th("GET", `/${ch.threads_user_id}/threads`, { query: { fields: "id,text,timestamp,permalink,media_type", limit: String(n) } });
+  const n = Math.min(25, Math.max(1, Math.floor(+(args.jumlah ?? args.maks)) || 10));
+  const r = await deps.th("GET", `/${ch.threads_user_id}/threads`, { query: { fields: "id,text,timestamp,permalink", limit: String(n) } });
   if (r.status !== 200) return err(igError(r.json, "Gagal membaca postingan Threads", IZIN_TH));
-  return { akun: ch.handle, postingan: (r.json.data || []).map((p) => ({ id: p.id, teks: p.text || "", waktu: p.timestamp, link: p.permalink || null, jenis: p.media_type })) };
+  return { akun: ch.handle, postingan: (r.json.data || []).map((p) => ({ id: p.id, teks: p.text || "", waktu: p.timestamp, link: p.permalink || null })) };
 }
 
-// ponytail: hanya balasan tingkat pertama di 15 postingan terbaru; sudah_dibalas
-// dari log Hermes saja. Tambah /conversation kalau butuh utas bertingkat.
+// ponytail: hanya komentar tingkat pertama; sudah_dibalas dari log Hermes saja.
 async function thKomentar(args, deps) {
   const ch = deps.channel;
-  const hari = Math.min(7, Math.max(1, Math.floor(+args.hari) || 3));
-  const cutoff = deps.now().getTime() - hari * DAY;
+  const n = Math.min(10, Math.max(1, Math.floor(+args.postingan) || 5));
+  const hari = Math.floor(+args.hari) || 0;
+  const cutoff = hari ? deps.now().getTime() - Math.min(7, hari) * DAY : 0;
   const own = ownName(ch);
-  const posts = await deps.th("GET", `/${ch.threads_user_id}/threads`, { query: { fields: "id,text,timestamp", limit: "15" } });
+  const posts = await deps.th("GET", `/${ch.threads_user_id}/threads`, { query: { fields: "id,text,timestamp", limit: String(n) } });
   if (posts.status !== 200) return err(igError(posts.json, "Gagal membaca postingan Threads", IZIN_TH));
   const dibalas = await deps.log.done(ch.id, "threads_reply");
   const out = [];
   for (const p of posts.json.data || []) {
-    const r = await deps.th("GET", `/${p.id}/replies`, { query: { fields: "id,text,username,timestamp" } });
-    if (r.status !== 200) return err(igError(r.json, "Gagal membaca balasan Threads", IZIN_TH));
+    const r = await deps.th("GET", `/${p.id}/replies`, { query: { fields: "id,text,username,timestamp,is_reply_owned_by_me" } });
+    if (r.status !== 200) return err(igError(r.json, "Gagal membaca komentar Threads", IZIN_TH));
     for (const c of r.json.data || []) {
-      if (!(Date.parse(c.timestamp) >= cutoff) || String(c.username || "").toLowerCase() === own) continue;
+      if (c.is_reply_owned_by_me || uname(c.username) === own || Date.parse(c.timestamp) < cutoff) continue;
       out.push({ reply_id: c.id, username: c.username || null, teks: c.text || "", waktu: c.timestamp, post_id: p.id, cuplikan_postingan: (p.text || "").slice(0, 80), sudah_dibalas: dibalas.has(c.id) });
     }
   }
   out.sort((a, b) => Date.parse(b.waktu) - Date.parse(a.waktu));
-  return { akun: ch.handle, hari, jumlah: out.length, komentar: out };
+  return { akun: ch.handle, jumlah: out.length, komentar: out };
 }
 
 async function thPosting(args, deps) {
@@ -241,15 +263,62 @@ async function thPosting(args, deps) {
     dobel: "Teks yang persis sama sudah pernah diposting ke Threads.", gagal: "Gagal memposting ke Threads" });
 }
 
+// Satu tool untuk dua kasus: komentar di postingan Tetra (bebas, 60/hari) atau
+// postingan orang lain (nimbrung: 300 karakter, 8/hari, kompetitor ditolak).
+// Pemilik utas dilihat dari root_post; tanpa root_post = target itu sendiri postingan utama.
 async function thBalas(args, deps) {
-  const bad = cekTeks(args.teks, 500);
-  if (bad) return err(bad);
-  const rid = cekId(args.reply_id);
+  const ch = deps.channel;
+  const rid = cekId(args.reply_id ?? args.reply_to_id);
   if (!rid) return err("reply_id tidak valid.");
+  const t = await deps.th("GET", `/${rid}`, { query: { fields: "id,username,permalink,root_post" } });
+  if (t.status !== 200) return err(igError(t.json, "Postingan/komentar Threads tidak ditemukan", IZIN_TH));
+  const own = ownName(ch);
+  let pemilik = uname(t.json.username);
+  if (t.json.root_post?.id && t.json.root_post.id !== rid) {
+    const root = await deps.th("GET", `/${t.json.root_post.id}`, { query: { fields: "username" } });
+    pemilik = uname(root.json?.username);
+  }
+  if (uname(t.json.username) === own) return err("Itu postingan/komentar Tetra sendiri.");
+  const luar = pemilik !== own;
+  if (luar) {
+    const komp = await deps.kompetitor();
+    if (komp.has(uname(t.json.username)) || komp.has(pemilik)) return err(`@${komp.has(pemilik) ? pemilik : uname(t.json.username)} ada di daftar kompetitor; jangan dibalas.`);
+  }
+  const bad = cekTeks(args.teks, luar ? 300 : 500);
+  if (bad) return err(bad);
   const teks = args.teks.trim();
-  return aksiTulis({ kind: "threads_reply", key: rid, teks, deps, izin: IZIN_TH,
+  const kind = luar ? "threads_reply_luar" : "threads_reply";
+  return aksiTulis({ kind, key: rid, teks, deps, izin: IZIN_TH,
+    extra: { target_username: t.json.username || null, target_url: t.json.permalink || null },
     kirim: () => thTerbit(deps, { text: teks, reply_to_id: rid }),
-    dobel: "Komentar Threads ini sudah pernah dibalas lewat Hermes.", gagal: "Gagal membalas di Threads" });
+    dobel: "Postingan/komentar ini sudah pernah dibalas lewat Hermes.", gagal: "Gagal membalas di Threads" });
+}
+
+const PERINGATAN_CARI = "keyword_search belum disetujui App Review Meta — hasil hanya postingan Tetra sendiri.";
+
+async function thCari(args, deps) {
+  const ch = deps.channel;
+  const q = typeof args.q === "string" ? args.q.trim() : "";
+  if (!q) return err("q (kata kunci) wajib diisi.");
+  const mode = args.mode === "TAG" ? "TAG" : "KEYWORD";
+  const urutan = args.urutan === "RECENT" ? "RECENT" : "TOP";
+  const n = Math.min(25, Math.max(1, Math.floor(+args.maks) || 10));
+  const r = await deps.th("GET", "/keyword_search", { query: { q, search_type: urutan, search_mode: mode, limit: String(n), fields: "id,text,username,permalink,timestamp,has_replies" } });
+  if (r.status !== 200) return err(igError(r.json, "Pencarian Threads gagal", "Izin pencarian (threads_keyword_search) belum diberikan — sambung ulang akun Threads Tetra di SinaraCast."));
+  const own = ownName(ch);
+  const [komp, a, b] = await Promise.all([deps.kompetitor(), deps.log.done(ch.id, "threads_reply_luar"), deps.log.done(ch.id, "threads_reply")]);
+  const hasil = (r.json.data || []).map((p) => ({
+    id: p.id, username: p.username || null, teks: p.text || "", permalink: p.permalink || null, waktu: p.timestamp,
+    ada_balasan: !!p.has_replies, is_kompetitor: komp.has(uname(p.username)), milik_tetra: uname(p.username) === own,
+    sudah_dibalas: a.has(p.id) || b.has(p.id),
+  }));
+  // Di Dev Mode / sebelum review, Meta hanya mengembalikan postingan milik akun sendiri.
+  const cumaSendiri = hasil.every((h) => h.milik_tetra);
+  return { q, mode, urutan, jumlah: hasil.length, hasil, ...(cumaSendiri ? { peringatan: PERINGATAN_CARI } : {}) };
+}
+
+async function thKompetitor(_args, deps) {
+  return { kompetitor: [...(await deps.kompetitor())].sort().map((u) => `@${u}`) };
 }
 
 // Izin Threads tidak dilaporkan saat tukar token; izin kurang terlihat dari error API (→ IZIN_TH).
@@ -259,6 +328,7 @@ const RUN = {
   ig_komentar: igKomentar, ig_balas_komentar: igBalas, ig_private_reply: igPrivateReply,
   threads_postingan_saya: withThreads(thPostingan), threads_komentar: withThreads(thKomentar),
   threads_posting: withThreads(thPosting), threads_balas: withThreads(thBalas),
+  threads_cari: withThreads(thCari), threads_daftar_kompetitor: withThreads(thKompetitor),
 };
 
 export async function handleMcp(raw, deps) {

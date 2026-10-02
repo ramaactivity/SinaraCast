@@ -33,12 +33,13 @@ export async function POST(request) {
   const state = `${payload}.${sig}`;
 
   // basic = profile; content_publish = post; read/manage_replies = read + answer
-  // comments (Hermes agent via /api/mcp). SinaraCast's own publisher doesn't use Threads.
+  // comments; keyword_search = find public posts to join (own posts only until
+  // Meta App Review). All for the Hermes agent via /api/mcp.
   const url = new URL("https://threads.net/oauth/authorize");
   url.searchParams.set("client_id", appId);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", "threads_basic,threads_content_publish,threads_read_replies,threads_manage_replies");
+  url.searchParams.set("scope", "threads_basic,threads_content_publish,threads_read_replies,threads_manage_replies,threads_keyword_search");
   url.searchParams.set("state", state);
 
   return NextResponse.json({ ok: true, url: url.toString() });

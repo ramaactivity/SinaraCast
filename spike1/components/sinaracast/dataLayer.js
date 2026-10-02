@@ -638,6 +638,23 @@ export async function clearDayOverride(ruleId, dateWib) {
 }
 export const todayWibKey = () => dateKeyWib(new Date().toISOString());
 
+// Threads competitor blocklist: usernames the Hermes agent must never reply to.
+export async function listKompetitor() {
+  const { data, error } = await supabase.from("threads_kompetitor").select("id, username").order("username");
+  if (error) throw error;
+  return data || [];
+}
+export async function addKompetitor(username) {
+  const u = String(username || "").trim().replace(/^@/, "").toLowerCase();
+  if (!u) return;
+  const { error } = await supabase.from("threads_kompetitor").upsert({ username: u }, { onConflict: "owner_id,username", ignoreDuplicates: true });
+  if (error) throw error;
+}
+export async function removeKompetitor(id) {
+  const { error } = await supabase.from("threads_kompetitor").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // Rename a channel's display name.
 export async function renameChannel(id, name) {
   const { error } = await supabase.from("channel").update({ name }).eq("id", id);

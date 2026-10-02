@@ -1098,6 +1098,11 @@ export const EN = {
   "Izin:": "Permissions:",
   "Tidak aktif": "Not active",
   "belum tercatat. Sambungkan ulang untuk melihat izin akun ini.": "not recorded yet. Reconnect to see this account's permissions.",
-  "Dipakai agen Hermes untuk posting dan membalas komentar. Tidak muncul di Buat Postingan.": "Used by the Hermes agent to post and reply to comments. Not shown in Create Post.",
+  "Dipakai agen Hermes untuk posting, membalas komentar, dan ikut mengobrol di postingan orang lain. Tidak muncul di Buat Postingan.": "Used by the Hermes agent to post, reply to comments, and join conversations on other people's posts. Not shown in Create Post.",
+  "Akun kompetitor": "Competitor accounts",
+  "Bruno tidak akan membalas postingan dari akun di daftar ini.": "Bruno will never reply to posts from accounts on this list.",
+  "Belum ada.": "None yet.",
+  "Hapus @{0}": "Remove @{0}",
+  "username, mis. @namaakun": "username, e.g. @accountname",
   "Sambungkan Threads": "Connect Threads",
 };

@@ -67,6 +67,10 @@ export async function POST(request) {
       const res = await fetch(url, { method });
       return { status: res.status, json: await res.json().catch(() => ({})) };
     },
+    kompetitor: async () => {
+      const { data } = await svc.from("threads_kompetitor").select("username").eq("owner_id", channel.owner_id);
+      return new Set((data || []).map((r) => r.username.replace(/^@/, "").toLowerCase()));
+    },
     log: {
       done: async (channelId, kind) => {
         const { data } = await svc.from(T).select("comment_id").eq("channel_id", channelId).eq("kind", kind).not("result_id", "is", null);

@@ -4,7 +4,7 @@ import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
 import { BRANDS, BrandAvatar, Panel, Button, IconButton, Status, Field, Input, Select, SectionTitle, Skeleton, Modal, PlatIcon } from "../ui";
-import { createBrand, renameBrand, setChannelBrand, deleteBrand } from "../dataLayer";
+import { createBrand, renameBrand, setChannelBrand, deleteBrand, listKompetitor, addKompetitor, removeKompetitor } from "../dataLayer";
 import { t } from "../i18n";
 const { useState: uCn } = React;
 const FC = "var(--font)";
@@ -19,6 +19,42 @@ const IG_PERMS = [
   ["instagram_business_manage_messages", "Pesan (DM)"],
 ];
 const acctStyle = (c) => BRANDS[c.brand] || { name: c.name || c.handle, short: (c.name || "?").slice(0, 2).toUpperCase(), accent: "var(--ink-500)", soft: "var(--line)", grad: "linear-gradient(135deg,#9aa0ab,#7a8090)" };
+
+// Akun Threads kompetitor: Bruno (Hermes) tidak akan membalas postingan mereka.
+function KompetitorList() {
+  const app = useApp();
+  const [items, setItems] = uCn([]);
+  const [draft, setDraft] = uCn("");
+  const load = () => listKompetitor().then(setItems).catch(() => {});
+  React.useEffect(() => { load(); }, []);
+  const add = async () => {
+    try { await addKompetitor(draft); setDraft(""); await load(); }
+    catch (e) { app.toast(t("Gagal: {0}", [e.message || e]), "error"); }
+  };
+  const remove = async (k) => {
+    try { await removeKompetitor(k.id); await load(); }
+    catch (e) { app.toast(t("Gagal: {0}", [e.message || e]), "error"); }
+  };
+  return (
+    <div style={{ borderTop: "1px solid var(--line-soft)", padding: app.isMobile ? "12px 14px" : "13px 18px" }}>
+      <div style={{ fontFamily: FC, fontWeight: 600, fontSize: 13, color: "var(--ink-900)" }}>{t("Akun kompetitor")}</div>
+      <div style={{ fontFamily: FC, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{t("Bruno tidak akan membalas postingan dari akun di daftar ini.")}</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+        {items.length === 0 && <span style={{ fontFamily: FC, fontSize: 12, color: "var(--ink-400)" }}>{t("Belum ada.")}</span>}
+        {items.map(k => (
+          <span key={k.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: FC, fontSize: 12, fontWeight: 600, color: "var(--ink-700, var(--ink-900))", background: "rgba(140,144,158,.13)", padding: "3px 6px 3px 10px", borderRadius: 999 }}>
+            @{k.username}
+            <button type="button" aria-label={t("Hapus @{0}", [k.username])} onClick={() => remove(k)} style={{ border: 0, background: "transparent", cursor: "pointer", color: "var(--ink-400)", display: "grid", placeItems: "center", padding: 2 }}><Icons.x size={12} sw={2.4} /></button>
+          </span>
+        ))}
+      </div>
+      <form onSubmit={(e) => { e.preventDefault(); add(); }} style={{ display: "flex", gap: 8, marginTop: 10, maxWidth: 420 }}>
+        <div style={{ flex: 1 }}><Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t("username, mis. @namaakun")} /></div>
+        <Button size="sm" variant="secondary" icon={<Icons.plus size={14} />} disabled={!draft.trim()}>{t("Tambah")}</Button>
+      </form>
+    </div>
+  );
+}
 
 export function ConnectionsView() {
   const app = useApp();
@@ -163,11 +199,12 @@ export function ConnectionsView() {
                 <PlatIcon p="threads" size={22} />
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontFamily: FC, fontWeight: 700, fontSize: 15.5, color: "var(--ink-900)" }}>Threads</div>
-                  <div style={{ fontFamily: FC, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{t("Dipakai agen Hermes untuk posting dan membalas komentar. Tidak muncul di Buat Postingan.")}</div>
+                  <div style={{ fontFamily: FC, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{t("Dipakai agen Hermes untuk posting, membalas komentar, dan ikut mengobrol di postingan orang lain. Tidak muncul di Buat Postingan.")}</div>
                 </div>
                 <Button size="sm" variant="secondary" icon={<Icons.plus size={14} />} onClick={() => app.connectThreadsChannel()}>{t("Sambungkan Threads")}</Button>
               </div>
               {(app.threadsChannels || []).map(c => <AccountRow key={c._id} c={c} />)}
+              <KompetitorList />
             </Panel>
           )}
         </div>
