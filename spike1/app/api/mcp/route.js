@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import crypto from "node:crypto";
 import { svcClient, notify } from "../../../lib/publishCore";
 import { handleMcp } from "../../../lib/hermesMcp";
+import { safeEqual } from "../../../lib/secure";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,11 +14,7 @@ const TETRA_THREADS_HANDLE = "@tetraphotobooth";
 // Bearer HERMES_MCP_TOKEN, dibandingkan timing-safe lewat hash (panjang selalu sama).
 // Env kosong = semua ditolak.
 function authorized(request) {
-  const want = process.env.HERMES_MCP_TOKEN || "";
-  const got = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
-  if (!want || !got) return false;
-  const h = (s) => crypto.createHash("sha256").update(s).digest();
-  return crypto.timingSafeEqual(h(want), h(got));
+  return safeEqual((request.headers.get("authorization") || "").replace(/^Bearer\s+/i, ""), process.env.HERMES_MCP_TOKEN);
 }
 
 // Tetra bisa tersambung di lebih dari satu akun SinaraCast; pakai baris yang

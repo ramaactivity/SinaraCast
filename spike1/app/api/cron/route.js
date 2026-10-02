@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { svcClient, publishForRule, roleForNow, notify, publishStoryOneoff, publishFeedOneoff, publishReelsOneoff, resumeOneoffContainer, resumeRuleStory, refreshTokensDue, refreshPlanMetricsDue, refreshRunMetricsDue, snapshotFollowersDue } from "../../../lib/publishCore";
 import { publishTikTokVideoScheduled, resumeTikTokVideo } from "../../../lib/tiktokCore";
+import { safeEqual } from "../../../lib/secure";
 import { syncSpecialDaysDue, specialDayRemindersDue, specialTodayByOwner } from "../../../lib/specialDays";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +60,7 @@ function isFireDay(rule, dow, today, nowWib) {
 // Called every minute by Supabase pg_cron (pg_net). Publishes rules due now (WIB),
 // idempotent per rule/day via claim_key.
 export async function POST(request) {
-  if (!CRON_SECRET || request.headers.get("x-cron-secret") !== CRON_SECRET) {
+  if (!safeEqual(request.headers.get("x-cron-secret"), CRON_SECRET)) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
   const svc = svcClient();

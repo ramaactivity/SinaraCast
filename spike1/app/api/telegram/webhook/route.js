@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { svcClient } from "../../../../lib/publishCore";
+import { safeEqual } from "../../../../lib/secure";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,7 +20,7 @@ async function tgSend(chatId, text) {
 // CRON_SECRET, so we drop anything without the matching header.
 export async function POST(request) {
   // Fail closed: if no secret is configured, or the header doesn't match, ignore.
-  if (!SECRET || request.headers.get("x-telegram-bot-api-secret-token") !== SECRET) {
+  if (!safeEqual(request.headers.get("x-telegram-bot-api-secret-token"), SECRET)) {
     return NextResponse.json({ ok: true }); // silently ignore spoofed/unverified calls
   }
   const update = await request.json().catch(() => ({}));
