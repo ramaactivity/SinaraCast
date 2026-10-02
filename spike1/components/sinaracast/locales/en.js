@@ -1098,4 +1098,6 @@ export const EN = {
   "Izin:": "Permissions:",
   "Tidak aktif": "Not active",
   "belum tercatat. Sambungkan ulang untuk melihat izin akun ini.": "not recorded yet. Reconnect to see this account's permissions.",
+  "Dipakai agen Hermes untuk posting dan membalas komentar. Tidak muncul di Buat Postingan.": "Used by the Hermes agent to post and reply to comments. Not shown in Create Post.",
+  "Sambungkan Threads": "Connect Threads",
 };

@@ -584,16 +584,18 @@ const REFRESH_WINDOW_MS = 10 * 86400 * 1000;
 export async function refreshTokensDue(svc) {
   const cutoff = new Date(Date.now() + REFRESH_WINDOW_MS).toISOString();
   const { data: chans = [] } = await svc.from("channel")
-    .select("id, owner_id, slug, access_token, token_expires_at")
-    .eq("platform", "instagram") // TikTok channels refresh via their own path, never here
+    .select("id, owner_id, slug, platform, access_token, token_expires_at")
+    .in("platform", ["instagram", "threads"]) // TikTok channels refresh via their own path, never here
     .eq("token_status", "connected").is("archived_at", null)
     .or(`token_expires_at.is.null,token_expires_at.lte.${cutoff}`);
   const out = [];
   for (const c of chans || []) {
     if (!c.access_token) continue;
     try {
-      const u = new URL("https://graph.instagram.com/refresh_access_token");
-      u.searchParams.set("grant_type", "ig_refresh_token");
+      // Threads long-lived tokens refresh the same way, on their own host.
+      const th = c.platform === "threads";
+      const u = new URL(th ? "https://graph.threads.net/refresh_access_token" : "https://graph.instagram.com/refresh_access_token");
+      u.searchParams.set("grant_type", th ? "th_refresh_token" : "ig_refresh_token");
       u.searchParams.set("access_token", c.access_token);
       const r = await fetch(u);
       const j = await r.json().catch(() => ({}));
@@ -605,7 +607,7 @@ export async function refreshTokensDue(svc) {
         await svc.from("channel").update({ token_status: "needs_reconnect" }).eq("id", c.id);
         await notify(svc, { ownerId: c.owner_id, channelId: c.id, type: "error",
           title: `Akun perlu disambungkan ulang — ${c.slug}`,
-          body: "Koneksi ke Instagram kedaluwarsa dan tidak bisa diperpanjang otomatis. Buka Manajemen Akun lalu sambungkan ulang.", runId: null });
+          body: `Koneksi ke ${th ? "Threads" : "Instagram"} kedaluwarsa dan tidak bisa diperpanjang otomatis. Buka Manajemen Akun lalu sambungkan ulang.`, runId: null });
         out.push({ channel: c.slug, ok: false, error: j?.error?.message || "refresh gagal" });
       }
     } catch (e) { out.push({ channel: c.slug, ok: false, error: String(e?.message || e) }); }

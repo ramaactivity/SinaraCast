@@ -189,7 +189,11 @@ export async function loadAll() {
   const ideasRaw = at(14) || [];
 
   const slugById = Object.fromEntries((channelsRaw || []).map((c) => [c.id, c.slug]));
-  const channels = (channelsRaw || []).map(mapChannel);
+  // Threads accounts only serve the Hermes agent (/api/mcp): kept out of `channels`
+  // so composer/rules/calendar never treat them as a publishing target.
+  const allChannels = (channelsRaw || []).map(mapChannel);
+  const channels = allChannels.filter((c) => c.platform !== "threads");
+  const threadsChannels = allChannels.filter((c) => c.platform === "threads");
   const brandIdByChannelDb = Object.fromEntries((channelsRaw || []).map((c) => [c.id, c.brand_id || null]));
 
   // Brands (workspaces) each own ≥0 accounts. Accounts carry their mapped channel shape.
@@ -410,7 +414,7 @@ export async function loadAll() {
     createdAt: i.created_at,
   }));
 
-  return { channels, brands, rules, runs, oneoffs, plans, notifs, settings, profile, library: mediaByChannel, followerSeries, specialDays, ideas };
+  return { channels, threadsChannels, brands, rules, runs, oneoffs, plans, notifs, settings, profile, library: mediaByChannel, followerSeries, specialDays, ideas };
 }
 
 // ============================================================

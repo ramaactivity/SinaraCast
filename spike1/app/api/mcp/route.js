@@ -7,8 +7,9 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const V = process.env.META_GRAPH_VERSION || "v25.0";
-// Terkunci ke satu akun: Instagram @tetraphotobooth.
+// Terkunci ke akun Tetra: Instagram (by id) dan Threads (by handle).
 const TETRA_IG_USER_ID = "17841465090291702";
+const TETRA_THREADS_HANDLE = "@tetraphotobooth";
 
 // Bearer HERMES_MCP_TOKEN, dibandingkan timing-safe lewat hash (panjang selalu sama).
 // Env kosong = semua ditolak.
@@ -30,11 +31,20 @@ async function tetraChannel(svc) {
   return (data || []).sort((a, b) => score(b) - score(a) || String(b.last_refresh_at).localeCompare(String(a.last_refresh_at)))[0] || null;
 }
 
+async function threadsChannel(svc) {
+  const { data } = await svc.from("channel")
+    .select("id, owner_id, platform, threads_user_id, handle, access_token, last_refresh_at")
+    .eq("platform", "threads").eq("handle", TETRA_THREADS_HANDLE).eq("token_status", "connected").is("archived_at", null)
+    .order("last_refresh_at", { ascending: false }).limit(1);
+  return data?.[0] || null;
+}
+
 export async function POST(request) {
   if (!authorized(request)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const raw = await request.json().catch(() => null);
   const svc = svcClient();
-  const channel = raw?.method === "tools/call" ? await tetraChannel(svc) : null;
+  const tool = raw?.method === "tools/call" ? String(raw.params?.name || "") : "";
+  const channel = !tool ? null : tool.startsWith("threads_") ? await threadsChannel(svc) : await tetraChannel(svc);
 
   const T = "ig_comment_action";
   const deps = {
@@ -48,6 +58,13 @@ export async function POST(request) {
         method,
         ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
       });
+      return { status: res.status, json: await res.json().catch(() => ({})) };
+    },
+    th: async (method, path, { query = {} } = {}) => {
+      const url = new URL(`https://graph.threads.net/v1.0${path}`);
+      for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
+      url.searchParams.set("access_token", channel.access_token);
+      const res = await fetch(url, { method });
       return { status: res.status, json: await res.json().catch(() => ({})) };
     },
     log: {

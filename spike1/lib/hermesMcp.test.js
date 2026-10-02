@@ -43,10 +43,11 @@ const call = async (deps, name, args) => {
   return { isError: r.body.result.isError, data: JSON.parse(r.body.result.content[0].text) };
 };
 
-test("tools/list: 3 tool dengan anotasi benar", async () => {
+test("tools/list: semua tool dengan anotasi benar", async () => {
   const r = await handleMcp({ jsonrpc: "2.0", id: 1, method: "tools/list" }, fake().deps);
   const t = Object.fromEntries(r.body.result.tools.map((x) => [x.name, x.annotations.readOnlyHint]));
-  assert.deepEqual(t, { ig_komentar: true, ig_balas_komentar: false, ig_private_reply: false });
+  assert.deepEqual(t, { ig_komentar: true, ig_balas_komentar: false, ig_private_reply: false,
+    threads_postingan_saya: true, threads_komentar: true, threads_posting: false, threads_balas: false });
 });
 
 test("tanpa izin komentar → error sambung ulang", async () => {
@@ -102,4 +103,47 @@ test("Instagram menolak → klaim dibatalkan, bisa dicoba lagi", async () => {
 test("awal hari WIB", () => {
   assert.equal(startOfDayWib(new Date("2026-10-02T18:00:00Z")), "2026-10-02T17:00:00.000Z");
   assert.equal(startOfDayWib(new Date("2026-10-02T05:00:00Z")), "2026-10-01T17:00:00.000Z");
+});
+
+function fakeThreads() {
+  const f = fake();
+  const calls = [];
+  f.deps.channel = { id: "th", owner_id: "o", platform: "threads", threads_user_id: "77", handle: "@tetraphotobooth" };
+  f.deps.th = async (method, path, opts) => {
+    calls.push({ method, path, q: opts?.query });
+    if (path === "/77/threads" && method === "GET") return { status: 200, json: { data: [{ id: "p1", text: "Sewa photobooth Bogor", timestamp: ago(1) }] } };
+    if (path === "/p1/replies") return { status: 200, json: { data: [
+      { id: "501", text: "harga?", username: "andi", timestamp: ago(0.2) },
+      { id: "502", text: "cek DM", username: "tetraphotobooth", timestamp: ago(0.1) },
+      { id: "503", text: "lama", username: "rina", timestamp: ago(5) },
+    ] } };
+    if (path === "/77/threads" && method === "POST") return { status: 200, json: { id: `c${calls.length}` } };
+    if (path === "/77/threads_publish") return { status: 200, json: { id: `pub${calls.length}` } };
+    return { status: 400, json: { error: { message: "?" } } };
+  };
+  return { ...f, calls };
+}
+
+test("threads_komentar: buang milik sendiri dan di luar rentang", async () => {
+  const { data } = await call(fakeThreads().deps, "threads_komentar", { hari: 3 });
+  assert.deepEqual(data.komentar.map((c) => c.reply_id), ["501"]);
+});
+
+test("threads_posting: dua langkah, teks sama ditolak", async () => {
+  const f = fakeThreads();
+  const a = await call(f.deps, "threads_posting", { teks: "Photobooth unlimited Bogor!" });
+  assert.equal(a.isError, false);
+  assert.deepEqual(f.calls.map((c) => c.path), ["/77/threads", "/77/threads_publish"]);
+  assert.match((await call(f.deps, "threads_posting", { teks: "Photobooth unlimited Bogor!" })).data.error, /sudah pernah diposting/);
+});
+
+test("threads_balas: reply_to_id terpasang, idempoten", async () => {
+  const f = fakeThreads();
+  assert.equal((await call(f.deps, "threads_balas", { reply_id: "501", teks: "Halo kak, cek DM ya" })).isError, false);
+  assert.equal(f.calls[0].q.reply_to_id, "501");
+  assert.match((await call(f.deps, "threads_balas", { reply_id: "501", teks: "lagi" })).data.error, /sudah pernah dibalas/);
+});
+
+test("tool threads dengan channel bukan Threads → minta sambung ulang", async () => {
+  assert.match((await call(fake().deps, "threads_komentar", {})).data.error, /akun Threads/);
 });

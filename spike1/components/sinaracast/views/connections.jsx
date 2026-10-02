@@ -9,7 +9,7 @@ import { t } from "../i18n";
 const { useState: uCn } = React;
 const FC = "var(--font)";
 
-const PLAT = { instagram: { l: "Instagram", c: "#C2387E" }, tiktok: { l: "TikTok", c: "#3B3B3F" } };
+const PLAT = { instagram: { l: "Instagram", c: "#C2387E" }, tiktok: { l: "TikTok", c: "#3B3B3F" }, threads: { l: "Threads", c: "#3B3B3F" } };
 const brandAv = (name) => ({ name: name || "—", short: (name || "?").slice(0, 2).toUpperCase(), grad: "var(--primary-grad)" });
 // Izin Instagram yang ditampilkan per akun (basic selalu ada, tidak perlu ditampilkan).
 const IG_PERMS = [
@@ -39,7 +39,7 @@ export function ConnectionsView() {
   ];
 
   const nameOf = (c) => acctStyle(c).name;
-  const reconnect = (c) => (c?.platform === "tiktok" ? app.connectTikTokChannel() : app.connectChannel());
+  const reconnect = (c) => (c?.platform === "tiktok" ? app.connectTikTokChannel() : c?.platform === "threads" ? app.connectThreadsChannel() : app.connectChannel());
 
   const saveBrandName = async (name, brandObj) => {
     try {
@@ -63,7 +63,8 @@ export function ConnectionsView() {
   // One account, rendered as a row inside its brand's panel.
   const AccountRow = ({ c }) => {
     const b = acctStyle(c);
-    const isTT = c.platform === "tiktok";
+    const isTT = c.platform === "tiktok" || c.platform === "threads"; // dark badge
+    const isTh = c.platform === "threads"; // agent-only: no pause, brand move, or rename
     return (
       <div style={{ borderTop: "1px solid var(--line-soft)", padding: app.isMobile ? "12px 14px" : "13px 18px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
@@ -81,16 +82,16 @@ export function ConnectionsView() {
           <div style={{ display: "flex", gap: 5, alignItems: "center", flex: "0 0 auto", marginLeft: app.isMobile ? 0 : "auto", marginTop: app.isMobile ? 6 : 0, width: app.isMobile ? "100%" : "auto", justifyContent: app.isMobile ? "flex-start" : "flex-end" }}>
             {c.status === "Needs reconnect" || c.status === "Expiring"
               ? <Button size="sm" variant={c.status === "Needs reconnect" ? "danger" : "secondary"} icon={<Icons.retry size={15} />} onClick={() => reconnect(c)}>{t("Sambungkan ulang")}</Button>
-              : <Button size="sm" variant={c.paused ? "primary" : "secondary"} icon={c.paused ? <Icons.play size={15} /> : <Icons.pause size={15} />} onClick={() => app.toggleChannelPause(c, nameOf(c))}>{c.paused ? t("Lanjutkan") : t("Jeda")}</Button>}
+              : !isTh && <Button size="sm" variant={c.paused ? "primary" : "secondary"} icon={c.paused ? <Icons.play size={15} /> : <Icons.pause size={15} />} onClick={() => app.toggleChannelPause(c, nameOf(c))}>{c.paused ? t("Lanjutkan") : t("Jeda")}</Button>}
             {c.status === "Connected" && <IconButton size={34} icon={<Icons.retry size={16} />} tip={t("Sambungkan ulang (perbarui izin)")} onClick={() => reconnect(c)} />}
-            <IconButton size={34} icon={<Icons.swap size={16} />} tip={t("Pindahkan ke brand lain")} onClick={() => setMoveAcct(c)} />
-            <IconButton size={34} icon={<Icons.edit size={16} />} tip={t("Ubah nama akun")} onClick={() => setEditAcct(c)} />
+            {!isTh && <IconButton size={34} icon={<Icons.swap size={16} />} tip={t("Pindahkan ke brand lain")} onClick={() => setMoveAcct(c)} />}
+            {!isTh && <IconButton size={34} icon={<Icons.edit size={16} />} tip={t("Ubah nama akun")} onClick={() => setEditAcct(c)} />}
             <IconButton size={34} icon={<Icons.trash size={16} />} tone="danger" tip={t("Hapus akun")} onClick={() => app.confirm({
               title: t("Hapus {0}?", [c.handle]), danger: true, confirmLabel: t("Hapus akun"), body: t("Akun ini diputus dari SinaraCast."),
               consequence: t("Jadwal & postingannya berhenti. Akun disembunyikan, bukan dihapus permanen."), onConfirm: () => app.archiveChannel(c) })} />
           </div>
         </div>
-        {!isTT && (
+        {c.platform === "instagram" && (
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 10, fontFamily: FC, fontSize: 11 }}>
             <span style={{ color: "var(--ink-400)", marginRight: 2 }}>{t("Izin:")}</span>
             {c.igScopes
@@ -154,6 +155,21 @@ export function ConnectionsView() {
                 : br.accounts.map(c => <AccountRow key={c.id} c={c} />)}
             </Panel>
           ))}
+
+          {/* Threads: only used by the Hermes agent, so it lives outside the brands */}
+          {phase === "ready" && (
+            <Panel pad={0}>
+              <div style={{ display: "flex", alignItems: "center", gap: 11, padding: app.isMobile ? "14px 14px" : "15px 18px", flexWrap: "wrap" }}>
+                <PlatIcon p="threads" size={22} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontFamily: FC, fontWeight: 700, fontSize: 15.5, color: "var(--ink-900)" }}>Threads</div>
+                  <div style={{ fontFamily: FC, fontSize: 11.5, color: "var(--ink-400)", marginTop: 2 }}>{t("Dipakai agen Hermes untuk posting dan membalas komentar. Tidak muncul di Buat Postingan.")}</div>
+                </div>
+                <Button size="sm" variant="secondary" icon={<Icons.plus size={14} />} onClick={() => app.connectThreadsChannel()}>{t("Sambungkan Threads")}</Button>
+              </div>
+              {(app.threadsChannels || []).map(c => <AccountRow key={c._id} c={c} />)}
+            </Panel>
+          )}
         </div>
 
         {/* right: telegram + meta checklist */}

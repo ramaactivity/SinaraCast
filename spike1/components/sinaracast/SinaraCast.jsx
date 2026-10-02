@@ -57,6 +57,7 @@ export default function SinaraCast() {
   const [library, setLibrary] = uA({});
   const [notifs, setNotifs] = uA([]);
   const [channels, setChannels] = uA([]);
+  const [threadsChannels, setThreadsChannels] = uA([]);
   const [settings, setSettings] = uA(DEFAULT_SETTINGS);
   const [profile, setProfile] = uA(DEFAULT_PROFILE);
   const [toast, setToast] = uA(null);
@@ -149,7 +150,7 @@ export default function SinaraCast() {
     setDataLoading(true);
     loadAll().then((d) => {
       if (!active) return;
-      setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setIdeas(d.ideas || []); setLibrary(d.library || {}); setNotifs(d.notifs); setFollowerSeries(d.followerSeries || {}); setSpecialDays(d.specialDays || []);
+      setChannels(d.channels); setThreadsChannels(d.threadsChannels || []); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setIdeas(d.ideas || []); setLibrary(d.library || {}); setNotifs(d.notifs); setFollowerSeries(d.followerSeries || {}); setSpecialDays(d.specialDays || []);
       setSettings(d.settings); setProfile(d.profile);
       applyScope(d.brands || [], d.channels);
       setDataLoading(false);
@@ -159,7 +160,7 @@ export default function SinaraCast() {
 
   const reload = useCallback(async () => {
     const d = await loadAll();
-    setChannels(d.channels); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setIdeas(d.ideas || []); setLibrary(d.library || {}); setNotifs(d.notifs); setFollowerSeries(d.followerSeries || {}); setSpecialDays(d.specialDays || []);
+    setChannels(d.channels); setThreadsChannels(d.threadsChannels || []); setRules(d.rules); setRuns(d.runs); setOneoffs(d.oneoffs || []); setPlans(d.plans || []); setIdeas(d.ideas || []); setLibrary(d.library || {}); setNotifs(d.notifs); setFollowerSeries(d.followerSeries || {}); setSpecialDays(d.specialDays || []);
     setSettings(d.settings); setProfile(d.profile);
     applyScope(d.brands || [], d.channels);
   }, [applyScope]);
@@ -268,6 +269,7 @@ export default function SinaraCast() {
   };
   const connectChannel = () => startConnect("/connect/start", "Instagram");
   const connectTikTokChannel = () => startConnect("/connect/tiktok/start", "TikTok");
+  const connectThreadsChannel = () => startConnect("/connect/threads/start", "Threads");
 
   const postNow = async (r) => {
     showToast(t("Menerbitkan “{0}” ke Instagram…", [r.name]), "info");
@@ -383,6 +385,7 @@ export default function SinaraCast() {
   // Archive (remove) a channel — disappears from the app, its rules stop firing.
   const archiveChannelFn = async (c) => {
     setChannels(cs => cs.filter(x => x.id !== c.id));
+    setThreadsChannels(cs => cs.filter(x => x._id !== c._id));
     try { await archiveChannel(c._id); showToast(t("{0} dihapus — rule-nya berhenti memposting", [c.name]), "success"); }
     catch (e) { showToast(t("Gagal menghapus: {0}", [e.message || e]), "error"); await reload(); }
   };
@@ -441,7 +444,7 @@ export default function SinaraCast() {
   const ctx = { view, params, go, channel, setChannel, brands: liveBrands, brand, activeBrand, brandAccounts, selectBrand, rules, setRules, runs, setRuns, oneoffs, plans, ideas, followerSeries, specialDays, setSpecialDays, library, notifs, setNotifs,
     channels, setChannels, settings, setSettings, profile, pauseAll: settings.pauseAll, toast: showToast, confirm, alert,
     updateRule, deleteRule, markRead, markAllRead, postNow, session, signOut, dataLoading, reload,
-    toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, connectTikTokChannel, saveSettings,
+    toggleRuleActive, toggleChannelPause, togglePauseAll, connectChannel, connectTikTokChannel, connectThreadsChannel, threadsChannels, saveSettings,
     connectTelegram, disconnectTelegram, testTelegram, renameChannel: renameChannelFn, archiveChannel: archiveChannelFn, exportData, deleteEverything,
     skipToday, unskipToday, swapToday,
     theme, setTheme, lang, setLang,
