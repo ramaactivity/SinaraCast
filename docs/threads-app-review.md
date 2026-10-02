@@ -22,6 +22,11 @@ review untuk akun Tetra sendiri.
 2. SinaraCast → Manajemen Akun → panel Threads → **Sambungkan ulang** akun @tetraphotobooth supaya token baru
    ikut membawa izin pencarian. Cek: `threads_cari` tidak lagi menjawab "izin belum diberikan" (masih ada
    peringatan "hanya postingan sendiri" sampai review lolos).
+   Lalu buka **Testing** → "Access the Threads API": tiap izin yang akan diajukan butuh minimal 1 panggilan API
+   (data muncul ≤24 jam). `threads_basic`, `threads_read_replies`, `threads_keyword_search` terpenuhi oleh
+   pemakaian Bruno (lihat postingan, baca komentar, cari). `threads_content_publish` dan `threads_manage_replies`
+   terpenuhi setelah Bruno memposting dan membalas sekali. `threads_profile_discovery`, `threads_location_tagging`,
+   `threads_delete` tidak dipakai: jangan diajukan.
 3. **App settings → Basic**: isi Privacy Policy URL, Terms URL, Data deletion URL (tabel di atas), kategori
    "Business and pages", ikon app. Simpan.
 4. **Verifikasi bisnis** (kalau diminta): Business Settings → Security Center → Start verification (dokumen usaha
