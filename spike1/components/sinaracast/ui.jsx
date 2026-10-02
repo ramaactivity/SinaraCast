@@ -87,7 +87,7 @@ export function Menu({ children, icon, danger, onClick }) {
     <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
       style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", border: "none", cursor: "pointer", borderRadius: 9,
         background: h ? (danger ? "var(--danger-bg)" : "rgba(140,144,158,.1)") : "transparent", color: danger ? "var(--danger)" : "var(--ink-700)",
-        fontFamily: F, fontSize: 13, fontWeight: 500, textAlign: "left" }}>{icon}{children}</button>
+        fontFamily: F, fontSize: 13, fontWeight: 500, textAlign: "left" }}><span style={{ flex: "0 0 auto", display: "grid" }}>{icon}</span>{children}</button>
   );
 }
 

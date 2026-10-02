@@ -852,7 +852,6 @@ export const EN = {
   "pengikut": "followers",
   "Aktif s/d": "Valid until",
   "Sambungkan ulang": "Reconnect",
-  "Sambungkan ulang (perbarui izin)": "Reconnect (refresh permissions)",
   "Pindahkan ke brand lain": "Move to another brand",
   "Ubah nama akun": "Rename account",
   "Hapus akun": "Remove account",

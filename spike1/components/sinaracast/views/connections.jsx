@@ -195,8 +195,8 @@ export function ConnectionsView() {
           <div data-acct-menu style={{ position: "relative" }}>
             <IconButton size={34} icon={<Icons.more size={18} />} tip={t("Lainnya")} active={menuOpen} onClick={() => setOpenMenu(menuOpen ? null : c._id)} />
             {menuOpen && (
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 50, background: "var(--veil)", borderRadius: 13, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 5, width: 230, animation: "scPop .14s" }}>
-                {!broken && <Menu icon={<Icons.retry size={16} />} onClick={pick(() => reconnect(c))}>{t("Sambungkan ulang (perbarui izin)")}</Menu>}
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 50, background: "var(--veil)", borderRadius: 13, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 5, width: 220, animation: "scPop .14s" }}>
+                {!broken && <Menu icon={<Icons.retry size={16} />} onClick={pick(() => reconnect(c))}>{t("Sambungkan ulang")}</Menu>}
                 {!isTh && <Menu icon={<Icons.swap size={16} />} onClick={pick(() => setMoveAcct(c))}>{t("Pindahkan ke brand lain")}</Menu>}
                 {!isTh && <Menu icon={<Icons.edit size={16} />} onClick={pick(() => setEditAcct(c))}>{t("Ubah nama akun")}</Menu>}
                 <div style={{ height: 1, background: "var(--line)", margin: "4px 0" }} />
@@ -317,14 +317,16 @@ function TelegramCard() {
     <Panel strong>
       <SectionTitle sub={t("Pemberitahuan gagal selalu aktif")}>Telegram</SectionTitle>
       {tg.connected ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--green-100)", borderRadius: 13, padding: "12px 14px" }}>
-          <span style={{ width: 36, height: 36, borderRadius: 11, background: "var(--green-grad)", color: "#fff", display: "grid", placeItems: "center", flex: "0 0 auto" }}><Icons.telegram size={19} /></span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: FC, fontWeight: 600, fontSize: 13, color: "var(--ink-900)" }}>{t("Terhubung")}</div>
-            <div style={{ fontFamily: FC, fontSize: 11.5, color: "var(--ink-500)" }}>{tg.handle}</div>
+        <div style={{ background: "var(--green-100)", borderRadius: 13, padding: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+            <span style={{ width: 36, height: 36, borderRadius: 11, background: "var(--green-grad)", color: "#fff", display: "grid", placeItems: "center", flex: "0 0 auto" }}><Icons.telegram size={19} /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: FC, fontWeight: 600, fontSize: 13, color: "var(--ink-900)" }}>{t("Terhubung")}</div>
+              <div style={{ fontFamily: FC, fontSize: 11.5, color: "var(--ink-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tg.handle}</div>
+            </div>
+            <IconButton size={30} icon={<Icons.x size={15} />} tip={t("Putuskan")} onClick={() => app.confirm({ title: t("Putuskan Telegram?"), danger: true, confirmLabel: t("Putuskan"), body: t("Pemberitahuan tetap muncul di aplikasi, tapi tidak dikirim ke Telegram."), onConfirm: () => app.disconnectTelegram() })} />
           </div>
-          <Button size="sm" variant="secondary" onClick={() => app.testTelegram()}>{t("Kirim tes")}</Button>
-          <IconButton icon={<Icons.x size={16} />} tip={t("Putuskan")} onClick={() => app.confirm({ title: t("Putuskan Telegram?"), danger: true, confirmLabel: t("Putuskan"), body: t("Pemberitahuan tetap muncul di aplikasi, tapi tidak dikirim ke Telegram."), onConfirm: () => app.disconnectTelegram() })} />
+          <Button size="sm" variant="secondary" full icon={<Icons.send size={14} />} style={{ marginTop: 10 }} onClick={() => app.testTelegram()}>{t("Kirim tes")}</Button>
         </div>
       ) : (
         <div>

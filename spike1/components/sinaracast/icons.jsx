@@ -24,7 +24,7 @@ export const Icons = {
   play: (p) => <I {...p}><path d="M7 5.5l11 6.5-11 6.5z"/></I>,
   pause: (p) => <I {...p}><rect x="6.5" y="5" width="3.5" height="14" rx="1.2" fill="currentColor" stroke="none"/><rect x="14" y="5" width="3.5" height="14" rx="1.2" fill="currentColor" stroke="none"/></I>,
   skip: (p) => <I {...p}><path d="M5 5l9 7-9 7zM18 5v14"/></I>,
-  swap: (p) => <I {...p}><path d="M7 4l-3 3 3 3"/><path d="M4 7h12a4 4 0 0 1 0 8h-1"/><path d="M17 20l3-3-3-3"/><path d="M20 17H8"/></I>,
+  swap: (p) => <I {...p}><path d="M4 8h15M15 4l4 4-4 4"/><path d="M20 16H5M9 12l-4 4 4 4"/></I>,
   retry: (p) => <I {...p}><path d="M20 11a8 8 0 1 0-1.5 5.5"/><path d="M20 5v5h-5"/></I>,
   upload: (p) => <I {...p}><path d="M12 16V5M8 9l4-4 4 4"/><path d="M5 16v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></I>,
   image: (p) => <I {...p}><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-4-7 6"/></I>,
