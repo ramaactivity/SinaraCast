@@ -117,6 +117,9 @@ export async function GET(request) {
 
     const svc = svcClient();
     const nowIso = new Date().toISOString();
+    // Scopes the user actually granted (array or comma string, depending on API version).
+    const perms = shortJson.permissions;
+    const igScopes = Array.isArray(perms) ? perms : typeof perms === "string" ? perms.split(",").map((x) => x.trim()).filter(Boolean) : null;
     const fields = {
       handle: `@${username}`, name: displayName, ig_user_id: igUserId, access_token: longToken,
       token_status: "connected",
@@ -124,6 +127,7 @@ export async function GET(request) {
       last_refresh_at: nowIso,
       ...(followers != null ? { followers } : {}),
       ...(meJson.profile_picture_url ? { avatar_url: meJson.profile_picture_url } : {}),
+      ...(igScopes ? { ig_scopes: igScopes } : {}),
     };
 
     // Already connected this IG account? -> update token in place (reconnect).
