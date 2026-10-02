@@ -3,7 +3,7 @@ import React from "react";
 import { Icons } from "../icons";
 import { useApp } from "../store";
 import { Topbar } from "../shell";
-import { BRANDS, BrandAvatar, Panel, Button, IconButton, Status, Field, Input, Select, SectionTitle, Skeleton, Modal, PlatIcon } from "../ui";
+import { BRANDS, BrandAvatar, Panel, Button, IconButton, Field, Input, Select, SectionTitle, Skeleton, Modal, PlatIcon, Menu, ST, statusLabel } from "../ui";
 import { createBrand, renameBrand, setChannelBrand, deleteBrand, listKompetitor, addKompetitor, removeKompetitor, listBrunoActivity } from "../dataLayer";
 import { t } from "../i18n";
 const { useState: uCn } = React;
@@ -104,6 +104,15 @@ export function ConnectionsView() {
   const [editAcct, setEditAcct] = uCn(null);     // account (channel) rename
   const [moveAcct, setMoveAcct] = uCn(null);     // account → brand mover
   const [nameModal, setNameModal] = uCn(null);   // { brand?, mode } create/rename brand
+  const [openMenu, setOpenMenu] = uCn(null);     // channel _id whose "⋯" menu is open
+  React.useEffect(() => {
+    if (!openMenu) return;
+    const onDoc = (e) => { if (!e.target.closest?.("[data-acct-menu]")) setOpenMenu(null); };
+    const onKey = (e) => { if (e.key === "Escape") setOpenMenu(null); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [openMenu]);
   const channels = app.channels;
   const brands = app.brands || [];
 
@@ -138,51 +147,66 @@ export function ConnectionsView() {
     onConfirm: async () => { try { await deleteBrand(br.id); await app.reload(); app.toast(t("Brand dihapus"), "success"); } catch (e) { app.toast(t("Gagal: {0}", [e.message || e]), "error"); } },
   });
 
-  // One account, rendered as a row inside its brand's panel.
+  // One account, rendered as a row inside its brand's panel. Calm by design:
+  // one primary action, everything rare behind "⋯", meta + permissions aligned
+  // under the handle.
   const AccountRow = ({ c }) => {
     const b = acctStyle(c);
-    const isTT = c.platform === "tiktok" || c.platform === "threads"; // dark badge
     const isTh = c.platform === "threads"; // agent-only: no pause, brand move, or rename
+    const st = c.paused ? "Paused" : c.status;
+    const stColor = (ST[st] || ST.Skipped)[0];
+    const broken = c.status === "Needs reconnect" || c.status === "Expiring";
+    const menuOpen = openMenu === c._id;
+    const pick = (fn) => () => { setOpenMenu(null); fn(); };
+    const dot = <span style={{ color: "var(--ink-300)" }}>·</span>;
     return (
-      <div style={{ borderTop: "1px solid var(--line-soft)", padding: app.isMobile ? "12px 14px" : "13px 18px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: app.isMobile ? "wrap" : "nowrap" }}>
-          <BrandAvatar brand={b} src={c.avatarUrl} size={38} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-              <span style={{ fontFamily: FC, fontWeight: 600, fontSize: 14.5, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{c.handle}</span>
-              <span style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 4, fontFamily: FC, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", padding: "2px 7px 2px 5px", borderRadius: 6, color: isTT ? "#fff" : "#b8338a", background: isTT ? "#111" : "#fbe6f3" }}><PlatIcon p={c.platform} size={11} color={isTT ? "#fff" : "#b8338a"} />{PLAT[c.platform]?.l || c.platform}</span>
-              <span style={{ flex: "0 0 auto" }}><Status s={c.paused ? "Paused" : c.status} pulse={c.status === "Needs reconnect"} /></span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 4, fontFamily: FC, fontSize: 11.5, color: "var(--ink-400)", flexWrap: "wrap", rowGap: 2 }}>
-              <span>{c.followers} {t("pengikut")}</span><span style={{ color: "var(--ink-300)" }}>·</span><span>{t("Aktif s/d")} {c.tokenExpires}</span>
-            </div>
+      <div style={{ borderTop: "1px solid var(--line-soft)", padding: app.isMobile ? "14px 14px" : "14px 18px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <BrandAvatar brand={b} src={c.avatarUrl} size={40} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+            <PlatIcon p={c.platform} size={15} />
+            <span style={{ fontFamily: FC, fontWeight: 600, fontSize: 14.5, color: "var(--ink-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{c.handle}</span>
           </div>
-          <div style={{ display: "flex", gap: 5, alignItems: "center", flex: "0 0 auto", marginLeft: app.isMobile ? 0 : "auto", marginTop: app.isMobile ? 6 : 0, width: app.isMobile ? "100%" : "auto", justifyContent: app.isMobile ? "flex-start" : "flex-end" }}>
-            {c.status === "Needs reconnect" || c.status === "Expiring"
-              ? <Button size="sm" variant={c.status === "Needs reconnect" ? "danger" : "secondary"} icon={<Icons.retry size={15} />} onClick={() => reconnect(c)}>{t("Sambungkan ulang")}</Button>
-              : !isTh && <Button size="sm" variant={c.paused ? "primary" : "secondary"} icon={c.paused ? <Icons.play size={15} /> : <Icons.pause size={15} />} onClick={() => app.toggleChannelPause(c, nameOf(c))}>{c.paused ? t("Lanjutkan") : t("Jeda")}</Button>}
-            {c.status === "Connected" && <IconButton size={34} icon={<Icons.retry size={16} />} tip={t("Sambungkan ulang (perbarui izin)")} onClick={() => reconnect(c)} />}
-            {!isTh && <IconButton size={34} icon={<Icons.swap size={16} />} tip={t("Pindahkan ke brand lain")} onClick={() => setMoveAcct(c)} />}
-            {!isTh && <IconButton size={34} icon={<Icons.edit size={16} />} tip={t("Ubah nama akun")} onClick={() => setEditAcct(c)} />}
-            <IconButton size={34} icon={<Icons.trash size={16} />} tone="danger" tip={t("Hapus akun")} onClick={() => app.confirm({
-              title: t("Hapus {0}?", [c.handle]), danger: true, confirmLabel: t("Hapus akun"), body: t("Akun ini diputus dari SinaraCast."),
-              consequence: t("Jadwal & postingannya berhenti. Akun disembunyikan, bukan dihapus permanen."), onConfirm: () => app.archiveChannel(c) })} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, fontFamily: FC, fontSize: 12, color: "var(--ink-500)", flexWrap: "wrap", rowGap: 2 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: stColor, fontWeight: 600 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: stColor }} />{statusLabel(st)}
+            </span>
+            {!isTh && <>{dot}<span>{c.followers} {t("pengikut")}</span></>}
+            {dot}<span>{t("Aktif s/d")} {c.tokenExpires}</span>
+          </div>
+          {c.platform === "instagram" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", rowGap: 4, marginTop: 7, fontFamily: FC, fontSize: 11.5 }}>
+              {c.igScopes
+                ? IG_PERMS.map(([k, label]) => {
+                    const on = c.igScopes.includes(k);
+                    return <span key={k} title={on ? t("Aktif") : t("Tidak aktif")} style={{ display: "inline-flex", alignItems: "center", gap: 4, color: on ? "var(--ink-700, var(--ink-900))" : "var(--ink-300)" }}>
+                      {on ? <Icons.check size={12} sw={2.4} style={{ color: "var(--st-success)" }} /> : <Icons.x size={11} sw={2} />}{t(label)}
+                    </span>;
+                  })
+                : <span style={{ color: "var(--ink-400)" }}>{t("Izin belum tercatat. Sambungkan ulang untuk melihatnya.")}</span>}
+            </div>
+          )}
+          {c.status === "Needs reconnect" && <div style={{ marginTop: 10, background: "var(--danger-bg)", borderRadius: 10, padding: "8px 11px", fontFamily: FC, fontSize: 11.5, color: "var(--danger)", display: "flex", gap: 8 }}><Icons.alert size={15} style={{ flex: "0 0 auto" }} />{t("Koneksi ke")} {PLAT[c.platform]?.l || c.platform} {t("putus. Posting dihentikan sampai disambungkan kembali.")}</div>}
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flex: "0 0 auto" }}>
+          {broken
+            ? <Button size="sm" variant={c.status === "Needs reconnect" ? "danger" : "secondary"} icon={<Icons.retry size={15} />} onClick={() => reconnect(c)}>{t("Sambungkan ulang")}</Button>
+            : !isTh && <Button size="sm" variant={c.paused ? "primary" : "secondary"} icon={c.paused ? <Icons.play size={14} /> : <Icons.pause size={14} />} onClick={() => app.toggleChannelPause(c, nameOf(c))}>{c.paused ? t("Lanjutkan") : t("Jeda")}</Button>}
+          <div data-acct-menu style={{ position: "relative" }}>
+            <IconButton size={34} icon={<Icons.more size={18} />} tip={t("Lainnya")} active={menuOpen} onClick={() => setOpenMenu(menuOpen ? null : c._id)} />
+            {menuOpen && (
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 50, background: "var(--veil)", borderRadius: 13, boxShadow: "var(--shadow-lg)", border: "1px solid var(--line)", padding: 5, width: 230, animation: "scPop .14s" }}>
+                {!broken && <Menu icon={<Icons.retry size={16} />} onClick={pick(() => reconnect(c))}>{t("Sambungkan ulang (perbarui izin)")}</Menu>}
+                {!isTh && <Menu icon={<Icons.swap size={16} />} onClick={pick(() => setMoveAcct(c))}>{t("Pindahkan ke brand lain")}</Menu>}
+                {!isTh && <Menu icon={<Icons.edit size={16} />} onClick={pick(() => setEditAcct(c))}>{t("Ubah nama akun")}</Menu>}
+                <div style={{ height: 1, background: "var(--line)", margin: "4px 0" }} />
+                <Menu icon={<Icons.trash size={16} />} danger onClick={pick(() => app.confirm({
+                  title: t("Hapus {0}?", [c.handle]), danger: true, confirmLabel: t("Hapus akun"), body: t("Akun ini diputus dari SinaraCast."),
+                  consequence: t("Jadwal & postingannya berhenti. Akun disembunyikan, bukan dihapus permanen."), onConfirm: () => app.archiveChannel(c) }))}>{t("Hapus akun")}</Menu>
+              </div>
+            )}
           </div>
         </div>
-        {c.platform === "instagram" && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 10, fontFamily: FC, fontSize: 11 }}>
-            <span style={{ color: "var(--ink-400)", marginRight: 2 }}>{t("Izin:")}</span>
-            {c.igScopes
-              ? IG_PERMS.map(([k, label]) => {
-                  const on = c.igScopes.includes(k);
-                  return <span key={k} title={on ? t("Aktif") : t("Tidak aktif")} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px 2px 6px", borderRadius: 999, fontWeight: 600, color: on ? "var(--st-success)" : "var(--st-skipped)", background: on ? "var(--st-success-bg)" : "var(--st-skipped-bg)" }}>
-                    {on ? <Icons.check size={11} sw={2.4} /> : <Icons.x size={11} sw={2.4} />}{t(label)}
-                  </span>;
-                })
-              : <span style={{ color: "var(--ink-400)" }}>{t("belum tercatat. Sambungkan ulang untuk melihat izin akun ini.")}</span>}
-          </div>
-        )}
-        {c.status === "Needs reconnect" && <div style={{ marginTop: 11, background: "var(--danger-bg)", borderRadius: 11, padding: "9px 12px", fontFamily: FC, fontSize: 11.5, color: "var(--danger)", display: "flex", gap: 8 }}><Icons.alert size={15} style={{ flex: "0 0 auto" }} />{t("Koneksi ke")} {PLAT[c.platform]?.l || c.platform} {t("putus. Posting dihentikan sampai disambungkan kembali.")}</div>}
       </div>
     );
   };
@@ -255,7 +279,15 @@ export function ConnectionsView() {
         {/* right: telegram + meta checklist */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <TelegramCard />
-          <Panel>
+          {META_STEPS.every(s => s.done)
+            ? <Panel pad={14}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ width: 26, height: 26, borderRadius: "50%", flex: "0 0 auto", display: "grid", placeItems: "center", background: "var(--green-100)", color: "var(--green-500)" }}><Icons.check size={14} sw={2.4} /></span>
+                  <span style={{ flex: 1, fontFamily: FC, fontSize: 13, fontWeight: 600, color: "var(--ink-900)" }}>{t("Penyiapan selesai")}</span>
+                  <Button size="sm" variant="ghost" icon={<Icons.external size={14} />} onClick={() => app.go("onboarding")}>{t("Panduan")}</Button>
+                </div>
+              </Panel>
+            : <Panel>
             <SectionTitle sub={t("Sekali saja di awal")}>{t("Langkah penyiapan")}</SectionTitle>
             <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
               {META_STEPS.map((s, i) => (
@@ -267,7 +299,7 @@ export function ConnectionsView() {
               ))}
             </div>
             <Button size="sm" variant="ghost" full icon={<Icons.external size={15} />} style={{ marginTop: 14, justifyContent: "flex-start" }} onClick={() => app.go("onboarding")}>{t("Buka panduan lengkap")}</Button>
-          </Panel>
+          </Panel>}
         </div>
       </div>
 

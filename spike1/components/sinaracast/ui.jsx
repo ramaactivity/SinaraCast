@@ -80,6 +80,17 @@ export function Button({ children, variant = "primary", size = "md", icon, iconR
   );
 }
 
+// Item in a "⋯" dropdown (rules + account rows).
+export function Menu({ children, icon, danger, onClick }) {
+  const [h, setH] = useState(false);
+  return (
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", border: "none", cursor: "pointer", borderRadius: 9,
+        background: h ? (danger ? "var(--danger-bg)" : "rgba(140,144,158,.1)") : "transparent", color: danger ? "var(--danger)" : "var(--ink-700)",
+        fontFamily: F, fontSize: 13, fontWeight: 500, textAlign: "left" }}>{icon}{children}</button>
+  );
+}
+
 export function IconButton({ icon, tip, active, tone = "neutral", size = 38, onClick, style, ...p }) {
   const [h, setH] = useState(false);
   const tones = {
@@ -100,7 +111,7 @@ export function IconButton({ icon, tip, active, tone = "neutral", size = 38, onC
 }
 
 /* ---------------- Status badge ---------------- */
-const ST = {
+export const ST = {
   Published: ["var(--st-success)", "var(--st-success-bg)"],
   Publishing: ["var(--st-publishing)", "var(--st-publishing-bg)"],
   Scheduled: ["var(--st-scheduled)", "var(--st-scheduled-bg)"],

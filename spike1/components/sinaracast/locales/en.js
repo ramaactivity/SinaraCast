@@ -1095,9 +1095,7 @@ export const EN = {
   "Terbitkan postingan": "Publish posts",
   "Statistik": "Insights",
   "Pesan (DM)": "Messages (DM)",
-  "Izin:": "Permissions:",
   "Tidak aktif": "Not active",
-  "belum tercatat. Sambungkan ulang untuk melihat izin akun ini.": "not recorded yet. Reconnect to see this account's permissions.",
   "Dipakai agen Hermes untuk posting, membalas komentar, dan ikut mengobrol di postingan orang lain. Tidak muncul di Buat Postingan.": "Used by the Hermes agent to post, reply to comments, and join conversations on other people's posts. Not shown in Create Post.",
   "Akun kompetitor": "Competitor accounts",
   "Bruno tidak akan membalas postingan dari akun di daftar ini.": "Bruno will never reply to posts from accounts on this list.",
@@ -1115,4 +1113,7 @@ export const EN = {
   "Ikut mengobrol di Threads": "Joined a Threads conversation",
   "ke": "to",
   "Lihat postingan": "View post",
+  "Izin belum tercatat. Sambungkan ulang untuk melihatnya.": "Permissions not recorded yet. Reconnect to see them.",
+  "Penyiapan selesai": "Setup complete",
+  "Panduan": "Guide",
 };

@@ -22,7 +22,7 @@ export const Icons = {
   bell: (p) => <I {...p}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></I>,
   plus: (p) => <I {...p}><path d="M12 5v14M5 12h14"/></I>,
   play: (p) => <I {...p}><path d="M7 5.5l11 6.5-11 6.5z"/></I>,
-  pause: (p) => <I {...p}><rect x="6.5" y="5" width="3.5" height="14" rx="1.2"/><rect x="14" y="5" width="3.5" height="14" rx="1.2"/></I>,
+  pause: (p) => <I {...p}><rect x="6.5" y="5" width="3.5" height="14" rx="1.2" fill="currentColor" stroke="none"/><rect x="14" y="5" width="3.5" height="14" rx="1.2" fill="currentColor" stroke="none"/></I>,
   skip: (p) => <I {...p}><path d="M5 5l9 7-9 7zM18 5v14"/></I>,
   swap: (p) => <I {...p}><path d="M7 4l-3 3 3 3"/><path d="M4 7h12a4 4 0 0 1 0 8h-1"/><path d="M17 20l3-3-3-3"/><path d="M20 17H8"/></I>,
   retry: (p) => <I {...p}><path d="M20 11a8 8 0 1 0-1.5 5.5"/><path d="M20 5v5h-5"/></I>,

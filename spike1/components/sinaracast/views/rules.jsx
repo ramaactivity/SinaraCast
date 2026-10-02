@@ -5,7 +5,7 @@ import { useApp, useFetchState } from "../store";
 import { Topbar } from "../shell";
 import {
   BRANDS, BrandAvatar, Panel, Card, Button, IconButton, Status, Toggle,
-  Sparkline, MediaThumb, EmptyState, Skeleton, Spinner, SectionTitle, Modal, Banner,
+  Sparkline, MediaThumb, EmptyState, Skeleton, Spinner, SectionTitle, Modal, Banner, Menu,
 } from "../ui";
 import { t } from "../i18n";
 const { useState: uRl } = React;
@@ -225,15 +225,6 @@ function CycleDots({ used, total, color }) {
   );
 }
 
-function Menu({ children, icon, danger, onClick }) {
-  const [h, setH] = uRl(false);
-  return (
-    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", border: "none", cursor: "pointer", borderRadius: 9,
-        background: h ? (danger ? "var(--danger-bg)" : "rgba(140,144,158,.1)") : "transparent", color: danger ? "var(--danger)" : "var(--ink-700)",
-        fontFamily: FR, fontSize: 13, fontWeight: 500, textAlign: "left" }}>{icon}{children}</button>
-  );
-}
 
 /* What's next inspector */
 function NextInspector({ r, b, ch }) {
