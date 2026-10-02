@@ -1115,4 +1115,6 @@ export const EN = {
   "Izin belum tercatat. Sambungkan ulang untuk melihatnya.": "Permissions not recorded yet. Reconnect to see them.",
   "Penyiapan selesai": "Setup complete",
   "Panduan": "Guide",
+  "Email ini belum terdaftar di SinaraCast.": "This email isn't registered with SinaraCast.",
+  "Jangan berikan kode ini ke siapa pun. SinaraCast tidak pernah meminta kode lewat chat, telepon, atau DM. Pastikan alamat di browser adalah": "Never share this code with anyone. SinaraCast will never ask for it by chat, phone or DM. Make sure the address in your browser is",
 };

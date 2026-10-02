@@ -24,7 +24,8 @@ export function SignInView({ onBack }) {
       email,
       options: { emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined },
     });
-    if (error) { setErr(error.message); setStage("form"); return; }
+    // Pendaftaran baru ditutup: email yang belum terdaftar ditolak Supabase dengan pesan Inggris.
+    if (error) { setErr(/signups? not allowed/i.test(error.message) ? t("Email ini belum terdaftar di SinaraCast.") : error.message); setStage("form"); return; }
     setStage("sent");
   };
 
@@ -82,6 +83,10 @@ export function SignInView({ onBack }) {
                 {stage === "verifying" ? t("Memverifikasi…") : t("Masuk")}
               </Button>
               <div style={{ fontFamily: FSi, fontSize: 12, color: "var(--ink-400)", textAlign: "center", marginTop: 12, lineHeight: 1.5 }}>{t("Di browser biasa, kamu juga bisa")} <b>{t("klik tautannya")}</b> {t("di email.")}</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 14, background: "var(--surface-2, rgba(140,144,158,.08))", borderRadius: 11, padding: "9px 11px", fontFamily: FSi, fontSize: 11.5, color: "var(--ink-500)", lineHeight: 1.5 }}>
+                <Icons.info size={15} style={{ flex: "0 0 auto", marginTop: 1 }} />
+                <span>{t("Jangan berikan kode ini ke siapa pun. SinaraCast tidak pernah meminta kode lewat chat, telepon, atau DM. Pastikan alamat di browser adalah")} <b>sinara-cast.vercel.app</b>.</span>
+              </div>
               <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
                 <button onClick={() => { setStage("form"); setErr(""); }} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: FSi, fontSize: 12.5, color: "var(--ink-500)", fontWeight: 600 }}>{t("← Ganti email")}</button>
                 <button onClick={submit} disabled={busy} style={{ background: "none", border: "none", cursor: busy ? "default" : "pointer", fontFamily: FSi, fontSize: 12.5, color: "var(--primary-500)", fontWeight: 600 }}>{t("Kirim ulang kode")}</button>
