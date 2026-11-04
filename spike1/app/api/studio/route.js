@@ -68,10 +68,23 @@ export async function POST(request) {
     if (body?.action === "status") {
       const { data, error } = await svc.from("scheduled_post").select("id, status, scheduled_at, post_type").eq("id", body.id).maybeSingle();
       if (error) throw error;
-      return data ? NextResponse.json({ ok: true, post: data }) : bad("Postingan tidak ditemukan", 404);
+      if (!data) return bad("Postingan tidak ditemukan", 404);
+      // Latest publish attempt: the Instagram link, failure reason and the insights the engine pulls.
+      const { data: run } = await svc.from("post_run")
+        .select("status, published_at, permalink, fail_reason, m_views, m_reach, m_likes, m_comments, m_saves, m_shares")
+        .eq("scheduled_post_id", data.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      return NextResponse.json({ ok: true, post: data, run: run || null });
     }
 
-    return bad("action harus akun, presign, buat, atau status");
+    if (body?.action === "batal") {
+      // Only posts that have not started publishing can be cancelled.
+      const { data, error } = await svc.from("scheduled_post").update({ status: "canceled" })
+        .eq("id", body.id).in("status", ["draft", "scheduled"]).select("id, status").maybeSingle();
+      if (error) throw error;
+      return data ? NextResponse.json({ ok: true, post: data }) : bad("Tidak bisa dibatalkan (sudah diproses atau tidak ada)", 409);
+    }
+
+    return bad("action harus akun, presign, buat, status, atau batal");
   } catch (e) {
     return bad(String(e?.message || e), 500);
   }
