@@ -67,6 +67,7 @@ export async function POST(request) {
   const startMs = Date.now();
   const DEADLINE_MS = 45000; // stop starting new publishes ~45s in; leftovers retry next tick
   const overBudget = () => Date.now() - startMs > DEADLINE_MS;
+  const FEED_START_MS = 15000; // see the one-off loop: feeds start only in the first 15s of a tick
   const nowWib = new Date(Date.now() + 7 * 3600 * 1000);
   const dow = nowWib.getUTCDay();
   const today = wibDateStr(nowWib);
@@ -97,12 +98,15 @@ export async function POST(request) {
   // the 60s function budget last tick): mark it failed + alert so it isn't stranded.
   try {
     const { data: stuck = [] } = due("stuck_posts") ? await svc.from("scheduled_post")
-      .select("id, channel_id").eq("status", "publishing").lt("scheduled_at", staleIso) : { data: [] };
+      .select("id, channel_id, post_type").eq("status", "publishing").lt("scheduled_at", staleIso) : { data: [] };
     for (const sp of stuck || []) {
       await svc.from("scheduled_post").update({ status: "failed" }).eq("id", sp.id);
-      await svc.from("post_run").update({ status: "failed", fail_reason: "Instagram tidak selesai memproses video tepat waktu (mungkin video terlalu berat)." }).eq("scheduled_post_id", sp.id).eq("status", "publishing");
+      const video = sp.post_type === "reels" || sp.post_type === "story";
+      const alasan = video ? "Instagram tidak selesai memproses video tepat waktu (mungkin video terlalu berat)."
+        : "Proses terbit terhenti di tengah jalan (melewati batas waktu server). Jadwalkan ulang postingan ini.";
+      await svc.from("post_run").update({ status: "failed", fail_reason: alasan }).eq("scheduled_post_id", sp.id).eq("status", "publishing");
       const ch = await svc.from("channel").select("owner_id").eq("id", sp.channel_id).maybeSingle();
-      await notify(svc, { ownerId: ch.data?.owner_id, channelId: sp.channel_id, type: "error", title: "Postingan tertahan", body: "Sebuah postingan video gagal selesai diproses tepat waktu. Coba lagi dengan video lebih pendek." });
+      await notify(svc, { ownerId: ch.data?.owner_id, channelId: sp.channel_id, type: "error", title: "Postingan tertahan", body: alasan });
     }
     // Recurring-rule runs (no scheduled_post row) stuck past the window — since
     // video Stories now legitimately wait across ticks, these must alert too
@@ -304,6 +308,9 @@ export async function POST(request) {
       .in("channel_id", chIds);
     for (const post of posts) {
       if (overBudget()) break; // leftover one-offs are still 'scheduled' → next tick picks them up
+      // A feed post (often a multi-slide carousel) needs ~30s of IG calls before its container exists; starting
+      // it late in a tick would get it cut off mid-way. Leave it for the next minute instead (it starts first there).
+      if (post.post_type === "feed" && Date.now() - startMs > FEED_START_MS) continue;
       const channel = chById[post.channel_id];
       if (!channel) continue;
       try {

@@ -475,11 +475,11 @@ export async function resumeRuleStory(svc, { channel, run }) {
     r = await igCall("GET", `/${containerId}`, { fields: "status_code", access_token: token });
     statusCode = r.json.status_code;
     if (statusCode === "FINISHED") break;
-    if (statusCode === "ERROR") return fail("Instagram gagal memproses video ini.");
+    if (statusCode === "ERROR") return fail(post.post_type === "feed" ? "Instagram gagal memproses gambar feed ini." : "Instagram gagal memproses video ini.");
     await sleep(2500);
   }
-  if (statusCode !== "FINISHED") { await log("Video masih diproses Instagram — dicek lagi menit berikutnya."); return { processing: true, runId: run.id }; }
-  await log("Video siap");
+  if (statusCode !== "FINISHED") { await log(`${post.post_type === "feed" ? "Feed" : "Video"} masih diproses Instagram — dicek lagi menit berikutnya.`); return { processing: true, runId: run.id }; }
+  await log(post.post_type === "feed" ? "Feed siap" : "Video siap");
 
   const published = await publishContainer(igu, token, containerId, { isStory: true });
   if (!published.id) return fail(published.error);
@@ -700,17 +700,20 @@ export async function publishFeedOneoff(svc, { channel, post }) {
     if (!r.json.id) return fail(r.json.error?.message || "Gagal menyiapkan carousel di Instagram");
     containerId = r.json.id;
   }
+  // Persist the container id so the next cron tick can finish the publish (resumeOneoffContainer) when this
+  // tick runs out of its 60s budget — a 5-slide carousel already spends ~25s creating its children.
+  await svc.from("post_run").update({ ig_media_id: containerId }).eq("id", run.id);
 
   // Wait for the (parent) container to finish processing.
   let statusCode = "";
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 6; i++) { // ~15s this tick, then resume next tick
     const r = await igCall("GET", `/${containerId}`, { fields: "status_code", access_token: token });
     statusCode = r.json.status_code;
     if (statusCode === "FINISHED") break;
     if (statusCode === "ERROR") return fail("Media feed diproses ERROR");
     await sleep(2500);
   }
-  if (statusCode !== "FINISHED") return fail("Instagram belum selesai memproses gambar feed tepat waktu. Coba lagi.");
+  if (statusCode !== "FINISHED") { await log("Feed masih diproses Instagram — diterbitkan otomatis menit berikutnya."); return { processing: true, runId: run.id }; }
   await log("Feed siap");
 
   let r = await igCall("POST", `/${igu}/media_publish`, { creation_id: containerId, access_token: token });
@@ -859,8 +862,8 @@ export async function resumeOneoffContainer(svc, { channel, post, run }) {
   const label = post.post_type === "reels" ? "Reels" : post.post_type === "feed" ? "Feed" : "Story";
   await notify(svc, { ownerId: channel.owner_id, channelId: channel.id, type: "success", title: `${label} terbit — ${chLabel}`, body: `${label} berhasil terbit ke Instagram.`, runId: run.id });
 
-  // free the uploaded video file (free-tier storage)
-  try {
+  // free the uploaded video file (free-tier storage); feed images are kept like publishFeedOneoff does
+  if (post.post_type !== "feed") try {
     const { data: links = [] } = await svc.from("scheduled_post_media").select("asset_id").eq("post_id", post.id).order("position").limit(1);
     if (links[0]?.asset_id) {
       const { data: a } = await svc.from("media_asset").select("storage_path").eq("id", links[0].asset_id).single();
