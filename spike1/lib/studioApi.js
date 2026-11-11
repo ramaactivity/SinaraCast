@@ -29,6 +29,8 @@ export function checkStudioPost(p, now = new Date()) {
   if (p.post_type === "story" && !videos && !igImage(media[0].format)) return "Gambar story harus JPG (syarat Instagram)";
   if (p.post_type === "reels" && (media.length !== 1 || videos !== 1)) return "Reels butuh tepat satu video";
   if (p.caption != null && String(p.caption).length > 2200) return "Caption lebih dari 2.200 karakter";
+  const tags = String(p.caption ?? "").match(/#[\p{L}\p{N}_]+/gu)?.length ?? 0;
+  if (tags > 30) return `Hashtag ${tags}, maksimal 30 (syarat Instagram)`;
   if (p.status === "scheduled") {
     const t = Date.parse(p.scheduled_at || "");
     if (!Number.isFinite(t)) return "Jadwal (scheduled_at) wajib untuk status scheduled";

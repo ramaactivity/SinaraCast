@@ -27,3 +27,8 @@ test("rejects non-https media and unknown type", () => {
   assert.match(checkStudioPost({ post_type: "feed", status: "draft", media: [{ url: "http://x/a.jpg", format: "jpg" }] }, now), /URL/);
   assert.match(checkStudioPost({ post_type: "tiktok", status: "draft", media: img(1) }, now), /Jenis/);
 });
+test("caption max 30 hashtags", () => {
+  const tags = (n) => Array.from({ length: n }, (_, i) => `#tag${i}`).join(" ");
+  assert.equal(checkStudioPost({ post_type: "feed", status: "draft", media: img(1), caption: tags(30) }, now), null);
+  assert.match(checkStudioPost({ post_type: "feed", status: "draft", media: img(1), caption: tags(31) }, now), /Hashtag 31/);
+});

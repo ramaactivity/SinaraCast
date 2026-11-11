@@ -37,8 +37,10 @@ async function igCall(method, path, params) {
 // "The requested resource does not exist"). Observed in the wild on healthy
 // tokens + reachable media, on two accounts minutes apart — i.e. their side.
 // A real problem (bad media, missing permission) repeats and still surfaces.
-const TRANSIENT_IG = /unknown error|Media ID is not available|requested resource does not exist|temporarily|please try again|rate limit|internal error/i;
-const isTransientIg = (err) => TRANSIENT_IG.test(err?.message || "");
+// "Only photo or video can be accepted" = Instagram's fetcher failed to download
+// our media URL (seen 24 Oct on an image that published fine before and after).
+const TRANSIENT_IG = /unknown error|Media ID is not available|requested resource does not exist|temporarily|please try again|rate limit|internal error|Only photo or video can be accepted/i;
+export const isTransientIg = (err) => TRANSIENT_IG.test(err?.message || "");
 
 // Create a media container, retrying transient Instagram errors. Safe to repeat:
 // a container that is never published just expires (24h), it posts nothing.
