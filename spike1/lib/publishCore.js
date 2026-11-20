@@ -39,7 +39,9 @@ async function igCall(method, path, params) {
 // A real problem (bad media, missing permission) repeats and still surfaces.
 // "Only photo or video can be accepted" = Instagram's fetcher failed to download
 // our media URL (seen 24 Oct on an image that published fine before and after).
-const TRANSIENT_IG = /unknown error|Media ID is not available|requested resource does not exist|temporarily|please try again|rate limit|internal error|Only photo or video can be accepted/i;
+// "Timeout" = Instagram's fetcher timed out downloading one of our images (Outentika carousel 20 Nov 17.30
+// failed on a single slide; the same 5 slides published fine on the retry 19.21).
+const TRANSIENT_IG = /unknown error|Media ID is not available|requested resource does not exist|temporarily|please try again|rate limit|internal error|Only photo or video can be accepted|timeout|timed out/i;
 export const isTransientIg = (err) => TRANSIENT_IG.test(err?.message || "");
 
 // Create a media container, retrying transient Instagram errors. Safe to repeat:
@@ -686,21 +688,25 @@ export async function publishFeedOneoff(svc, { channel, post }) {
 
   // Build the container: single image, or a CAROUSEL of child items.
   let containerId;
+  // Every container goes through createContainer so a transient Instagram error (fetch timeout, "unknown error")
+  // is retried instead of failing the whole post. Carousel children get 2 tries each to stay inside the 60s tick.
   if (paths.length === 1) {
-    const r = await igCall("POST", `/${igu}/media`, { image_url: publicImageUrl(paths[0]), caption, access_token: token });
-    if (!r.json.id) return fail(r.json.error?.message || "Gagal menyiapkan feed di Instagram");
-    containerId = r.json.id;
+    const c = await createContainer(igu, { image_url: publicImageUrl(paths[0]), caption, access_token: token });
+    if (!c.id) return fail(c.error || "Gagal menyiapkan feed di Instagram");
+    if (c.retried) await log("Instagram sempat gagal mengambil gambar — berhasil setelah dicoba ulang.");
+    containerId = c.id;
   } else {
     const childIds = [];
     for (const p of paths.slice(0, 10)) {
-      const r = await igCall("POST", `/${igu}/media`, { image_url: publicImageUrl(p), is_carousel_item: true, access_token: token });
-      if (!r.json.id) return fail(r.json.error?.message || "Gagal menyiapkan salah satu gambar carousel");
-      childIds.push(r.json.id);
+      const c = await createContainer(igu, { image_url: publicImageUrl(p), is_carousel_item: true, access_token: token }, 2);
+      if (!c.id) return fail(c.error || "Gagal menyiapkan salah satu gambar carousel");
+      if (c.retried) await log(`Gambar carousel ${childIds.length + 1} berhasil setelah dicoba ulang.`);
+      childIds.push(c.id);
     }
     await log(`${childIds.length} gambar carousel disiapkan`);
-    const r = await igCall("POST", `/${igu}/media`, { media_type: "CAROUSEL", children: childIds.join(","), caption, access_token: token });
-    if (!r.json.id) return fail(r.json.error?.message || "Gagal menyiapkan carousel di Instagram");
-    containerId = r.json.id;
+    const c = await createContainer(igu, { media_type: "CAROUSEL", children: childIds.join(","), caption, access_token: token });
+    if (!c.id) return fail(c.error || "Gagal menyiapkan carousel di Instagram");
+    containerId = c.id;
   }
   // Persist the container id so the next cron tick can finish the publish (resumeOneoffContainer) when this
   // tick runs out of its 60s budget — a 5-slide carousel already spends ~25s creating its children.
